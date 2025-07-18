@@ -1,0 +1,6 @@
+@CMS_Scrappers_HostAddress = http://localhost:5201
+
+GET {{CMS_Scrappers_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

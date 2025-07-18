@@ -1,0 +1,49 @@
+# .NET build results
+**/bin/
+**/obj/
+
+# .NET user-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / VS Code / Visual Studio settings
+.idea/
+.vscode/
+.vs/
+
+# DotCover
+*.dotCover
+
+# Build artifacts
+*.dll
+*.exe
+*.app
+*.pdb
+*.cache
+*.db
+*.log
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Entity Framework Migrations
+Migrations/
+
+# Secrets
+secrets.json
+appsettings.*.json
+
+# OS-specific
+.DS_Store
+Thumbs.db
