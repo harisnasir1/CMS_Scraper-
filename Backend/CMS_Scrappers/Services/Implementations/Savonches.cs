@@ -1,10 +1,26 @@
 using HtmlAgilityPack;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 
-public class Savonches:IScrappers
+public class Savonches : IScrappers
 {
+    private static readonly string Scrappername="Savonches";
+    private   DateTime TimeStart {get;set;}
+    private   DateTime TimeEnd {get;set;} 
     private static readonly string baseUrl = "https://savonches.com/";
-    private static readonly HttpClient client = new();
+    private static readonly string producturl = $"{baseUrl}/products";
+    private readonly HttpClient _client;
+    private readonly Scrap_shopify _Scrap_shopify;
+
+    private readonly IScrapperRepository _scrapperRepository;
+
+    public Savonches(Scrap_shopify scrap_Shopify, IHttpClientFactory clientFactory,IScrapperRepository scrapperRepository)
+    {
+        _Scrap_shopify = scrap_Shopify;
+        _scrapperRepository=scrapperRepository;
+        _client = clientFactory.CreateClient();
+        _client.Timeout = TimeSpan.FromSeconds(30);
+    }
 
     private static readonly string[] agents = new[]
     {
@@ -19,66 +35,73 @@ public class Savonches:IScrappers
         return agents[rand.Next(agents.Length)];
     }
 
-    public async void ScrapeAsync()   //need to chang this when we store int he db
+    public async Task ScrapeAsync()
     {
-        var productLinks = new List<string>();
-        
-        for (int page = 1; page <= 2; page++)
+        try
         {
-            await Task.Delay(RandomDelay());
-            var url = $"https://savonches.com/collections/new-arrivals?page={page}";
-
-            var doc = await LoadPage(url);
-            var products = doc.DocumentNode.SelectNodes("//div[contains(@class,'product-card-wrapper')]");
-
-            if (products == null) continue;
-
-            foreach (var item in products)
+            Console.WriteLine("Starting scraping process...");
+           
+           var start =await _scrapperRepository.Startrun("Savonches");
+           if(!start) return;
+            
+            TimeStart=DateTime.UtcNow;
+            
+            var allproducts = await _Scrap_shopify.Getproducts(producturl);
+           
+            foreach (var p in allproducts)
             {
-                var links = item.Descendants("a")
-                                .Where(a => a.Attributes.Contains("href"))
-                                .Select(a => a.Attributes["href"].Value)
-                                .Distinct();
-
-                foreach (var href in links)
+                try
                 {
-                    var full = href.StartsWith("/") ? baseUrl + href.TrimStart('/') : href;
-                    if (!productLinks.Contains(full)) productLinks.Add(full);
+                    var link = $"{baseUrl}products/{p.Handle}";
+                    await Task.Delay(RandomDelay());
+                    var doc = await LoadPage(link);
+
+                    var imgNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class,'product__media')]//img");
+                    var titleNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class,'product__title')]");
+
+                    string? name = titleNode?.SelectSingleNode(".//small")?.InnerText?.Trim();
+                    string? brand = titleNode?.SelectSingleNode(".//h1")?.InnerText?.Trim();
+                    string? fullName = titleNode?.SelectSingleNode(".//h2")?.InnerText?.Trim();
+                    string? price = doc.DocumentNode.SelectSingleNode("//span[contains(@class,'price-item--regular')]")?.InnerText?.Trim();
+
+                    string? imgSrc = imgNode?.GetAttributeValue("src", null);
+                    if (imgSrc != null && imgSrc.StartsWith("//")) imgSrc = "https:" + imgSrc;
+
+                    Console.WriteLine("----------------product-------------- ");
+                    Console.WriteLine($"url: {link}");
+                    Console.WriteLine($"Name: {name}");
+                    Console.WriteLine($"Brand: {brand}");
+                    Console.WriteLine($"Price: {price}");
+                    Console.WriteLine($"Image: {imgSrc}");
+                    Console.WriteLine("-----------------end-------------------\n");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error processing product {p.Handle}: {ex.Message}");
+                    continue; // Continue with next product
                 }
             }
+
+            TimeEnd=DateTime.UtcNow;
+            TimeSpan Diff=TimeEnd-TimeStart;
+            
+          await  _scrapperRepository.Stoprun(Diff.ToString(),"Savonches");
         }
-
-        foreach (var link in productLinks)
+        catch (Exception ex)
         {
-            await Task.Delay(RandomDelay());
-            var doc = await LoadPage(link);
-
-            var imgNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class,'product__media')]//img");
-            var titleNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class,'product__title')]");
-
-            string? name = titleNode?.SelectSingleNode(".//small")?.InnerText?.Trim();
-            string? brand = titleNode?.SelectSingleNode(".//h1")?.InnerText?.Trim();
-            string? fullName = titleNode?.SelectSingleNode(".//h2")?.InnerText?.Trim();
-            string? price = doc.DocumentNode.SelectSingleNode("//span[contains(@class,'price-item--regular')]")?.InnerText?.Trim();
-
-            string? imgSrc = imgNode?.GetAttributeValue("src", null);
-            if (imgSrc != null && imgSrc.StartsWith("//")) imgSrc = "https:" + imgSrc;
-
-            Console.WriteLine("----------------product-------------- ");
-            Console.WriteLine($"url: {link}");
-            Console.WriteLine($"Name: {name}");
-            Console.WriteLine($"Brand: {brand}");
-            Console.WriteLine($"Price: {price}");
-            Console.WriteLine($"Image: {imgSrc}");
-            Console.WriteLine("-----------------end-------------------\n");
+            Console.WriteLine($"Fatal error during scraping: {ex.Message}");
+            throw;
         }
     }
 
     private async Task<HtmlDocument> LoadPage(string url)
     {
-        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.UserAgent.ParseAdd(RandomUserAgent());
-        var res = await client.SendAsync(req);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+        req.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
+
+        var res = await _client.SendAsync(req);
         res.EnsureSuccessStatusCode();
 
         var html = await res.Content.ReadAsStringAsync();

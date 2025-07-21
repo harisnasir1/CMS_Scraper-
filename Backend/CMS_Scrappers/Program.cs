@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Net.Http;
+using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,17 +12,24 @@ var Jwtsettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
 
 builder.Services.AddSingleton(Jwtsettings);
 
-builder.Services.AddDbContext<AppDbContext>(option =>
-option.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+// Database context registration
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
+    ServiceLifetime.Scoped  // This is important!
 );
 
-
+// Repository registrations
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-
+builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
+builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
+// Scraper services
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
+builder.Services.AddScoped<IScrappers, Savonches>();
 
 builder.Services.AddControllers();
-
 
 builder.Services.AddCors(options =>
 {
@@ -31,7 +40,6 @@ builder.Services.AddCors(options =>
           .AllowAnyMethod()
           .AllowCredentials();
     });
-    
 });
 
 

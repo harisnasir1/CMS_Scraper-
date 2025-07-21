@@ -1,16 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Net.Http.Headers;
 
 public class Sdata
 {
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
-
     public Guid Uid { get; set; }
     [ForeignKey("Uid")]
     public User User { get; set; }
-
-    
     public Guid Sid{get;set;}
     [ForeignKey("Sid")]
     public  Scrapper Scr{get;set;}
@@ -18,6 +16,7 @@ public class Sdata
     public string Brand { get; set; } = "";
     public string Image { get; set; } = "";
     public string Description { get; set; } = "";
+    public string ProductUrl {get;set;}="";
     public int Price { get; set; } = 0;
     public int Sellprice { get; set; } = 0;
     public string Category { get; set; } = "";
