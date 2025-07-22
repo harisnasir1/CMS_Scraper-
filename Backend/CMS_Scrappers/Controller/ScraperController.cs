@@ -1,17 +1,21 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 
+namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 [ApiController]
 [Route("api/[controller]")]
 public class ScraperController : ControllerBase
 {
-    private readonly IScrappers _scraper;
     private readonly IBackgroundTaskQueue _taskQueue;
+    
+    private readonly IShopifyScrapperFact _shopifyscrapperfactory;
 
-    public ScraperController(IScrappers scraper,IBackgroundTaskQueue taskQueue)
+  
+    
+
+    public ScraperController(IBackgroundTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory)
     {
-        _scraper = scraper;
-        
+  
+        _shopifyscrapperfactory=shopifyscrapperfactory;
         _taskQueue=taskQueue;
     }
 
@@ -28,8 +32,9 @@ public class ScraperController : ControllerBase
         {
              _taskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>{
                 using var scope = serviceProvider.CreateScope();
-                var scrapp=scope.ServiceProvider.GetRequiredService<IScrappers>();
-                await scrapp.ScrapeAsync(); 
+                var Shopifyscrfactory=scope.ServiceProvider.GetRequiredService<IShopifyScrapperFact>();
+                var scraper=Shopifyscrfactory.CreateScraper("savonches");
+                await scraper.ScrapeAsync();
              });
 
             return Ok("Scraping started - check console for results");

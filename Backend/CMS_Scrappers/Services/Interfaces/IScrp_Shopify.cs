@@ -1,6 +1,8 @@
 
 
+using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
+
 public interface Scrap_shopify{
 
-    Task<List<ShopifyFlatProduct>> Getproducts(string url);
+    Task<ShopifyGetAllProductsResponse> Getproducts(string url);
 }
