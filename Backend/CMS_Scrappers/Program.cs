@@ -24,10 +24,13 @@ builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
+builder.Services.AddSingleton<ShoipfyScrapper>();
+builder.Services.AddScoped<SavonchesStrategy>();
+builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 // Scraper services
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
-builder.Services.AddScoped<IScrappers, Savonches>();
+
 
 builder.Services.AddControllers();
 
@@ -69,6 +72,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
+
+
+
+
+
 
 var app = builder.Build();
 
