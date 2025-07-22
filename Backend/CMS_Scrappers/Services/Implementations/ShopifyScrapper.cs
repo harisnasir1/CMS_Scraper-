@@ -21,7 +21,7 @@ public class ShoipfyScrapper:Scrap_shopify{
     {
         while (true)
         {
-            var endpoint = $"https://savonches.com/products.json?limit=550&page={page}";
+            var endpoint = $"https://savonches.com/products.json?limit=2&page={page}";
 
             var response = await _httpClient.GetAsync(endpoint);
             
@@ -36,30 +36,54 @@ public class ShoipfyScrapper:Scrap_shopify{
 
             foreach (var product in parsed.Products)
             {
+               decimal priceDecimal = 0;
+               decimal.TryParse(product?.Variants[0].Price,out priceDecimal);
+               string Ge=GetGender(product.Tags);
+              
                 var flat = new ShopifyFlatProduct
                 {
                     Id = product.Id,
                     Title = product.Title,
                     Handle = product.Handle,
-                    ImageUrls = product.Images?.Select(img => img.Src).ToList() ?? new List<string>()
+                    ImageUrls = product.Images?.Select(img => img.Src).ToList() ?? new List<string>(),
+                    Category=product.ProductType,
+                    Price=priceDecimal,
+                    Brand=product.Vendor,
+                    Gender=Ge
                 };
-
                 allProducts.Add(flat);
-
             }
+            break;
             await Task.Delay(5000); 
-
-           break;
+           
         }
     }
     catch (Exception ex)
     {
         Console.WriteLine($"Error while fetching products: {ex.Message}");
-        // Optionally, rethrow or handle error accordingly
+      
         throw;
     }
    
     return allProducts;
 }
 
+ private string GetGender(List<string> tags)
+ {
+              string Gender="";
+               if(tags.Contains("Male"))
+               {
+                  return "Male";
+               }
+               else if (tags.Contains("Female"))
+               {
+                 return"Female";
+               }
+               else if(tags.Contains("Unisex")){
+                 return"Unisex";
+               }
+               else{
+                return" ";
+               }
+ }
 }
