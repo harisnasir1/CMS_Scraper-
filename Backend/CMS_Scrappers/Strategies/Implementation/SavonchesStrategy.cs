@@ -4,13 +4,10 @@ using System.Text;
 using System.Net.Http.Headers;
 public class SavonchesStrategy : IShopifyParsingStrategy
 {
-
     private static readonly string Scrappername = "SavonchesStrategy";
     private readonly ILogger<SavonchesStrategy> _looger;
-  
     private readonly HttpClient _client;
     private readonly Scrap_shopify _Scrap_shopify;
-
     private readonly IScrapperRepository _scrapperRepository;
     public SavonchesStrategy(Scrap_shopify scrap_Shopify, IHttpClientFactory clientFactory, IScrapperRepository scrapperRepository, ILogger<SavonchesStrategy> logger)
     {
@@ -28,32 +25,49 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     };
     public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, string storeBaseUrl)
     {
-      
-        var allProducts = new List<ShopifyFlatProduct>();
-        foreach (var page in rawProduct.Pages)
-        {
-            foreach (var product in page.Products)
-            {
-                decimal priceDecimal = 0;
-                decimal.TryParse(product?.Variants[0].Price, out priceDecimal);
-                string Ge = GetGender(product.Tags);
 
-                var flat = new ShopifyFlatProduct
-                {
-                    Id = product.Id,
-                    Title = product.Title,
-                    Handle = product.Handle,
-                    ImageUrls = product.Images?.Select(img => img.Src).ToList() ?? new List<string>(),
-                    Category = product.ProductType,
-                    Price = priceDecimal,
-                    Brand = product.Vendor,
-                    Gender = Ge
-                };
-                await Get_attributes(flat,storeBaseUrl);
-                allProducts.Add(flat);
-            }
-        }
-        return allProducts;
+    var allRawProducts = rawProduct.Pages.SelectMany(page => page.Products);
+
+
+    var initialProductList = allRawProducts.Select(product =>
+    {
+      
+        var images = product.Images.Select(i => new ProductImageRecordDTO
+        {
+            Priority = i.Position,
+            Url = i.Src
+        }).ToList();
+
+        var variants = product.Variants.Select(v => new ProductVariantRecordDTO
+        {
+            Size = v.Option1,
+            SKU = v.Sku,
+            Available = v.Available ? 1 : 0,
+            Price = decimal.TryParse(v.Price, out var p) ? p : 0
+        }).ToList();
+
+        return new ShopifyFlatProduct
+        {
+            Id = product.Id,
+            Title = product.Title,
+            Handle = product.Handle,
+            Images = images,
+            Variants = variants,
+            Category = product.ProductType,
+            Price = decimal.TryParse(product.Variants.FirstOrDefault()?.Price, out var price) ? price : 0,
+            Brand = product.Vendor,
+            Gender = GetGender(product.Tags)
+        };
+    }).ToList();
+
+    
+    var enrichmentTasks = initialProductList
+        .Select(p => Get_attributes(p, storeBaseUrl));
+
+        await Task.WhenAll(enrichmentTasks);
+
+    return initialProductList;
+
     }
     private async Task Get_attributes(ShopifyFlatProduct p,string url)
     {
@@ -63,7 +77,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
             await Task.Delay(RandomDelay());
             var doc = await LoadPage(link);
 
-            p.Sizes = Getsovanchesizes(doc);
+            // p.Sizes = Getsovanchesizes(doc);
             p.Description = Getdescription(doc);
             p.ScraperName=Scrappername;
 
@@ -73,11 +87,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
             Console.WriteLine($"Error processing product {p.Handle}: {ex.Message}");
 
         }
-
-
-
     }
-
     private string GetGender(List<string> tags)
     {
         string Gender = "";
@@ -118,9 +128,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         var rand = new Random();
         return agents[rand.Next(agents.Length)];
     }
-
     private static int RandomDelay() => new Random().Next(1500, 3500);
-
     private List<string> Getsovanchesizes(HtmlDocument doc)
     {
         List<string> availableSizes = new List<string>();
@@ -162,7 +170,6 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         return availableSizes;
     }
-
     private string Getdescription(HtmlDocument doc)
     {
         string Description = "";
@@ -191,5 +198,4 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         return sb.ToString();
     }
-
 }

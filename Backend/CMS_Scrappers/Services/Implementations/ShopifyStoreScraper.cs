@@ -36,8 +36,11 @@ public class ShopifyStoreScraper
        
         TimeStart = DateTime.UtcNow;
         var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
+
         _logger.LogWarning(System.Text.Json.JsonSerializer.Serialize(rawProduct));
+
         List<ShopifyFlatProduct> flatProduct = await _parsingStrategy.MapAndEnrichProductAsync(rawProduct, _storeBaseUrl);
+        
         TimeEnd = DateTime.UtcNow;
         _logger.LogError(System.Text.Json.JsonSerializer.Serialize(flatProduct));
         TimeSpan Diff = TimeEnd - TimeStart;
