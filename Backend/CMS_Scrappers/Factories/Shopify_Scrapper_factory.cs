@@ -45,6 +45,6 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
              default:
                 throw new NotSupportedException($"Store '{StoreName}' is not supported.");
            }
-            return new ShopifyStoreScraper(StoreName, baseurl, _looger, _shopifyclient, strategy, _scrapperRepository);
+            return new ShopifyStoreScraper(StoreName, baseurl, _looger, _shopifyclient, strategy, _scrapperRepository,_serviceProvider);
         }
 }

@@ -14,6 +14,7 @@ public class ShopifyFlatProduct
     public string? ProductUrl { get; set; }
     public decimal? Price { get; set; }
     public string? Category { get; set; }
+    public string? ProductType {get;set;}
     public string? Gender { get; set; }
     public string? ScraperName { get; set; }
     public string? Status { get; set; }

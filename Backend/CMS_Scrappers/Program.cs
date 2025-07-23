@@ -26,7 +26,11 @@ builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
 builder.Services.AddSingleton<ShoipfyScrapper>();
 builder.Services.AddScoped<SavonchesStrategy>();
+builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
+builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
+
+
 // Scraper services
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
