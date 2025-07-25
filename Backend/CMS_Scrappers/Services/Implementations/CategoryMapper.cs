@@ -17,6 +17,7 @@ public class CategoryMapper : ICategoryMapper
              (string c,string p)=_ICategoryMappingStrategy.GetCategory(i.Category);
              i.Category=c;
              i.ProductType=p;
+            i.Status = "Categorized";
          }
          return Data; 
     }

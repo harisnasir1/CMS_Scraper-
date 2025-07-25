@@ -13,28 +13,30 @@ public class ShoipfyScrapper:Scrap_shopify{
 
   public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
 {
-          var response = new ShopifyGetAllProductsResponse();
-        var pageNumber = 340;
+        var response = new ShopifyGetAllProductsResponse();
+        var pageNumber = 1;
 
         while (true)
         {
             var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=2&page={pageNumber}");
+                await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
 
             if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
                 throw new Exception();
 
             var productsResponse = await httpResponse.Content.ReadFromJsonAsync<ShopifyStoreProductsResponse>();
 
-            if (productsResponse?.Products.Count == 0)
+            if (productsResponse?.Products.Count == 0 || productsResponse==null )
             {
                 break;
             }
             
             response.Pages.Add(productsResponse);
             pageNumber++;
-            break;
-
+            if(pageNumber>=2){
+                break;
+            }
+            await Task.Delay(4000);
         }
 
         return response;

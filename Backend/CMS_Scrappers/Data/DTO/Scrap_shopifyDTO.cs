@@ -23,6 +23,7 @@ public class ShopifyFlatProduct
     public string? Hashimg { get; set; }
     // If you don't use Hashtext in DB, can omit this or keep as needed
     public string? Hashtext { get; set; }
+    public bool New { get; set; }
 }
 
 public class ProductImageRecordDTO

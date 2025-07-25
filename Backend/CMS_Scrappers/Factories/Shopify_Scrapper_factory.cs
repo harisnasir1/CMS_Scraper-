@@ -13,14 +13,16 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
         private readonly IScrapperRepository _scrapperRepository;
 
         private readonly IServiceProvider _serviceProvider;
+        
+        private readonly ISdataRepository _sdataRepository;
 
         public Shopify_Scrapper_factory (
            
             ShoipfyScrapper shoipfyScrapper
             ,ILogger<ShopifyStoreScraper> logger
             ,IScrapperRepository scrapperRepository,
-            IServiceProvider serviceProvider
-           
+            IServiceProvider serviceProvider,
+           ISdataRepository sdataRepository
         )
         {
          
@@ -28,7 +30,7 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
             _looger=logger;
             _scrapperRepository=scrapperRepository;
             _serviceProvider=serviceProvider;
-           
+            _sdataRepository=sdataRepository;
         }
 
         public ShopifyStoreScraper CreateScraper(string StoreName){
@@ -45,6 +47,6 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
              default:
                 throw new NotSupportedException($"Store '{StoreName}' is not supported.");
            }
-            return new ShopifyStoreScraper(StoreName, baseurl, _looger, _shopifyclient, strategy, _scrapperRepository,_serviceProvider);
+            return new ShopifyStoreScraper(StoreName, baseurl, _looger, _shopifyclient, strategy, _scrapperRepository,_serviceProvider,_sdataRepository);
         }
 }

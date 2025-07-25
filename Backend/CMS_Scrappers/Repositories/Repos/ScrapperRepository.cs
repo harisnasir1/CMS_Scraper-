@@ -70,4 +70,25 @@ public class ScrapperRepository : IScrapperRepository
             Console.WriteLine($"Error in Storerrors: {ex.Message}");
         }
     }
+
+    public async Task <Guid> Giveidbyname(string name)
+    {
+        try
+        {
+            var src = await _context.Scrappers
+                .FirstOrDefaultAsync(u => u.Name == name);
+
+            if (src != null)
+            {
+                return src.ID;
+            }
+
+            return Guid.Empty ;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in Storerrors: {ex.Message}");
+            return Guid.Empty; 
+        }
+    }
 }

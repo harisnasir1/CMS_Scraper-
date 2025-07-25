@@ -1,7 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Net.Http.Headers;
+using Microsoft.EntityFrameworkCore;
 
+
+[Index(nameof(ProductUrl))]
 public class Sdata
 {
     [Key]
@@ -19,13 +22,14 @@ public class Sdata
     public string ProductUrl {get;set;}="";
     public int Price { get; set; } = 0;
     public string Category { get; set; } = "";
+    public string ProductType { get; set; } = "";
     public string Gender { get; set; } = "";
     public string ScraperName { get; set; } = "";
     public string? Status { get; set; } = "";
     public string? StatusDulicateId { get; set; } = "";
     public string? DuplicateSource { get; set; } = "";
     public List<ProductVariantRecord> Variants { get; set; } = new();
-    public string Hashimg { get; set; } = "";
+    public string ? Hashimg { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

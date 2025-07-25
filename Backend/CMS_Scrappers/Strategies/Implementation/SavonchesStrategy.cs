@@ -2,112 +2,185 @@ using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 using HtmlAgilityPack;
 using System.Text;
 using System.Net.Http.Headers;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
 public class SavonchesStrategy : IShopifyParsingStrategy
 {
-    private static readonly string Scrappername = "SavonchesStrategy";
+    private static readonly string Scrappername = "Savonches";
     private readonly ILogger<SavonchesStrategy> _looger;
     private readonly HttpClient _client;
     private readonly Scrap_shopify _Scrap_shopify;
     private readonly IScrapperRepository _scrapperRepository;
-    public SavonchesStrategy(Scrap_shopify scrap_Shopify, IHttpClientFactory clientFactory, IScrapperRepository scrapperRepository, ILogger<SavonchesStrategy> logger)
+    private readonly AppDbContext _context;
+    private readonly IServiceProvider _serviceProvider;
+
+    public SavonchesStrategy(
+        Scrap_shopify scrap_Shopify,
+        IHttpClientFactory clientFactory,
+        IScrapperRepository scrapperRepository,
+        ILogger<SavonchesStrategy> logger,
+        AppDbContext context,
+        IServiceProvider serviceProvider)
     {
         _looger = logger;
         _Scrap_shopify = scrap_Shopify;
         _scrapperRepository = scrapperRepository;
         _client = clientFactory.CreateClient();
         _client.Timeout = TimeSpan.FromSeconds(30);
+        _context = context;
+        _serviceProvider = serviceProvider;
     }
+
     private static readonly string[] agents = new[]
-{
+    {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36"
     };
+
     public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, string storeBaseUrl)
     {
+        var allRawProducts = rawProduct.Pages.SelectMany(page => page.Products);
 
-    var allRawProducts = rawProduct.Pages.SelectMany(page => page.Products);
-
-
-    var initialProductList = allRawProducts.Select(product =>
-    {
-      
-        var images = product.Images.Select(i => new ProductImageRecordDTO
+        var initialProductList = allRawProducts.Select(product =>
         {
-            Priority = i.Position,
-            Url = i.Src
+            var images = product.Images.Select(i => new ProductImageRecordDTO
+            {
+                Priority = i.Position,
+                Url = i.Src
+            }).ToList();
+
+            var variants = product.Variants.Select(v => new ProductVariantRecordDTO
+            {
+                Size = v.Option1,
+                SKU = v.Sku,
+                Available = v.Available ? 1 : 0,
+                Price = decimal.TryParse(v.Price, out var p) ? p : 0
+            }).ToList();
+
+            return new ShopifyFlatProduct
+            {
+                Id = product.Id,
+                Title = product.Title,
+                Handle = product.Handle,
+                Images = images,
+                Variants = variants,
+                Category = product.ProductType,
+                Status="raw",
+                Price = decimal.TryParse(product.Variants.FirstOrDefault()?.Price, out var price) ? price : 0,
+                Brand = product.Vendor,
+                Gender = GetGender(product.Tags)
+            };
+
         }).ToList();
 
-        var variants = product.Variants.Select(v => new ProductVariantRecordDTO
-        {
-            Size = v.Option1,
-            SKU = v.Sku,
-            Available = v.Available ? 1 : 0,
-            Price = decimal.TryParse(v.Price, out var p) ? p : 0
-        }).ToList();
+        var sema = new SemaphoreSlim(5); 
 
-        return new ShopifyFlatProduct
+        var enrichmentTasks = initialProductList.Select(async p =>
         {
-            Id = product.Id,
-            Title = product.Title,
-            Handle = product.Handle,
-            Images = images,
-            Variants = variants,
-            Category = product.ProductType,
-            Price = decimal.TryParse(product.Variants.FirstOrDefault()?.Price, out var price) ? price : 0,
-            Brand = product.Vendor,
-            Gender = GetGender(product.Tags)
-        };
-    }).ToList();
-
-    
-    var enrichmentTasks = initialProductList
-        .Select(p => Get_attributes(p, storeBaseUrl));
+            await sema.WaitAsync();
+            try
+            {
+                await Task.Delay(RandomDelay());
+                var fullUrl = $"{storeBaseUrl}products/{p.Handle}";
+                var skipResult = await ShouldSkip(fullUrl);
+                if (!skipResult.ShouldSkip)
+                {
+                    await Get_attributes(p, storeBaseUrl); 
+                }
+                else
+                {
+                    _looger.LogWarning($"rolling back from the {fullUrl}");
+                    p.ProductUrl = fullUrl;
+                    p.Description = skipResult.ExistingDescription; 
+                    p.ScraperName = Scrappername;
+                    p.New = false;
+                }
+            }
+            finally
+            {
+                sema.Release();
+            }
+        });
 
         await Task.WhenAll(enrichmentTasks);
-
-    return initialProductList;
-
+        return initialProductList;
     }
-    private async Task Get_attributes(ShopifyFlatProduct p,string url)
+
+
+    public async Task<(bool ShouldSkip, string ExistingDescription)> ShouldSkip(string productUrl)
+    {
+        var scope=_serviceProvider.CreateScope();
+       var db= scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var existing = await db.Sdata
+            .Where(p => p.ProductUrl == productUrl )
+            .FirstOrDefaultAsync();
+
+        bool shouldSkip = existing != null;
+        string description = existing?.Description ?? "";
+
+        return (shouldSkip, description);
+    }
+    private async Task Get_attributes(ShopifyFlatProduct p, string url)
     {
         try
         {
             var link = $"{url}products/{p.Handle}";
-            await Task.Delay(RandomDelay());
-            var doc = await LoadPage(link);
+      
+            var doc = await LoadPagewithRetry(link);
 
             // p.Sizes = Getsovanchesizes(doc);
+            p.ProductUrl = link;
             p.Description = Getdescription(doc);
-            p.ScraperName=Scrappername;
-
+            p.ScraperName = Scrappername;
+            p.New = true;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error processing product {p.Handle}: {ex.Message}");
-
         }
     }
+
     private string GetGender(List<string> tags)
     {
-        string Gender = "";
-        if (tags.Contains("Male"))
-        {
-            return "Male";
-        }
-        else if (tags.Contains("Female"))
-        {
-            return "Female";
-        }
-        else if (tags.Contains("Unisex"))
-        {
-            return "Unisex";
-        }
-        else
-        {
-            return " ";
-        }
+        if (tags.Contains("Male")) return "Male";
+        if (tags.Contains("Female")) return "Female";
+        if (tags.Contains("Unisex")) return "Unisex";
+        return string.Empty;
     }
+
+    public async Task<HtmlDocument> LoadPagewithRetry(string url, int maxtry = 4)
+    {
+        int delay = 9000;
+
+        for (int attempt = 1; attempt <= maxtry; attempt++)
+        {
+            try
+            {
+                return await LoadPage(url);
+            }
+            catch (Exception ex)
+            {
+                if (attempt < maxtry)
+                {
+                    _looger.LogError(ex, $"Retrying loading page for {url} (attempt {attempt})");
+                    await Task.Delay(delay);
+                    delay *= 2;
+                }
+                else
+                {
+                    _looger.LogError(ex, $"Failed to load page after {attempt} attempts: {url}");
+                    throw;
+                }
+            }
+        }
+
+        throw new Exception("Unreachable code: LoadPagewithRetry failed all retries.");
+    }
+
     private async Task<HtmlDocument> LoadPage(string url)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
@@ -123,22 +196,22 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         doc.LoadHtml(html);
         return doc;
     }
+
     private static string RandomUserAgent()
     {
         var rand = new Random();
         return agents[rand.Next(agents.Length)];
     }
-    private static int RandomDelay() => new Random().Next(1500, 3500);
+
+    private static int RandomDelay() => new Random().Next(2000, 4000);
+
     private List<string> Getsovanchesizes(HtmlDocument doc)
     {
         List<string> availableSizes = new List<string>();
 
-
         var fieldset = doc.DocumentNode.SelectSingleNode("//fieldset[contains(@class,'product-form__input--pill')]");
-
         if (fieldset != null)
         {
-
             var sizeInputs = fieldset.Descendants("input")
                 .Where(input => input.GetAttributeValue("type", "") == "radio" &&
                                 !input.GetClasses().Contains("disabled"))
@@ -151,7 +224,6 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 availableSizes = sizeInputs;
             }
         }
-
 
         if (!availableSizes.Any())
         {
@@ -167,35 +239,25 @@ public class SavonchesStrategy : IShopifyParsingStrategy
             }
         }
 
-
         return availableSizes;
     }
+
     private string Getdescription(HtmlDocument doc)
     {
-        string Description = "";
         var desdiv = doc.DocumentNode.SelectSingleNode("//div[div[contains(text(), 'Details')]]//span[contains(@class, 'metafield-multi_line_text_field')]");
-        if (desdiv != null)
-        {
-            Description = ExtractTextWithLineBreaks(desdiv);
-        }
-        return Description;
+        return desdiv != null ? ExtractTextWithLineBreaks(desdiv) : string.Empty;
     }
-    static string ExtractTextWithLineBreaks(HtmlNode node)
+
+    private static string ExtractTextWithLineBreaks(HtmlNode node)
     {
         var sb = new StringBuilder();
-
         foreach (var child in node.ChildNodes)
         {
             if (child.Name == "br")
-            {
                 sb.AppendLine();
-            }
             else if (child.NodeType == HtmlNodeType.Text)
-            {
                 sb.Append(child.InnerText.Trim());
-            }
         }
-
         return sb.ToString();
     }
 }
