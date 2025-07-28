@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Net.Http;
 using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
+using CMS_Scrappers.Repositories.Repos;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,13 +21,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Repository registrations
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
 builder.Services.AddSingleton<ShoipfyScrapper>();
 builder.Services.AddScoped<SavonchesStrategy>();
+builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
+builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
+
+
 // Scraper services
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
@@ -72,10 +78,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
-
-
-
-
 
 
 var app = builder.Build();

@@ -14,7 +14,6 @@ public class ScraperController : ControllerBase
 
     public ScraperController(IBackgroundTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory)
     {
-  
         _shopifyscrapperfactory=shopifyscrapperfactory;
         _taskQueue=taskQueue;
     }

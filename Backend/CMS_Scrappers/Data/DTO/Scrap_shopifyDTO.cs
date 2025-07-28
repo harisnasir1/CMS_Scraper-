@@ -14,6 +14,7 @@ public class ShopifyFlatProduct
     public string? ProductUrl { get; set; }
     public decimal? Price { get; set; }
     public string? Category { get; set; }
+    public string? ProductType {get;set;}
     public string? Gender { get; set; }
     public string? ScraperName { get; set; }
     public string? Status { get; set; }
@@ -22,6 +23,7 @@ public class ShopifyFlatProduct
     public string? Hashimg { get; set; }
     // If you don't use Hashtext in DB, can omit this or keep as needed
     public string? Hashtext { get; set; }
+    public bool New { get; set; }
 }
 
 public class ProductImageRecordDTO
