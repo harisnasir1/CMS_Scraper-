@@ -43,4 +43,6 @@ public class ScraperController : ControllerBase
             return StatusCode(500, new { error = "Scraping failed", message = ex.Message });
         }
     }
+
+
 }

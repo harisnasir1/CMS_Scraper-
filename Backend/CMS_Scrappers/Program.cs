@@ -6,6 +6,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Net.Http;
 using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 using CMS_Scrappers.Repositories.Repos;
+using CMS_Scrappers.Repositories.Interfaces;
+using Microsoft.AspNetCore.WebSockets;
+using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +27,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
@@ -31,7 +36,7 @@ builder.Services.AddScoped<SavonchesStrategy>();
 builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
-
+builder.Services.AddScoped<IProducts,ProductsService>();
 
 // Scraper services
 builder.Services.AddHttpClient();
