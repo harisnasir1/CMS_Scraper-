@@ -11,7 +11,7 @@ import {
   import { Badge } from "@/components/ui/badge";
   import { usePageTitle } from "@/hooks/use-page-title";
   import {useScrapper} from "@/contexts/Scrapper-context"
-
+  import { useProduct } from '@/contexts/products-context';
 
   const Scrapers=[{
     Name:"Savonches",
@@ -24,29 +24,25 @@ const Scraperspage = () => {
   usePageTitle('Scrapers');
   const {getScrappers}=useScrapper();
   const {scrappers}=useScrapper();
-
+  const {getScraperProducts}=useProduct();
+  
   useEffect(()=>{
     const Getall=async()=>{
       await getScrappers();
     }
     Getall()
   },[])
+
   function normalizedate(d:string)
   {
     const re=d.split("T")[0];
     return re;
   }
+
   function Normalizetime(runtime:string)
   {
     const [hours, minutes, secondsWithMs] = runtime.split(":");
 const seconds = parseFloat(secondsWithMs);
-
-const totalSeconds =
-  Number(hours) * 3600 +
-  Number(minutes) * 60 +
-  seconds;
-
-console.log(totalSeconds); 
 
 
  function pad(n:number) { return n.toString().padStart(2, "0"); }
@@ -87,7 +83,9 @@ return `${h}:${m}:${s}`
                          </TableCell>
                          <TableCell>{normalizedate(scrap.lastrun.toString())}</TableCell>
                          <TableCell>{Normalizetime(scrap.runtime)}</TableCell>
-                         <TableCell className=' text-right'>{<Button className='bg-blue-700 hover:bg-blue-500'>View products </Button>}</TableCell>
+                         <TableCell className=' text-right'>{<Button 
+                         onClick={()=>getScraperProducts(scrap)}
+                         className='bg-blue-700 hover:bg-blue-500'>View products </Button>}</TableCell>
                     </TableRow>
                 ))
             }

@@ -5,7 +5,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import { LoginPage } from './pages/auth/login';
 import { AuthProvider } from '@/contexts/auth-context';
 import {ScrapperProvider} from '@/contexts/Scrapper-context'
-
+import {ProductProvider} from '@/contexts/products-context'
 import { ProtectedRoute } from '@/components/protected-route';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -17,6 +17,8 @@ import { CreateProductPage } from './pages/products/create';
 import ProductSearchPage from './pages/products/search';
 import UsersPage from './pages/users';
 import Scraperspage from './pages/Scrapers';
+import ScrapedProducts from './pages/Scrapers/Product'
+
 import SettingsPage from './pages/settings';
 
 const queryClient = new QueryClient({
@@ -46,6 +48,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <ScrapperProvider>
+           <ProductProvider>
           <RootLayout>
             <Routes>
               <Route path="login" element={<LoginPage />} />
@@ -64,12 +67,14 @@ function App() {
                 <Route path="products/create" element={<CreateProductPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="Scrapers" element={<Scraperspage />} />
+                <Route path="Scrapers/products" element={<ScrapedProducts />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Route>
             </Routes>
             <Toaster />
           </RootLayout>
+          </ProductProvider>
           </ScrapperProvider>
         </AuthProvider>
       </BrowserRouter>
