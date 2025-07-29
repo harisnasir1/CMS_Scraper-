@@ -38,6 +38,14 @@ module.exports = {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
         },
+        running: {
+          DEFAULT: "hsl(var(--running))",
+          foreground: "hsl(var(--running-foreground))",
+        },
+        active: {
+          DEFAULT: "hsl(var(--active))",
+          foreground: "hsl(var(--active-foreground))",
+        },
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",

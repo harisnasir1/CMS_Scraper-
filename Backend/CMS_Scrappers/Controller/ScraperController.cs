@@ -8,12 +8,14 @@ public class ScraperController : ControllerBase
     private readonly IBackgroundTaskQueue _taskQueue;
     
     private readonly IShopifyScrapperFact _shopifyscrapperfactory;
-
+    
+    private readonly IScrapperRepository _repository;
   
     
 
-    public ScraperController(IBackgroundTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory)
+    public ScraperController(IBackgroundTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository)
     {
+        _repository = repository;
         _shopifyscrapperfactory=shopifyscrapperfactory;
         _taskQueue=taskQueue;
     }
@@ -44,5 +46,19 @@ public class ScraperController : ControllerBase
         }
     }
 
+    [HttpGet("Getallscrapers")]
+
+    public async Task <IActionResult> GetScrapers()
+    {
+        try
+        {
+            var result=await _repository.Getallscrapers();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Failed to get Scrapers", message = ex.Message });
+        }
+    }
 
 }

@@ -139,10 +139,10 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --running:  0 84.2% 60.2%;               
-    --running-foreground: 0 0% 100%;      
-    --active: 120 60% 40%;                 
-    --active-foreground: 0 0% 100%;        
+    --running: 39 100% 50%;              
+    --running-foreground: 0 0% 100%; 
+    --active: 142.1 76.2% 36.3%;         
+    --active-foreground: 0 0% 100%;      
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;

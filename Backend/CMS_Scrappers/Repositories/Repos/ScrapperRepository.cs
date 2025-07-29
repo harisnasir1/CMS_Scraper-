@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 
 public class ScrapperRepository : IScrapperRepository
 {
@@ -89,5 +90,10 @@ public class ScrapperRepository : IScrapperRepository
             Console.WriteLine($"Error in Storerrors: {ex.Message}");
             return Guid.Empty; 
         }
+    }
+
+    public async Task<List<Scrapper>> Getallscrapers()
+    {
+        return await _context.Scrappers.ToListAsync();
     }
 }

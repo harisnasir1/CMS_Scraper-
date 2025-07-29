@@ -2,8 +2,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using CMS_Scrappers.Data.Responses.Api_responses;
+using Microsoft.AspNetCore.Authorization;
 namespace CMS_Scrappers.Controller
-{
+{   [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class ProductController : ControllerBase
@@ -17,7 +18,7 @@ namespace CMS_Scrappers.Controller
             _serviceProvider = serviceProvider;
             _logger = logger;
         }
-
+        
         [HttpPost("Readytoreview")]
         public async Task<IActionResult> Readytoreview([FromBody ] ReviewProductRequest request)
         {

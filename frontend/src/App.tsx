@@ -4,6 +4,8 @@ import { useResizeObserver } from '@/hooks/use-resize-observer';
 import DashboardLayout from './layouts/DashboardLayout';
 import { LoginPage } from './pages/auth/login';
 import { AuthProvider } from '@/contexts/auth-context';
+import {ScrapperProvider} from '@/contexts/Scrapper-context'
+
 import { ProtectedRoute } from '@/components/protected-route';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -43,6 +45,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <ScrapperProvider>
           <RootLayout>
             <Routes>
               <Route path="login" element={<LoginPage />} />
@@ -67,6 +70,7 @@ function App() {
             </Routes>
             <Toaster />
           </RootLayout>
+          </ScrapperProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
