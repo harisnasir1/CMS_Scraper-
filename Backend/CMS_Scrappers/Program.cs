@@ -3,6 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Net.Http;
+using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
+using CMS_Scrappers.Repositories.Repos;
+using CMS_Scrappers.Repositories.Interfaces;
+using Microsoft.AspNetCore.WebSockets;
+using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,17 +17,33 @@ var Jwtsettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
 
 builder.Services.AddSingleton(Jwtsettings);
 
-builder.Services.AddDbContext<AppDbContext>(option =>
-option.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+// Database context registration
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
+    ServiceLifetime.Scoped  // This is important!
 );
 
-
+// Repository registrations
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-
+builder.Services.AddScoped<ISdataRepository, SdataRepository>();
+builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
+builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
+builder.Services.AddSingleton<ShoipfyScrapper>();
+builder.Services.AddScoped<SavonchesStrategy>();
+builder.Services.AddScoped<SavonchesCategoryMapper>();
+builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
+builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
+builder.Services.AddScoped<IProducts,ProductsService>();
+
+// Scraper services
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
+
 
 builder.Services.AddControllers();
-
 
 builder.Services.AddCors(options =>
 {
@@ -31,7 +54,6 @@ builder.Services.AddCors(options =>
           .AllowAnyMethod()
           .AllowCredentials();
     });
-    
 });
 
 
@@ -61,6 +83,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
+
 
 var app = builder.Build();
 

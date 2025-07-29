@@ -4,6 +4,8 @@ import { useResizeObserver } from '@/hooks/use-resize-observer';
 import DashboardLayout from './layouts/DashboardLayout';
 import { LoginPage } from './pages/auth/login';
 import { AuthProvider } from '@/contexts/auth-context';
+import {ScrapperProvider} from '@/contexts/Scrapper-context'
+
 import { ProtectedRoute } from '@/components/protected-route';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -14,7 +16,7 @@ import ProductsPage from './pages/products';
 import { CreateProductPage } from './pages/products/create';
 import ProductSearchPage from './pages/products/search';
 import UsersPage from './pages/users';
-import SellPage from './pages/sell';
+import Scraperspage from './pages/Scrapers';
 import SettingsPage from './pages/settings';
 
 const queryClient = new QueryClient({
@@ -43,6 +45,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <ScrapperProvider>
           <RootLayout>
             <Routes>
               <Route path="login" element={<LoginPage />} />
@@ -60,13 +63,14 @@ function App() {
                 <Route path="products/search" element={<ProductSearchPage />} />
                 <Route path="products/create" element={<CreateProductPage />} />
                 <Route path="users" element={<UsersPage />} />
-                <Route path="sell" element={<SellPage />} />
+                <Route path="Scrapers" element={<Scraperspage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Route>
             </Routes>
             <Toaster />
           </RootLayout>
+          </ScrapperProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

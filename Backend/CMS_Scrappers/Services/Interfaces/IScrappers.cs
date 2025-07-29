@@ -1,3 +1,3 @@
 public interface IScrappers{
-    void ScrapeAsync();
+    Task ScrapeAsync();
 }
