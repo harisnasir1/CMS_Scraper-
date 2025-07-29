@@ -39,7 +39,7 @@ const menuSections = [
   {
     items: [
       { text: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, path: 'dashboard' },
-      { text: 'Sell', icon: <ShoppingBag className="w-4 h-4" />, path: 'sell' },
+      { text: 'Scrapers', icon: <ShoppingBag className="w-4 h-4" />, path: 'Scrapers' },
     ]
   },
   {

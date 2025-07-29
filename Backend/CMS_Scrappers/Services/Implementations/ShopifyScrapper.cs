@@ -19,7 +19,7 @@ public class ShoipfyScrapper:Scrap_shopify{
         while (true)
         {
             var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
+                await _httpClient.GetAsync($"{url}/products.json?limit=4&page={pageNumber}");
 
             if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
                 throw new Exception();
@@ -33,12 +33,10 @@ public class ShoipfyScrapper:Scrap_shopify{
             
             response.Pages.Add(productsResponse);
             pageNumber++;
-            if(pageNumber>=2){
-                break;
-            }
-            await Task.Delay(4000);
+            break;
+           
+            await Task.Delay(2000);
         }
-
         return response;
     }
 

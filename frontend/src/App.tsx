@@ -14,7 +14,7 @@ import ProductsPage from './pages/products';
 import { CreateProductPage } from './pages/products/create';
 import ProductSearchPage from './pages/products/search';
 import UsersPage from './pages/users';
-import SellPage from './pages/sell';
+import Scraperspage from './pages/Scrapers';
 import SettingsPage from './pages/settings';
 
 const queryClient = new QueryClient({
@@ -60,7 +60,7 @@ function App() {
                 <Route path="products/search" element={<ProductSearchPage />} />
                 <Route path="products/create" element={<CreateProductPage />} />
                 <Route path="users" element={<UsersPage />} />
-                <Route path="sell" element={<SellPage />} />
+                <Route path="Scrapers" element={<Scraperspage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Route>

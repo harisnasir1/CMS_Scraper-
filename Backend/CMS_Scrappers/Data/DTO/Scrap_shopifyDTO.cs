@@ -16,6 +16,8 @@ public class ShopifyFlatProduct
     public string? Category { get; set; }
     public string? ProductType {get;set;}
     public string? Gender { get; set; }
+    public string Condition { get; set; }
+    public bool Enriched { get; set; } = false;
     public string? ScraperName { get; set; }
     public string? Status { get; set; }
     public string? StatusDulicateId { get; set; }

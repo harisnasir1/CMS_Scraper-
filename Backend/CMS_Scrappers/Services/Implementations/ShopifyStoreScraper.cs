@@ -43,7 +43,7 @@ public class ShopifyStoreScraper : IScrappers
 
         Guid scrapperid = await Getscrapeid("Savonches");
 
-        var start = await _scrapperRepository.Startrun("SavonchesStrategy");
+        var start = await _scrapperRepository.Startrun("Savonches");
 
         TimeStart = DateTime.UtcNow;
 
@@ -61,7 +61,7 @@ public class ShopifyStoreScraper : IScrappers
 
         await _sdataRepository.Add(Trenddata,scrapperid);
   
-        TimeSpan Diff = TimeEnd - TimeStart;
+         TimeSpan Diff = TimeEnd - TimeStart;
 
          await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
 

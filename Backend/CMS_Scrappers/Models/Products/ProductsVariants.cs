@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 public class ProductVariantRecord
 {
     public long Id { get; set; }
-    public Guid SdataId { get; set; }  // Foreign key
+    public Guid SdataId { get; set; }  
     
     [ForeignKey("SdataId")]
     public Sdata Sdata { get; set; }

@@ -84,11 +84,12 @@ public class SavonchesStrategy : IShopifyParsingStrategy
             await sema.WaitAsync();
             try
             {
-                await Task.Delay(RandomDelay());
+               
                 var fullUrl = $"{storeBaseUrl}products/{p.Handle}";
                 var skipResult = await ShouldSkip(fullUrl);
                 if (!skipResult.ShouldSkip)
                 {
+                    await Task.Delay(RandomDelay());
                     await Get_attributes(p, storeBaseUrl); 
                 }
                 else
@@ -113,13 +114,14 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
     public async Task<(bool ShouldSkip, string ExistingDescription)> ShouldSkip(string productUrl)
     {
-        var scope=_serviceProvider.CreateScope();
-       var db= scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        using var scope=_serviceProvider.CreateScope();
+        var db= scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var existing = await db.Sdata
-            .Where(p => p.ProductUrl == productUrl )
+            .Where(p => p.ProductUrl == productUrl && p.Enriched==true )
             .FirstOrDefaultAsync();
 
         bool shouldSkip = existing != null;
+
         string description = existing?.Description ?? "";
 
         return (shouldSkip, description);
@@ -137,6 +139,8 @@ public class SavonchesStrategy : IShopifyParsingStrategy
             p.Description = Getdescription(doc);
             p.ScraperName = Scrappername;
             p.New = true;
+            p.Condition = GetCondition(doc);
+            p.Enriched=true;
         }
         catch (Exception ex)
         {
@@ -247,7 +251,14 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         var desdiv = doc.DocumentNode.SelectSingleNode("//div[div[contains(text(), 'Details')]]//span[contains(@class, 'metafield-multi_line_text_field')]");
         return desdiv != null ? ExtractTextWithLineBreaks(desdiv) : string.Empty;
     }
+    private string GetCondition(HtmlDocument doc)
+    {
+        var conditionNode = doc.DocumentNode.SelectSingleNode(
+                "//div[div[contains(text(), 'Condition')]]/div[contains(@class, 'tw-mb-8')]/p"
+            );
 
+        return conditionNode != null ? conditionNode.InnerText.Trim() : string.Empty;
+    }
     private static string ExtractTextWithLineBreaks(HtmlNode node)
     {
         var sb = new StringBuilder();

@@ -13,7 +13,6 @@ public class ScrapperRepository : IScrapperRepository
     {
         try
         {
-        
             var src = await _context.Scrappers
                 .FirstOrDefaultAsync(u => u.Name == name);
             Console.WriteLine(name);
