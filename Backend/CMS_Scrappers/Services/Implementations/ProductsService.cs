@@ -19,5 +19,12 @@ namespace CMS_Scrappers.Services.Implementations
             var data = await _repository.GiveProducts(id,PageNumber,PageSize);
             return data;
         }
+        public async Task<List<Sdata>> pendingReviewproducts( int PageNumber, int PageSize)
+        {
+
+            var data = await _repository.GetPendingReviewproducts( PageNumber, PageSize);
+            return data;
+        }
+        
     }
 }

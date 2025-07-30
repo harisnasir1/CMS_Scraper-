@@ -12,19 +12,15 @@ import {
   import { usePageTitle } from "@/hooks/use-page-title";
   import {useScrapper} from "@/contexts/Scrapper-context"
   import { useProduct } from '@/contexts/products-context';
-
-  const Scrapers=[{
-    Name:"Savonches",
-    Status:"Active",
-    Lastrun: Date.now(),
-    runtime:"100min"
-  }]
+  import { useNavigate } from 'react-router-dom';
+  
 
 const Scraperspage = () => {
   usePageTitle('Scrapers');
+  const navigate=useNavigate();
   const {getScrappers}=useScrapper();
   const {scrappers}=useScrapper();
-  const {getScraperProducts}=useProduct();
+  const {getScraperProducts,normalizedate,Normalizetime}=useProduct();
   
   useEffect(()=>{
     const Getall=async()=>{
@@ -33,26 +29,7 @@ const Scraperspage = () => {
     Getall()
   },[])
 
-  function normalizedate(d:string)
-  {
-    const re=d.split("T")[0];
-    return re;
-  }
-
-  function Normalizetime(runtime:string)
-  {
-    const [hours, minutes, secondsWithMs] = runtime.split(":");
-const seconds = parseFloat(secondsWithMs);
-
-
- function pad(n:number) { return n.toString().padStart(2, "0"); }
-
-const h = pad(Number(hours));
-const m = pad(Number(minutes));
-const s = pad(Math.floor(seconds));
-return `${h}:${m}:${s}`
-
-  }
+ 
 
   return (
     <div className="flex-1 space-y-4  p-4 sm:p-6 lg:p-8 pt-6">
@@ -84,7 +61,11 @@ return `${h}:${m}:${s}`
                          <TableCell>{normalizedate(scrap.lastrun.toString())}</TableCell>
                          <TableCell>{Normalizetime(scrap.runtime)}</TableCell>
                          <TableCell className=' text-right'>{<Button 
-                         onClick={()=>getScraperProducts(scrap)}
+                         onClick={()=>{
+                          getScraperProducts(scrap,1,10)
+                          navigate(`/Scrapers/products/`)
+                        }
+                         }
                          className='bg-blue-700 hover:bg-blue-500'>View products </Button>}</TableCell>
                     </TableRow>
                 ))

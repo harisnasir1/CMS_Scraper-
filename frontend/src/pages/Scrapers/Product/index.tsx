@@ -11,20 +11,20 @@ import {useProduct} from '@/contexts/products-context'
 import { Input } from '@/components/ui/input';
 import { Badge } from "@/components/ui/badge";
 import Pagination from '@/components/ui/paginations'
-import { useEditor } from '@tiptap/react';
-import { Sdata } from '@/types/Sdata';
+import { useNavigate } from 'react-router-dom';
 
 type Props = {}
 
 function ScrapedProducts({ }: Props) {
   const {SelectedScraper,getScraperProducts,products,totalproducts}=useProduct()
-  const [Pro,setpro]=useState<Sdata[]|null>()
+  const navigate=useNavigate()
+   useEffect(()=>{
+    if(products==null)
+    {
+      navigate('/Scrapers')
+    }
+   },[products])
 
-  useEffect(()=>{
-    if(products){
-   setpro(products)
-  }
-  },[products])
 
   return (
     <div className="flex-1 space-y-4  p-4 sm:p-6 lg:p-8 pt-1">

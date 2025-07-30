@@ -7,8 +7,9 @@ import { AuthProvider } from '@/contexts/auth-context';
 import {ScrapperProvider} from '@/contexts/Scrapper-context'
 import {ProductProvider} from '@/contexts/products-context'
 import { ProtectedRoute } from '@/components/protected-route';
+import Product from './pages/Reviewproducts/Product';
 import { Toaster } from '@/components/ui/toaster';
-
+import Reviewproducts from './pages/Reviewproducts';
 
 // Import pages
 import DashboardPage from './pages/dashboard';
@@ -62,7 +63,8 @@ function App() {
               >
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="products" element={<ProductsPage />} />
+                <Route path="Reviewproducts" element={<Reviewproducts />} />
+                <Route path="Reviewproducts/Product" element={<Product />} />
                 <Route path="products/search" element={<ProductSearchPage />} />
                 <Route path="products/create" element={<CreateProductPage />} />
                 <Route path="users" element={<UsersPage />} />

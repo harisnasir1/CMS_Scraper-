@@ -22,5 +22,16 @@ namespace CMS_Scrappers.Repositories.Repos
                    .Take(PageSize)
                   .ToListAsync();
         }
+        public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
+        {
+            return await _context.Sdata
+                  .Where(s =>  s.Status == "Categorized")
+                  .Include(s => s.Image)
+                  .Include(s => s.Variants)
+                  .Skip((PageNumber - 1) * PageSize)
+                   .Take(PageSize)
+                  .ToListAsync();
+        }
+
     }
 }

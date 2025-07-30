@@ -8,4 +8,9 @@ export class productsapis{
         const response=await api.post<Sdata[]>("Product/Readytoreview",{ScraperId:id,PageNumber,PageSize});
         return response.data;
     }
+    async getpendingreviewproducts(PageNumber:Number,PageSize:Number)
+    {
+        const response=await api.post<Sdata[]>("Product/pendingreview",{PageNumber,PageSize});
+        return response.data;
+    }
 }
