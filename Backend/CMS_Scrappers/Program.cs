@@ -20,15 +20,15 @@ builder.Services.AddSingleton(Jwtsettings);
 // Database context registration
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
-    ServiceLifetime.Scoped  // This is important!
+    ServiceLifetime.Scoped  
 );
 
-// Repository registrations
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IGoogleImageService,GoogleImageService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
 builder.Services.AddSingleton<ShoipfyScrapper>();
@@ -38,7 +38,7 @@ builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
 
-// Scraper services
+
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 

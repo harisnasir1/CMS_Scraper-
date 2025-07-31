@@ -121,8 +121,12 @@ const Product = () => {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="w-full h-[5vh] sm:h-[7vh] bg-black p-5 shrink-0"></div>
+     
+      <div className="  flex items-center justify-end gap-8 mb-4 ">
+           <Button className='bg-[#1D7DBD]'>Re-Push</Button>
+           <Button className="bg-white border-2 border-[#1D7DBD] text-[#1D7DBD]">Back</Button>
+
+      </div>
     </div>
   );
 };
