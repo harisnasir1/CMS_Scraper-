@@ -12,12 +12,14 @@ interface ProductContextType {
   SelectedScraper:Scraper|null,
   Selectedproduct:Sdata|null
   totalproducts:number|null
+  currentPage:number|null
   getScraperProducts: (scr:Scraper,PageNumber:number,PageSize:number) => Promise<void>
   normalizedate:(d:string)=>string
   Normalizetime:(runtime:string)=>string
   normalizeDateTime:(dateString:string)=>string
   getReviewProducts : (PageNumber:number,PageSize:number)=>Promise<void>
   Addselectedproduct:(data:Sdata)=>void
+  Setcurrentpage:(page:number)=>void
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -29,6 +31,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [Selectedproduct,setSelectedproduct]=useState<Sdata|null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [totalproducts,settotalproducts]=useState<number>(0);
+  const [currentPage,setcurrentpage]=useState(1);
   const navigate = useNavigate()
   const api = new productsapis()
 
@@ -59,6 +62,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
      
       const data = await api.getpendingreviewproducts(PageNumber,PageSize)
       setReviewProducts(data);
+      console.log(data)
       settotalproducts(data.length)
       
     } catch (e) {
@@ -74,6 +78,10 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
        setSelectedproduct(data);
   }
 
+  const Setcurrentpage=(page:number)=>
+  {
+       setcurrentpage(page)
+  }
 
 
 
@@ -120,7 +128,10 @@ const seconds = parseFloat(secondsWithMs);
 
 
   return (
-    <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate, Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct}}>
+    <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
+     Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
+     currentPage,Setcurrentpage
+     }}>
       {children}
     </ProductContext.Provider>
   )

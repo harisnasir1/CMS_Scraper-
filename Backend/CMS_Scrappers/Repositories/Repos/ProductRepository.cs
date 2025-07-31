@@ -28,6 +28,7 @@ namespace CMS_Scrappers.Repositories.Repos
                   .Where(s =>  s.Status == "Categorized")
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
+                  .OrderByDescending(s => s.CreatedAt)
                   .Skip((PageNumber - 1) * PageSize)
                    .Take(PageSize)
                   .ToListAsync();

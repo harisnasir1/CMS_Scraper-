@@ -85,7 +85,7 @@ const Reviewproducts = () => {
      
       </div>
       <Pagination
-          totalItems={100}
+          totalItems={120}
           itemsPerPage={10}
           onPageChange={(page:number)=>{
             

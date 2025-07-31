@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-
+import { useProduct } from "@/contexts/products-context";
 type PaginationProps = {
   totalItems: number;
   itemsPerPage: number;
@@ -16,20 +16,22 @@ const Pagination: React.FC<PaginationProps> = ({
   onPageChange,
   className,
 }) => {
-  const [currentPage,setcurrentpage]=useState(1);
+  
+
+  const {currentPage,Setcurrentpage}=useProduct();
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   if (totalPages <= 1) return null;
 
   const handleClick = (page: number) => {
     if (page >= 1 && page <= totalPages){ 
        onPageChange(page)
-      setcurrentpage(page)
+      Setcurrentpage(page)
     };
   };
 
   const getPages = () => {
     const pages: (number | string)[] = [];
-
+    if(currentPage==null)return pages
     if (totalPages <= 5) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
@@ -50,13 +52,13 @@ const Pagination: React.FC<PaginationProps> = ({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <button
-        onClick={() => handleClick(currentPage - 1)}
+        onClick={() => handleClick(currentPage?currentPage - 1:1)}
         disabled={currentPage === 1}
         className="px-3 py-1 text-sm rounded-md border disabled:opacity-40"
       >
         Prev
       </button>
-      {getPages().map((p, i) =>
+      { getPages().map((p, i) =>
         typeof p === "number" ? (
           <button
             key={i}
@@ -75,7 +77,7 @@ const Pagination: React.FC<PaginationProps> = ({
         )
       )}
       <button
-        onClick={() => handleClick(currentPage + 1)}
+        onClick={() => handleClick(currentPage?currentPage + 1:1)}
         disabled={currentPage === totalPages}
         className="px-3 py-1 text-sm rounded-md border disabled:opacity-40"
       >

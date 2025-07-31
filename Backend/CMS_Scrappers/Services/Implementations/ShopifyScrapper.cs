@@ -14,12 +14,12 @@ public class ShoipfyScrapper:Scrap_shopify{
   public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
 {
         var response = new ShopifyGetAllProductsResponse();
-        var pageNumber = 2;
+        var pageNumber = 770;
 
         while (true)
         {
             var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=50&page={pageNumber}");
+                await _httpClient.GetAsync($"{url}/products.json?limit=10&page={pageNumber}");
 
             if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
                 throw new Exception();
