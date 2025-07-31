@@ -13,6 +13,7 @@ interface ProductContextType {
   Selectedproduct:Sdata|null
   totalproducts:number|null
   currentPage:number|null
+  similarimages:string[]|null,
   getScraperProducts: (scr:Scraper,PageNumber:number,PageSize:number) => Promise<void>
   normalizedate:(d:string)=>string
   Normalizetime:(runtime:string)=>string
@@ -20,6 +21,7 @@ interface ProductContextType {
   getReviewProducts : (PageNumber:number,PageSize:number)=>Promise<void>
   Addselectedproduct:(data:Sdata)=>void
   Setcurrentpage:(page:number)=>void
+  GetSimilarImg:(id:string)=>void
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -32,6 +34,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [totalproducts,settotalproducts]=useState<number>(0);
   const [currentPage,setcurrentpage]=useState(1);
+  const [similarimages,setsimilarimages]=useState<string[]|null>([""])
   const navigate = useNavigate()
   const api = new productsapis()
 
@@ -83,6 +86,16 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
        setcurrentpage(page)
   }
 
+  const GetSimilarImg=async(id:string)=>{
+     
+     try{
+        const r:string[]=await api.getsimilarimages(id);
+        setsimilarimages(r);
+     }
+     catch{
+      console.log("error getting similar images")
+     }
+  }
 
 
 
@@ -130,7 +143,7 @@ const seconds = parseFloat(secondsWithMs);
   return (
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
-     currentPage,Setcurrentpage
+     currentPage,Setcurrentpage , similarimages ,GetSimilarImg
      }}>
       {children}
     </ProductContext.Provider>

@@ -34,5 +34,17 @@ namespace CMS_Scrappers.Controller
             return Ok(data);
         }
 
+        [HttpPost("Similarimages")]
+        public async Task<IActionResult> GetSimilarImg([FromBody] SimilarproductRequest request)
+        {
+            Guid id = new Guid(request.productid);
+            ApiResponse<object> data = await _ProductSerivce.GetSimilarimages(id);
+            if (data._Success == false) return BadRequest();
+
+            return Ok(data.Data);
+             
+        }
+
     }
+
 }

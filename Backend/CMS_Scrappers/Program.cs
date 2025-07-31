@@ -10,6 +10,7 @@ using CMS_Scrappers.Repositories.Interfaces;
 using Microsoft.AspNetCore.WebSockets;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Services.Implementations;
+using CMS_Scrappers.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,14 +38,9 @@ builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
-
-
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
-
-
 builder.Services.AddControllers();
-
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -55,8 +51,6 @@ builder.Services.AddCors(options =>
           .AllowCredentials();
     });
 });
-
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -84,6 +78,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+var googleSettings = builder.Configuration
+    .GetSection("_thirdParties")
+    .Get<GoogleAPISettings>();
+
+builder.Services.AddSingleton(googleSettings);
 
 var app = builder.Build();
 

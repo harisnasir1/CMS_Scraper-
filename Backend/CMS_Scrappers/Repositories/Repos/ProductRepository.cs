@@ -33,6 +33,10 @@ namespace CMS_Scrappers.Repositories.Repos
                    .Take(PageSize)
                   .ToListAsync();
         }
+        public async Task<Sdata> Getproductbyid(Guid productid)
+        {
+            return await _context.Sdata.FindAsync(productid);
+        }
 
     }
 }

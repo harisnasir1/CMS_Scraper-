@@ -13,4 +13,9 @@ export class productsapis{
         const response=await api.post<Sdata[]>("Product/pendingreview",{PageNumber,PageSize});
         return response.data;
     }
+    async getsimilarimages( productid:string)
+    {
+      const response=await api.post<string[]>("Product/Similarimages",{productid:productid});
+      return response.data
+    }
 }

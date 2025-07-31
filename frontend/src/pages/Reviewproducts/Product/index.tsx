@@ -6,22 +6,24 @@ import {ImageGallery} from '@/components/ui/ImageGallery'
 import {ArrowBigLeft} from "lucide-react"
 const Product = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime } = useProduct();
+  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg } = useProduct();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [sizes, setSizes] = useState<{size:string,instock:boolean}[]>();
   const [price, setPrice] = useState(0);
   const [condition, setCondition] = useState('');
+  const [images,setimages]=useState<string[]|null>(null)
 
   useEffect(() => {
     if (Selectedproduct) {
+       GetSimilarImg(Selectedproduct.id)
       setTitle(Selectedproduct.title || '');
       setDescription(Selectedproduct.description || '');
       setPrice(Selectedproduct.price || 0);
-      // Ensure variants exist before mapping
       setSizes(Selectedproduct.variants ? Selectedproduct.variants.map(v => ({ size: v.size, instock: v.inStock })) : []);
       setCondition(Selectedproduct.condition || '');
+      setimages(Selectedproduct.image?Selectedproduct.image.map(v=>v.url):[])
     } else {
       navigate("/Reviewproducts");
     }
@@ -116,8 +118,8 @@ const Product = () => {
 
       
         <div className="bg-white lg:flex-[1.3] rounded-lg shadow-sm p-4 space-y-8">
-            <ImageGallery title="Current Images" images={Selectedproduct.image} />
-            <ImageGallery title="Suggested Images" images={Selectedproduct.image} />
+            <ImageGallery title="Current Images" images={images?images:[""]} />
+            <ImageGallery title="Suggested Images" images={similarimages!=null?similarimages:[""]} />
         </div>
       </div>
 

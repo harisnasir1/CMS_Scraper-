@@ -18,7 +18,7 @@ export const ImageGallery = ({
   images,
 }: {
   title: string;
-  images: ProductImageRecord[];
+  images:string[];
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -81,7 +81,7 @@ export const ImageGallery = ({
                     className="aspect-square bg-gray-100 rounded-md overflow-hidden shadow-sm"
                   >
                     <img
-                      src={img.url}
+                      src={img}
                       alt={`${title} ${firstImageIndex + index + 1}`}
                       loading="lazy"
                       className="w-full h-full object-cover"
