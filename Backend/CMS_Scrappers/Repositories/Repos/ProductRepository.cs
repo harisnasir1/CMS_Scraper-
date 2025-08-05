@@ -35,7 +35,45 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<Sdata> Getproductbyid(Guid productid)
         {
-            return await _context.Sdata.FindAsync(productid);
+           return await _context.Sdata
+        .Include(s => s.Image)       // load related images
+        .FirstOrDefaultAsync(s => s.Id == productid);
+        }
+
+        public async Task UpdateImages(Guid id,List<ProductImageRecord> updatedImages)
+        {
+            var data = await _context.Sdata
+                .Include(s => s.Image)
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (data == null)
+                throw new Exception("Sdata not found");
+
+            foreach (var updatedImage in updatedImages)
+            {
+                var existingImage = data.Image.FirstOrDefault(img => img.Id == updatedImage.Id);
+                if (existingImage != null)
+                {
+                    existingImage.Url = updatedImage.Url;   
+                }
+                else
+                {
+                    data.Image.Add(updatedImage);
+                }
+            }
+
+            
+            var updatedImageIds = updatedImages.Select(i => i.Id).ToHashSet();
+            var imagesToRemove = data.Image.Where(img => !updatedImageIds.Contains(img.Id)).ToList();
+
+            foreach (var imgToRemove in imagesToRemove)
+            {
+                data.Image.Remove(imgToRemove);
+               
+            }
+
+            data.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
         }
 
     }

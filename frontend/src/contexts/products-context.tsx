@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 import { productsapis } from "@/api/ProductApis"
 import { Sdata } from "@/types/Sdata"
 import { Scraper } from "@/types/Scrappertype"
+import { selectedimages } from "@/types/Simagestypes"
 
 interface ProductContextType {
   products: Sdata[] | null
@@ -22,19 +23,21 @@ interface ProductContextType {
   Addselectedproduct:(data:Sdata)=>void
   Setcurrentpage:(page:number)=>void
   GetSimilarImg:(id:string)=>void
+  GetMoreSimilarImg:(id:string,PageSize:number)=>void
+  Submit:(id:string)=>void
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
 
 export function ProductProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Sdata[] | null>(null)
+  const [products, setProducts] = useState<Sdata[] | null>(null);
   const [ReviewProducts,setReviewProducts]=useState<Sdata[]|null>(null);
   const [SelectedScraper,setSelectedScraper]=useState<Scraper|null>(null);
   const [Selectedproduct,setSelectedproduct]=useState<Sdata|null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [totalproducts,settotalproducts]=useState<number>(0);
   const [currentPage,setcurrentpage]=useState(1);
-  const [similarimages,setsimilarimages]=useState<string[]|null>([""])
+  const [similarimages,setsimilarimages]=useState<string[]|null>(null)
   const navigate = useNavigate()
   const api = new productsapis()
 
@@ -78,6 +81,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   const Addselectedproduct=(data:Sdata)=>
   {
+    setsimilarimages([""])
        setSelectedproduct(data);
   }
 
@@ -86,16 +90,48 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
        setcurrentpage(page)
   }
 
-  const GetSimilarImg=async(id:string)=>{
-     
-     try{
-        const r:string[]=await api.getsimilarimages(id);
+  const GetSimilarImg = async (id: string) => {
+    try {
+      const r: string[] = await api.getsimilarimages(id,1);
+      if (r && Array.isArray(r)) {
         setsimilarimages(r);
-     }
-     catch{
-      console.log("error getting similar images")
-     }
+      }
+    } catch {
+      console.log("error getting similar images");
+    }
+  };
+
+  const GetMoreSimilarImg=async (id:string,PageSize:number)=>{
+    try {
+      const r: string[] = await api.getsimilarimages(id,PageSize);
+      if (r && Array.isArray(r)) {
+        setsimilarimages(prev => {
+          if (!prev) {
+
+            return r;
+          }
+
+          return [...prev, ...r];
+        });
+      }
+    } catch {
+      console.log("error getting similar images");
+    }
   }
+
+   const Submit=async(id:string)=>{
+      try{
+        const re=await api.PushShopify(id)
+        if(re)
+        {
+          navigate('/')
+        }
+      }
+      catch{
+        console.log("error getting similar images");
+      }
+   }
+
 
 
 
@@ -110,7 +146,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   function Normalizetime(runtime:string)
   {
     const [hours, minutes, secondsWithMs] = runtime.split(":");
-const seconds = parseFloat(secondsWithMs);
+    const seconds = parseFloat(secondsWithMs);
 
 
  function pad(n:number) { return n.toString().padStart(2, "0"); }
@@ -143,7 +179,7 @@ const seconds = parseFloat(secondsWithMs);
   return (
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
-     currentPage,Setcurrentpage , similarimages ,GetSimilarImg
+     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit
      }}>
       {children}
     </ProductContext.Provider>

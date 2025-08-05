@@ -4,7 +4,7 @@
     {
         Task <List<Sdata>> Get_Ready_to_review_products (Guid id, int PageNumber, int PageSize);
         Task<List<Sdata>> pendingReviewproducts( int PageNumber, int PageSize);
-
-        Task<ApiResponse<object>> GetSimilarimages(Guid ProductId);
+        Task RemovingBackgroundimages(Guid id);
+        Task<ApiResponse<object>> GetSimilarimages(Guid ProductId,int start);
     }
 }

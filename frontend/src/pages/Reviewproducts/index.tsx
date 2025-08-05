@@ -59,7 +59,7 @@ const Reviewproducts = () => {
                 <TableCell>
                   <div className="h-14 w-14 sm:h-12 sm:w-12 overflow-hidden rounded-md">
                     <img
-                      src={product.image[0].url}
+                      src={product.image[0]?.url||""}
                       alt={product.title}
                       className="h-full w-full object-cover"
                       loading="lazy"

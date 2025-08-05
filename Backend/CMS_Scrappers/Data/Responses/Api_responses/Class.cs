@@ -10,6 +10,12 @@
     public class SimilarproductRequest
     {
         public string productid { get; set; }
+        public int page { get; set; }
 
+    }
+
+    public class SubmitRequest
+    {
+        public string productid { get; set; }
     }
 }

@@ -6,7 +6,7 @@ import {ImageGallery} from '@/components/ui/ImageGallery'
 import {ArrowBigLeft} from "lucide-react"
 const Product = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg } = useProduct();
+  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit} = useProduct();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -125,7 +125,9 @@ const Product = () => {
 
      
       <div className="  flex items-center justify-end gap-8 mb-4 ">
-           <Button className='bg-[#1D7DBD]'>Re-Push</Button>
+           <Button
+           onClick={()=>Submit(Selectedproduct.id)}
+           className='bg-[#1D7DBD]'>Re-Push</Button>
            <Button className="bg-white border-2 border-[#1D7DBD] text-[#1D7DBD]">Back</Button>
 
       </div>

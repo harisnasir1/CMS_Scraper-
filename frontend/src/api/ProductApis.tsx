@@ -13,9 +13,16 @@ export class productsapis{
         const response=await api.post<Sdata[]>("Product/pendingreview",{PageNumber,PageSize});
         return response.data;
     }
-    async getsimilarimages( productid:string)
+    async getsimilarimages( productid:string,PageSize:number)
     {
-      const response=await api.post<string[]>("Product/Similarimages",{productid:productid});
+      const response=await api.post<string[]>("Product/Similarimages",{productid:productid,page:PageSize});
       return response.data
+    }
+    async PushShopify(productid:string)
+    {
+        alert()
+        const response=await api.post<string[]>("Product/Push",{productid:productid});
+        console.log(response)
+        return response.data
     }
 }

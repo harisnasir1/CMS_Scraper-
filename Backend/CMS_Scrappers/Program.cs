@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.WebSockets;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Services.Implementations;
 using CMS_Scrappers.Utils;
+using CMS_Scrappers.Utils.Bgremovel;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,7 +24,16 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
     ServiceLifetime.Scoped  
 );
+builder.Services.AddHttpClient(); // register HttpClient factory globally
 
+builder.Services.AddTransient<BackgroundRemover>(serviceProvider =>
+{
+    var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient();
+    var config = serviceProvider.GetRequiredService<IConfiguration>();
+    var apiToken = config["RemovalAi:ApiToken"];
+    return new BackgroundRemover(httpClient, apiToken);
+});
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();

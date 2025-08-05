@@ -38,11 +38,19 @@ namespace CMS_Scrappers.Controller
         public async Task<IActionResult> GetSimilarImg([FromBody] SimilarproductRequest request)
         {
             Guid id = new Guid(request.productid);
-            ApiResponse<object> data = await _ProductSerivce.GetSimilarimages(id);
+            ApiResponse<object> data = await _ProductSerivce.GetSimilarimages(id,request.page);
             if (data._Success == false) return BadRequest();
 
             return Ok(data.Data);
              
+        }
+
+        [HttpPost("Push")]
+        public async Task<IActionResult> Submit([FromBody] SubmitRequest request )
+        {
+            Guid guid = new Guid(request.productid);
+            await _ProductSerivce.RemovingBackgroundimages(guid);
+            return Ok();
         }
 
     }
