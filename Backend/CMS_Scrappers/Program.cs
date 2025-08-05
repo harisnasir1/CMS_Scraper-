@@ -11,20 +11,22 @@ using Microsoft.AspNetCore.WebSockets;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Services.Implementations;
 using CMS_Scrappers.Utils;
-using CMS_Scrappers.Utils.Bgremovel;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
 var Jwtsettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
-
 builder.Services.AddSingleton(Jwtsettings);
 
-// Database context registration
+var AWSsettings = builder.Configuration.GetSection("AWS").Get<S3Settings>();
+builder.Services.AddSingleton(AWSsettings);
+
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
     ServiceLifetime.Scoped  
 );
-builder.Services.AddHttpClient(); // register HttpClient factory globally
+builder.Services.AddHttpClient(); 
 
 builder.Services.AddTransient<BackgroundRemover>(serviceProvider =>
 {
@@ -34,6 +36,7 @@ builder.Services.AddTransient<BackgroundRemover>(serviceProvider =>
     var apiToken = config["RemovalAi:ApiToken"];
     return new BackgroundRemover(httpClient, apiToken);
 });
+builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();

@@ -1,6 +1,5 @@
 ﻿using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
-using CMS_Scrappers.Utils.Bgremovel;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore.Query;
 namespace CMS_Scrappers.Services.Implementations
@@ -12,16 +11,20 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly ILogger<ProductsService> _logger;
         private readonly IGoogleImageService _googleImageService;
         private readonly BackgroundRemover _backgroundRemover;
+        private readonly HttpClient _httpClient;
+        private readonly S3Interface _S3service;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
             IGoogleImageService googleservice,
-            BackgroundRemover backgroundRemover)
+            BackgroundRemover backgroundRemover, HttpClient httpClient, S3Interface s3service)
         {
             _repository = repository;
             _googleImageService = googleservice;
             _scrapperRepository = scrapperRepository;
             _logger = logger;
             _backgroundRemover = backgroundRemover;
+            _httpClient = httpClient;
+            _S3service = s3service;
         }
 
         public async Task<List<Sdata>> Get_Ready_to_review_products(Guid id, int PageNumber, int PageSize)
@@ -45,25 +48,32 @@ namespace CMS_Scrappers.Services.Implementations
             var data = await _repository.Getproductbyid(id);
             var copiedImages = data.Image.ToList();
             var Images = new List<ProductImageRecord>();
+
             foreach (var image in copiedImages)
             {
                 var resultJson = await _backgroundRemover.RemoveBackgroundAsync(imageUrl: image.Url);
-                var json = System.Text.Json.JsonDocument.Parse(resultJson);
                 _logger.LogError($"Url: {resultJson}");
-                if (json.RootElement.TryGetProperty("url", out var outputUrlElement))
+
+                var json = System.Text.Json.JsonDocument.Parse(resultJson);
+                if (json.RootElement.TryGetProperty("result_url", out var outputUrlElement))
                 {
                     string newUrl = outputUrlElement.GetString();
-                   
-                    image.Url = newUrl;
+                    if (string.IsNullOrEmpty(newUrl)) continue;
+
+                    using var imagestream = await _httpClient.GetStreamAsync(newUrl);
+                    if (imagestream == null) continue;
+                    var finalurl = await _S3service.Uploadimage(imagestream);
+                    image.Url = finalurl;
                     Images.Add(image);
-                    
                 }
-                break;
+
             }
+
             if (Images.Count > 0)
             {
                 await _repository.UpdateImages(id, Images);
             }
         }
+
     }
 }

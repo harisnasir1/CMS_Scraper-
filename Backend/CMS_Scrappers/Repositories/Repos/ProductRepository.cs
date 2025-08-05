@@ -36,8 +36,9 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<Sdata> Getproductbyid(Guid productid)
         {
            return await _context.Sdata
-        .Include(s => s.Image)       // load related images
+        .Include(s => s.Image)       
         .FirstOrDefaultAsync(s => s.Id == productid);
+
         }
 
         public async Task UpdateImages(Guid id,List<ProductImageRecord> updatedImages)
@@ -61,8 +62,7 @@ namespace CMS_Scrappers.Repositories.Repos
                     data.Image.Add(updatedImage);
                 }
             }
-
-            
+        
             var updatedImageIds = updatedImages.Select(i => i.Id).ToHashSet();
             var imagesToRemove = data.Image.Where(img => !updatedImageIds.Contains(img.Id)).ToList();
 

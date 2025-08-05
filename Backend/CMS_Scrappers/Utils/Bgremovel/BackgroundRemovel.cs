@@ -1,45 +1,43 @@
 ﻿using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace CMS_Scrappers.Utils.Bgremovel
+public class BackgroundRemover
 {
-    public class BackgroundRemover
+    private readonly HttpClient _httpClient;
+    private readonly string _apiKey;
+    private const string ApiUrl = "https://api.developer.pixelcut.ai/v1/remove-background";
+
+    public BackgroundRemover(HttpClient httpClient, string apiKey)
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _apiToken;
-        private readonly string _apiUrl = "https://api.removal.ai/3.0/remove";
+        _httpClient = httpClient;
+        _apiKey = apiKey;
+    }
 
-        public BackgroundRemover(HttpClient httpClient, string apiToken)
+    public async Task<string> RemoveBackgroundAsync(string imageUrl)
+    {
+        var payload = new
         {
-            _httpClient = httpClient;
-            _apiToken = apiToken;
-        }
+            image_url = imageUrl,
+            format = "png"
+        };
 
-        public async Task<string> RemoveBackgroundAsync(string imagePath = null, string imageUrl = null)
-        {
-            using (var form = new MultipartFormDataContent())
-            {
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Add("Rm-Token", _apiToken);
+        string jsonPayload = JsonSerializer.Serialize(payload);
 
-                if (!string.IsNullOrEmpty(imagePath))
-                {
-                    var fileBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
-                    var fileContent = new ByteArrayContent(fileBytes);
-                    fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/octet-stream");
-                    form.Add(fileContent, "image_file", System.IO.Path.GetFileName(imagePath));
-                }
+        using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
+        request.Headers.Accept.Clear();
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Add("X-API-KEY", _apiKey);
 
-                if (!string.IsNullOrEmpty(imageUrl))
-                {
-                    form.Add(new StringContent(imageUrl), "image_url");
-                }
+        request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync(_apiUrl, form);
-                return await response.Content.ReadAsStringAsync();
-            }
-        }
+        using var response = await _httpClient.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadAsStringAsync();
     }
 }
