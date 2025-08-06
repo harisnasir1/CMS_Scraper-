@@ -20,9 +20,14 @@ export class productsapis{
     }
     async PushShopify(productid:string)
     {
-        alert()
+     
         const response=await api.post<string[]>("Product/Push",{productid:productid});
         console.log(response)
+        return response.data
+    }
+    async AiDescription(productid:string)
+    {
+        const response=await api.post<string>("Product/AiDescription",{productid:productid});
         return response.data
     }
 }

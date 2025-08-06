@@ -25,6 +25,7 @@ interface ProductContextType {
   GetSimilarImg:(id:string)=>void
   GetMoreSimilarImg:(id:string,PageSize:number)=>void
   Submit:(id:string)=>void
+  GetAiDescription:(id:string)=>Promise<string>
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -122,6 +123,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
    const Submit=async(id:string)=>{
       try{
         const re=await api.PushShopify(id)
+        console.log(re)
         if(re)
         {
           navigate('/')
@@ -132,7 +134,21 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       }
    }
 
+   const GetAiDescription=async(id:string)=>
+   {
+    try{
+     const re=await api.AiDescription(id);
+     return re;
+    }
+    catch{
+      console.log("error getting ai description");
+      return "";
+    }
+   }
 
+   
+
+ 
 
 
 
@@ -179,7 +195,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   return (
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
-     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit
+     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription
      }}>
       {children}
     </ProductContext.Provider>

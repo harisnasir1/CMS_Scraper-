@@ -1,3 +1,4 @@
+using CMS_Scrappers.BackgroundJobs.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
@@ -5,7 +6,7 @@ namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 [Route("api/[controller]")]
 public class ScraperController : ControllerBase
 {
-    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IHighPriorityTaskQueue _taskQueue;
     
     private readonly IShopifyScrapperFact _shopifyscrapperfactory;
     
@@ -13,7 +14,7 @@ public class ScraperController : ControllerBase
   
     
 
-    public ScraperController(IBackgroundTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository)
+    public ScraperController(IHighPriorityTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository)
     {
         _repository = repository;
         _shopifyscrapperfactory=shopifyscrapperfactory;

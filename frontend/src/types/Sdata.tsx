@@ -10,6 +10,7 @@ export interface ProductImageRecord {
     size: string
     price: number
     inStock: boolean
+    sku:string
   }
   
   export interface Sdata {

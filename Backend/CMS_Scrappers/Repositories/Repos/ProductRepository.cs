@@ -35,10 +35,12 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<Sdata> Getproductbyid(Guid productid)
         {
-           return await _context.Sdata
-        .Include(s => s.Image)       
-        .FirstOrDefaultAsync(s => s.Id == productid);
 
+
+            return await _context.Sdata
+                .Include(s => s.Image)
+                .Include(s => s.Variants)
+                .FirstOrDefaultAsync(s => s.Id == productid);
         }
 
         public async Task UpdateImages(Guid id,List<ProductImageRecord> updatedImages)
@@ -62,19 +64,45 @@ namespace CMS_Scrappers.Repositories.Repos
                     data.Image.Add(updatedImage);
                 }
             }
-        
             var updatedImageIds = updatedImages.Select(i => i.Id).ToHashSet();
             var imagesToRemove = data.Image.Where(img => !updatedImageIds.Contains(img.Id)).ToList();
-
             foreach (var imgToRemove in imagesToRemove)
             {
                 data.Image.Remove(imgToRemove);
-               
+
             }
 
             data.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
 
+        public async Task UpdateDescription(Guid id,string desc)
+        {
+            var data=await this.Getproductbyid(id);
+            if (data == null) throw new Exception("id is not valid to update Description");
+            data.Description= desc;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> AddShopifyproductid(Sdata sdata,string Shopifyid)
+        {
+            var data = await this.Getproductbyid(sdata.Id);
+            if (data == null){
+                return false;
+            }
+            data.Shopifyid=Shopifyid;
+            await _context.SaveChangesAsync();
+            return true;
+            
+        }
+        public async Task <bool> UpdateStatus(Guid id,string status)
+        {
+            var data= await _context.Sdata.FindAsync(id);
+            if (data == null) return false;
+            data.Status=status;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        
     }
 }

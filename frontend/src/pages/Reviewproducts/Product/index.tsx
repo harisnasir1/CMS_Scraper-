@@ -6,17 +6,33 @@ import {ImageGallery} from '@/components/ui/ImageGallery'
 import {ArrowBigLeft} from "lucide-react"
 const Product = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit} = useProduct();
+  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit,GetAiDescription} = useProduct();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [sizes, setSizes] = useState<{size:string,instock:boolean}[]>();
   const [price, setPrice] = useState(0);
+  const [Sku,setsku]=useState<string>("");
   const [condition, setCondition] = useState('');
   const [images,setimages]=useState<string[]|null>(null)
 
+  const GetDescription=async(id:string)=>
+  {
+    // const d=await GetAiDescription(id);
+    // setDescription(d);
+  }
+  const Getsku=()=>{
+     var k=Selectedproduct?.brand;
+     var f=k?.slice(0,2);
+     var s=Math.floor(Math.random()*(9999999-99999)+999999);
+     var full=f?.concat(s.toString());
+     setsku(full??"");
+  }
+
   useEffect(() => {
     if (Selectedproduct) {
+       Getsku();
+       GetDescription(Selectedproduct.id)
        GetSimilarImg(Selectedproduct.id)
       setTitle(Selectedproduct.title || '');
       setDescription(Selectedproduct.description || '');
@@ -96,6 +112,16 @@ const Product = () => {
                 id="retailPrice"
                 type="number"
                 value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label htmlFor="retailPrice" className="text-sm sm:text-md font-semibold mb-2 block">SKU:</label>
+              <input
+                id="SKU"
+                type="string"
+                value={Sku}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 className="w-full p-2 border border-gray-300 rounded-md"
               />

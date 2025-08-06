@@ -6,5 +6,8 @@
         Task<List<Sdata>> pendingReviewproducts( int PageNumber, int PageSize);
         Task RemovingBackgroundimages(Guid id);
         Task<ApiResponse<object>> GetSimilarimages(Guid ProductId,int start);
+        Task<string> AIGeneratedDescription(Guid id);
+        Task<bool> PushProductShopify(Guid id);
+        Task<bool> UpdateStatus(Guid id, string status);
     }
 }
