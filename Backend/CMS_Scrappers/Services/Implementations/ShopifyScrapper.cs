@@ -1,4 +1,6 @@
 
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 
 public class ShoipfyScrapper:Scrap_shopify{
@@ -14,12 +16,12 @@ public class ShoipfyScrapper:Scrap_shopify{
   public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
 {
         var response = new ShopifyGetAllProductsResponse();
-        var pageNumber = 770;
+        var pageNumber = 1;
 
         while (true)
         {
             var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=10&page={pageNumber}");
+                await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
 
             if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
                 throw new Exception();
@@ -30,11 +32,13 @@ public class ShoipfyScrapper:Scrap_shopify{
             {
                 break;
             }
+            if(pageNumber>10)
+            {
+                break;
+            }
             
             response.Pages.Add(productsResponse);
             pageNumber++;
-            break;
-           
             await Task.Delay(2000);
         }
         return response;

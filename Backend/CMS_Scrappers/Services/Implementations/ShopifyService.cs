@@ -2,6 +2,7 @@
 using System.Text;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
+using System.Xml.Linq;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -10,12 +11,14 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly ShopifySettings _shopifySettings;
         private readonly HttpClient _httpClient;
         private readonly ILogger<ShopifyService> _logger;
+        private string _locationId;
         public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger) {
         
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
+            _locationId = "";
 
         }
         public async Task<string> PushProductAsync(Sdata sdata)
@@ -35,7 +38,7 @@ namespace CMS_Scrappers.Services.Implementations
                         price = v.Price.ToString("F2"),
                         sku = v.SKU,
                         inventory_management = "shopify",
-                        inventory_quantity = v.InStock ? 1 : 0,
+                        inventory_quantity = 1,
                         requires_shipping = true
                     }),
                     images = sdata.Image.Select(i => new { src = i.Url })
@@ -147,6 +150,180 @@ namespace CMS_Scrappers.Services.Implementations
                 return "";
             }
         }
+        //only updates shpoify quantity
+        public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
+        {
+            var locationId = await GetFirstLocationIdAsync();
+            _logger.LogError("locationId");
+            if (string.IsNullOrEmpty(locationId))
+            {                
+                _logger.LogError("Could not find a Shopify location to update inventory.");
+                return;
+            }
+            decimal Batchsizes = 50;
+            decimal totalproduct=existingproduct.Count();
+            decimal Batchcount = Math.Ceiling(totalproduct/Batchsizes);
+
+            for (int i = 0; i < Batchcount; i++)
+            {
+                _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...");
+                var inventoryQuantities = new List<object>();
+                int startIndex = i * (int)Batchsizes;
+                int endIndex = Math.Min(startIndex + (int)Batchsizes, existingproduct.Count);
+                var currentBatch = existingproduct.GetRange(startIndex, endIndex - startIndex);
+                foreach (var incomingProduct in currentBatch)
+                {
+                   
+                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))
+                    {
+                        string gid = $"gid://shopify/Product/{dbProduct.Shopifyid}";
+                        Dictionary<string , string > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+
+                        foreach(var incomingvariant in incomingProduct.Variants)
+                        {
+                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var inventoryItemId))
+                            {
+                                int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
+                                inventoryQuantities.Add(new
+                                {
+                                    inventoryItemId = inventoryItemId,
+                                    locationId = locationId,
+                                    quantity = 0
+                                });
+                            }
+                        }
+                    }
+                }
+                if(inventoryQuantities.Count > 0)
+                {
+                    var mutation = @"
+                mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
+                    inventorySetOnHandQuantities(input: $input) {
+                        userErrors {
+                            field
+                            message
+                        }
+                        inventoryAdjustmentGroup {
+                            id
+                            reason
+                        }
+                    }
+                }";
+                    var variables = new
+                    {
+                        input = new
+                        {
+                            reason = "restock", 
+                            setQuantities = inventoryQuantities
+                        }
+                    };
+                    var payload = new { query = mutation, variables };
+
+                    try
+                    {
+                        var data = await ExecuteGraphQLAsync(payload);
+                        Console.WriteLine($"Batch {i + 1} updated successfully.");
+                       
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error updating batch {i + 1}: {ex.Message}");
+                    }
+                }
+
+            }
+        }
+        public async Task<Dictionary<string, string>> GetVariantInventoryIdsAsync(string productGid)
+        {
+            var query = @"
+        query getProductVariants($id: ID!) {
+            product(id: $id) {
+                variants(first: 50) {
+                    edges {
+                        node {
+                            id
+                            selectedOptions {
+                                name
+                                value
+                            }
+                            inventoryItem {
+                                id
+                            }
+                        }
+                    }
+                }
+            }
+        }";
+
+            var variables = new { id = productGid };
+            var payload = new { query, variables };
+            var data = await ExecuteGraphQLAsync(payload);
+
+            var variants = new Dictionary<string, string>();
+            var variantEdges = data.GetProperty("product").GetProperty("variants").GetProperty("edges");
+
+            foreach (var edge in variantEdges.EnumerateArray())
+            {
+                var node = edge.GetProperty("node");
+                var inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
+
+              
+                string size = null;
+                foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
+                {
+                    if (option.GetProperty("name").GetString().Equals("Title", StringComparison.OrdinalIgnoreCase))
+                    {
+                        size = option.GetProperty("value").GetString();
+                        break;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId))
+                {
+                    variants[size] = inventoryItemId;
+                }
+            }
+
+            return variants;
+        }
+
+        public async Task<string> GetFirstLocationIdAsync()
+        {
+
+
+            string query = "query { locations(first: 1) { edges { node { id } } } }";
+
+            var payload = new { query };
+            var data = await ExecuteGraphQLAsync(payload);
+
+            _locationId = data.GetProperty("locations").GetProperty("edges")[0].GetProperty("node").GetProperty("id").GetString();
+            return _locationId;
+        }
+        private async Task<JsonElement> ExecuteGraphQLAsync(object payload)
+        {
+            var jsonContent = JsonSerializer.Serialize(payload);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2024-07/graphql.json");
+            request.Headers.Add("X-Shopify-Access-Token", _shopifySettings.SHOPIFY_ACCESS_TOKEN);
+            request.Content = content;
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var responseStream = await response.Content.ReadAsStreamAsync();
+            var jsonDoc = await JsonDocument.ParseAsync(responseStream);
+
+
+            if (jsonDoc.RootElement.TryGetProperty("errors", out var errors))
+            {
+                throw new Exception($"GraphQL Error: {errors.ToString()}");
+            }
+
+            return jsonDoc.RootElement.GetProperty("data");
+        }
+
     }
 
 }

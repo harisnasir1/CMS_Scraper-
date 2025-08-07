@@ -86,14 +86,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     };
 });
 
-
+//Scrapers
+builder.Services.AddSingleton<ShoipfyScrapper>();
 //queues
 builder.Services.AddSingleton<IHighPriorityTaskQueue,HighPriorityTaskQueue>();
 builder.Services.AddSingleton<ILowPriorityTaskQueue,LowPriorityTaskQueue>();
-builder.Services.AddSingleton<ShoipfyScrapper>();
+builder.Services.AddSingleton<IUpdateShopifyTaskQueue,UpdateShopifyTaskQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
 builder.Services.AddHostedService<LowPriorityWorkerService>();
-
+builder.Services.AddHostedService<UpdateShopifyWorkerService>();
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();

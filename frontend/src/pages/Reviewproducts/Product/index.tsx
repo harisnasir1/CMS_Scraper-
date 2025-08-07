@@ -6,7 +6,7 @@ import {ImageGallery} from '@/components/ui/ImageGallery'
 import {ArrowBigLeft} from "lucide-react"
 const Product = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit,GetAiDescription} = useProduct();
+  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit,GetAiDescription,UpdateProductDetails} = useProduct();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -18,8 +18,9 @@ const Product = () => {
 
   const GetDescription=async(id:string)=>
   {
-    // const d=await GetAiDescription(id);
-    // setDescription(d);
+    if(Selectedproduct?.sku==""){
+    const d=await GetAiDescription(id);
+    setDescription(d);}
   }
   const Getsku=()=>{
      var k=Selectedproduct?.brand;
@@ -137,7 +138,11 @@ const Product = () => {
               </div>
             </div>
             <div className='flex justify-end'>
-              <Button className='bg-black text-white hover:bg-gray-800 px-4 py-2 rounded-md'>Save Changes</Button>
+              <Button
+              onClick={()=>{
+                     UpdateProductDetails(Selectedproduct.id,Sku,price,title,description)
+              }}
+              className='bg-black text-white hover:bg-gray-800 px-4 py-2 rounded-md'>Save Changes</Button>
             </div>
           </div>
         </div>

@@ -18,4 +18,13 @@
     {
         public string productid { get; set; }
     }
+
+    public class UpdateDetails
+    {
+        public string productid { get; set; }
+        public string sku { get; set; }
+        public string description { get; set; }
+        public string title { get; set; }
+        public int price { get; set; }
+    }
 }

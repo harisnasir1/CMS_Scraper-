@@ -30,4 +30,9 @@ export class productsapis{
         const response=await api.post<string>("Product/AiDescription",{productid:productid});
         return response.data
     }
+    async SumitDetails(productid:string,sku:string,price:number,title:string,description:string)
+    {
+        const response=await api.post<string>("Product/SaveDetails",{productid:productid,sku,description,title,price});
+        return response.data
+    }
 }

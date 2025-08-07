@@ -9,5 +9,6 @@
         Task UpdateDescription(Guid id, string desc);
         Task<bool> AddShopifyproductid(Sdata data, string Shopifyid);
         Task<bool> UpdateStatus(Guid id, string status);
+        Task<bool> UpdateProductDetailsAsync(Guid id, string sku, string title, string description, int price);
     }
 }

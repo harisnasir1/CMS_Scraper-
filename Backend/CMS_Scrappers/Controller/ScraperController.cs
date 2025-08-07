@@ -6,7 +6,7 @@ namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 [Route("api/[controller]")]
 public class ScraperController : ControllerBase
 {
-    private readonly IHighPriorityTaskQueue _taskQueue;
+    private readonly ILowPriorityTaskQueue _taskQueue;
     
     private readonly IShopifyScrapperFact _shopifyscrapperfactory;
     
@@ -14,7 +14,7 @@ public class ScraperController : ControllerBase
   
     
 
-    public ScraperController(IHighPriorityTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository)
+    public ScraperController(ILowPriorityTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository)
     {
         _repository = repository;
         _shopifyscrapperfactory=shopifyscrapperfactory;

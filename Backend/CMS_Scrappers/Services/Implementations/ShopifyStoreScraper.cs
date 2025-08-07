@@ -1,6 +1,8 @@
  using HtmlAgilityPack;
 using System.Text;
 using System.Net.Http.Headers;
+using CMS_Scrappers.BackgroundJobs.Interfaces;
+using CMS_Scrappers.Services.Interfaces;
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 public class ShopifyStoreScraper : IScrappers
 {
@@ -12,7 +14,7 @@ public class ShopifyStoreScraper : IScrappers
     private readonly ISdataRepository _sdataRepository;
     private readonly string _scraperName;
     private readonly string _storeBaseUrl;
-  
+    private readonly IUpdateShopifyTaskQueue _updateShopifyTaskQueue;
 
     private DateTime TimeStart { get; set; }
     private DateTime TimeEnd { get; set; }
@@ -25,17 +27,19 @@ public class ShopifyStoreScraper : IScrappers
         IScrapperRepository scrapperRepository
         ,IServiceProvider serviceProvider
         , ISdataRepository sdataRepository
+        ,IUpdateShopifyTaskQueue updateShopifyTaskQueue
         )
-    {
-        _scraperName = scraperName;
-        _storeBaseUrl = storeBaseUrl;
-        _logger = logger;
-        _shopifyClient = shopifyClient;
-        _parsingStrategy = parsingStrategy;
-        _scrapperRepository = scrapperRepository;
-        _serviceProvider=serviceProvider;
-        _sdataRepository = sdataRepository;
-    }
+        {
+         _scraperName = scraperName;
+         _storeBaseUrl = storeBaseUrl;
+         _logger = logger;
+         _shopifyClient = shopifyClient;
+         _parsingStrategy = parsingStrategy;
+         _scrapperRepository = scrapperRepository;
+         _serviceProvider=serviceProvider;
+         _sdataRepository = sdataRepository;
+         _updateShopifyTaskQueue = updateShopifyTaskQueue;
+        }
 
     public async Task ScrapeAsync()
     {
@@ -57,21 +61,37 @@ public class ShopifyStoreScraper : IScrappers
 
         var Category_Mapper=Categoyfact.GetCategoryMapper("savonches");
 
-        var Trenddata=Category_Mapper.TrendCategoryMapper(flatProduct);
+        List<ShopifyFlatProduct> Trenddata =Category_Mapper.TrendCategoryMapper(flatProduct);
 
         await _sdataRepository.Add(Trenddata,scrapperid);
-  
-         TimeSpan Diff = TimeEnd - TimeStart;
 
-         await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
+        await Updateliveproducts(flatProduct);
+
+        TimeSpan Diff = TimeEnd - TimeStart;
+
+        await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
 
         _logger.LogInformation("Finished scraping for {ScraperName}", _scraperName, "in time ", Diff);
     }
 
-     
     public async Task<Guid >Getscrapeid(string name)
     {
-        var scrape = _serviceProvider.GetRequiredService<IScrapperRepository>();
+       var scrape = _serviceProvider.GetRequiredService<IScrapperRepository>();
        return await scrape.Giveidbyname(name);
+    }
+
+    private async Task Updateliveproducts(List<ShopifyFlatProduct> data)
+    {
+        
+        var existingProducts = data.Where(p => !p.New).ToList();
+        var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
+        _logger.LogError($"shopify update queue is in process {existingProducts}");
+        if (dbexistingproducts.Count <=0 || dbexistingproducts.Count<=0) { return; }
+        _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
+          
+            using var scope = serviceProvider.CreateScope();
+            var shclient = scope.ServiceProvider.GetService<IShopifyService>();
+            shclient.UpdateProduct(existingProducts, dbexistingproducts);
+         });
     }
 }

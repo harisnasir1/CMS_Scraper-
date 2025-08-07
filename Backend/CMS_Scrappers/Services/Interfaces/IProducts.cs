@@ -9,5 +9,6 @@
         Task<string> AIGeneratedDescription(Guid id);
         Task<bool> PushProductShopify(Guid id);
         Task<bool> UpdateStatus(Guid id, string status);
+        Task<bool> UpdateProductDetails(Guid id, string sku, string title, string description, int price);
     }
 }

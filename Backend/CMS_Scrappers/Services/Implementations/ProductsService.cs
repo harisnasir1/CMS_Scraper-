@@ -93,10 +93,13 @@ namespace CMS_Scrappers.Services.Implementations
           
             return true;
         }
-
         public async Task<bool> UpdateStatus(Guid id , string status)
         {
             return await _repository.UpdateStatus(id, status);
+        }
+        public async Task<bool> UpdateProductDetails(Guid id,string sku, string title, string description, int price)
+        {
+            return await _repository.UpdateProductDetailsAsync(id, sku, title, description, price);
         }
     }
 }

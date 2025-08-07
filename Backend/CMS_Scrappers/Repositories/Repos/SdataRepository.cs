@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using Amazon.S3.Model;
 
 namespace CMS_Scrappers.Repositories.Repos
 {
@@ -21,7 +22,6 @@ namespace CMS_Scrappers.Repositories.Repos
 
         public async Task Add(List<ShopifyFlatProduct> data, Guid scraperId)
         {
-         
             var newProducts = data.Where(p => p.New).ToList();
             var existingProducts = data.Where(p => !p.New).ToList();
 
@@ -37,10 +37,8 @@ namespace CMS_Scrappers.Repositories.Repos
 
                 foreach (var incomingProduct in existingProducts)
                 {
-                   
                     if (dbProductsDict.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))
                     {
-                      
                         UpdateVariants(dbProduct, incomingProduct);
                         dbProduct.UpdatedAt = DateTime.UtcNow;
                     }
@@ -76,9 +74,8 @@ namespace CMS_Scrappers.Repositories.Repos
                
                 if (incomingVariantsDict.TryGetValue(dbVariant.Size, out var incomingVariant))
                 {
-                    
                     dbVariant.InStock = incomingVariant.Available == 1;
-                    dbVariant.Price = incomingVariant.Price;
+                   // dbVariant.Price = incomingVariant.Price; => need later not now
                 }
             }
         }
@@ -124,6 +121,16 @@ namespace CMS_Scrappers.Repositories.Repos
         public Task Update(List<ShopifyFlatProduct> data)
         {
             return Task.CompletedTask;
+        }
+
+        public async Task<Dictionary<string, Sdata>> Giveliveproduct(List<ShopifyFlatProduct> existingProducts)
+        {
+            var productUrls = existingProducts.Select(p => p.ProductUrl).ToList();
+            var dbProductsDict = await _context.Sdata
+            .Include(s => s.Variants)
+            .Where(s => productUrls.Contains(s.ProductUrl) && s.Status=="Live")
+            .ToDictionaryAsync(s => s.ProductUrl);
+            return dbProductsDict;
         }
     }
 }

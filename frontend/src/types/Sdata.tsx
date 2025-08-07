@@ -19,7 +19,8 @@ export interface ProductImageRecord {
     sid: string
     title: string
     brand: string
-    image: ProductImageRecord[]
+    image: ProductImageRecord[],
+    sku:string,
     description: string
     productUrl: string
     price: number

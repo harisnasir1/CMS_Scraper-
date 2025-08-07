@@ -45,7 +45,7 @@ namespace CMS_Scrappers.Repositories.Repos
 
         public async Task UpdateImages(Guid id,List<ProductImageRecord> updatedImages)
         {
-            var data = await _context.Sdata
+           try{ var data = await _context.Sdata
                 .Include(s => s.Image)
                 .FirstOrDefaultAsync(s => s.Id == id);
 
@@ -73,36 +73,93 @@ namespace CMS_Scrappers.Repositories.Repos
             }
 
             data.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product details.");
+               
+            }
         }
 
         public async Task UpdateDescription(Guid id,string desc)
         {
-            var data=await this.Getproductbyid(id);
+           try{ var data=await this.Getproductbyid(id);
             if (data == null) throw new Exception("id is not valid to update Description");
             data.Description= desc;
-            await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product details.");
+
+            }
         }
 
         public async Task<bool> AddShopifyproductid(Sdata sdata,string Shopifyid)
         {
-            var data = await this.Getproductbyid(sdata.Id);
+           try{ var data = await this.Getproductbyid(sdata.Id);
             if (data == null){
                 return false;
             }
             data.Shopifyid=Shopifyid;
             await _context.SaveChangesAsync();
-            return true;
-            
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product details.");
+                return false;
+            }
+
         }
         public async Task <bool> UpdateStatus(Guid id,string status)
         {
-            var data= await _context.Sdata.FindAsync(id);
+
+         try{   var data= await _context.Sdata.FindAsync(id);
             if (data == null) return false;
             data.Status=status;
             await _context.SaveChangesAsync();
-            return true;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product details.");
+                return false;
+            }
         }
-        
+
+        public async Task<bool> UpdateProductDetailsAsync(Guid id,string sku, string title, string description, int price)
+        {
+            try
+            {
+                var product = await Getproductbyid(id);
+
+                if (product == null)
+                {
+                    _logger.LogWarning($"Product with SKU '{sku}' not found.");
+                    return false;
+                }
+
+                product.Title = title;
+                product.Description = description;
+                product.Price = price;
+                product.UpdatedAt = DateTime.UtcNow;
+                product.Sku = sku;
+
+                _context.Sdata.Update(product);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Product with SKU '{id}' updated successfully.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product details.");
+                return false;
+            }
+        }
+
+
     }
 }

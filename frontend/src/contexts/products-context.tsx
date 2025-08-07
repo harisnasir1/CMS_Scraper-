@@ -26,6 +26,7 @@ interface ProductContextType {
   GetMoreSimilarImg:(id:string,PageSize:number)=>void
   Submit:(id:string)=>void
   GetAiDescription:(id:string)=>Promise<string>
+  UpdateProductDetails:(productid:string,sku:string,price:number,title:string,description:string)=>void
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -146,6 +147,18 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     }
    }
 
+   const UpdateProductDetails=async(productid:string,sku:string,price:number,title:string,description:string)=>
+   {
+    try{
+      const re=await api.SumitDetails(productid,sku,price,title,description);
+      return re;
+     }
+     catch{
+       console.log("error getting ai description");
+       return "";
+     }
+   }
+
    
 
  
@@ -195,7 +208,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   return (
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
-     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription
+     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails
      }}>
       {children}
     </ProductContext.Provider>

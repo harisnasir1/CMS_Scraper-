@@ -11,12 +11,12 @@ namespace CMS_Scrappers.Controller
     [ApiController]
     public class ProductController : ControllerBase
     {
-        private readonly ILowPriorityTaskQueue _taskQueue;
+        private readonly IHighPriorityTaskQueue _taskQueue;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
 
-        public ProductController(ILowPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider, ILogger<ProductController> logger)
+        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider, ILogger<ProductController> logger)
         {
             _ProductSerivce=service;
             _serviceProvider = serviceProvider;
@@ -73,6 +73,15 @@ namespace CMS_Scrappers.Controller
             string d=await _ProductSerivce.AIGeneratedDescription(guid);
             return Ok(d);
         }
+        [HttpPost("SaveDetails")]
+        public async Task<IActionResult> UpdateDetails([FromBody] UpdateDetails request)
+        {
+            Guid guid = new Guid(request.productid);
+           bool k= await _ProductSerivce.UpdateProductDetails(guid,request.sku,request.title,request.description,request.price);
+            if (!k) return Ok(false);
+            return Ok(true);
+        }
+
     }
 
 }
