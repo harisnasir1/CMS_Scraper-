@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -40,7 +40,7 @@ public class UserController:ControllerBase
         var user=await _userService.AuthenticateUserAsync(dto.Email,dto.Password);
         if(user==null)return Unauthorized("Invalid credentials");
 
-        var Token=GenerateJWtToken(dto.Email);
+        var Token=GenerateJWtToken(user);
         Response.Cookies.Append("token", Token, new CookieOptions
         {
         HttpOnly = true,
@@ -60,24 +60,28 @@ public class UserController:ControllerBase
         var userinfo=_userService.Userinfo(userId); 
         return Ok(new { userinfo });
     }
-  
 
-    private string GenerateJWtToken(string email)
+
+    private string GenerateJWtToken(User user)
     {
-      var claims=new[]
-      {
-        new Claim(JwtRegisteredClaimNames.Sub,email),
-        new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
-      };
-      var key=new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
-      var creds=new SigningCredentials(key,SecurityAlgorithms.HmacSha256);
-      var Token=new JwtSecurityToken(
-        issuer:_jwtSettings.Issuer,
-        audience:_jwtSettings.Audience,
-        claims:claims,
-        expires:DateTime.Now.AddMinutes(30),
-        signingCredentials:creds
-      );
-      return new JwtSecurityTokenHandler().WriteToken(Token);
+        var claims = new[]
+        {
+        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new Claim(ClaimTypes.Email, user.Email),
+        new Claim("name", user.Name)
+    };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddDays(7),
+            signingCredentials: creds);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
 }

@@ -7,4 +7,6 @@ public class AppDbContext : DbContext
     public DbSet<Sdata> Sdata { get; set; }
     public DbSet<Shopify> Shopify { get; set; }
     public DbSet<Scrapper> Scrappers { get; set; }
+    public DbSet<ProductImageRecord> ProductImages { get; set; }
+    public DbSet<ProductVariantRecord> ProductVariants { get; set; }
 }
