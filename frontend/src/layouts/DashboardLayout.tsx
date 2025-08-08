@@ -40,7 +40,15 @@ const menuSections = [
   {
     items: [
       { text: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, path: 'dashboard' },
-     
+       
+    ]
+  },
+  {
+    title: 'Products',
+    items: [
+      { text: 'Live feed', icon: <CloudCog className="w-4 h-4" />, path: 'LiveFeed' },
+      { text: 'Review Products', icon: <Users className="w-4 h-4" />, path: 'Reviewproducts' },
+      { text: 'Database', icon: <Settings className="w-4 h-4" />, path: 'Database' },
     ]
   },
   {

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore;
 
-
+[Index (nameof(Id))]
 [Index(nameof(ProductUrl),IsUnique =true)]
 public class Sdata
 {
@@ -21,14 +21,19 @@ public class Sdata
     public string Description { get; set; } = "";
     public string ProductUrl {get;set;}="";
     public int Price { get; set; } = 0;
+    public int Retail_Price { get; set; } = 0;
     public string Category { get; set; } = "";
     public string ProductType { get; set; } = "";
     public string Gender { get; set; } = "";
     public string ScraperName { get; set; } = "";
     public string? Status { get; set; } = "";
+    public string? Sku { get; set; } = "";
+
+    public string Shopifyid { get; set; } = "";
     public string? StatusDulicateId { get; set; } = "";
     public string? DuplicateSource { get; set; } = "";
     public string Condition { get; set; } = "";
+    public string ?ConditionGrade { get; set; } = "";
     public bool Enriched { get; set; }=false;
     public List<ProductVariantRecord> Variants { get; set; } = new();
     public string ? Hashimg { get; set; } = "";

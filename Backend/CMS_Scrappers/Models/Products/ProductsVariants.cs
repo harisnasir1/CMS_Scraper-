@@ -8,8 +8,6 @@ public class ProductVariantRecord
     [ForeignKey("SdataId")]
     public Sdata Sdata { get; set; }
 
-    public Guid ProductId { get; set; }
-
     public string Size { get; set; } = "";
 
     public string SKU { get; set; } = "";

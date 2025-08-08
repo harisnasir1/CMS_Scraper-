@@ -47,6 +47,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         var initialProductList = allRawProducts.Select(product =>
         {
+            
             var images = product.Images.Select(i => new ProductImageRecordDTO
             {
                 Priority = i.Position,
@@ -137,9 +138,11 @@ public class SavonchesStrategy : IShopifyParsingStrategy
             // p.Sizes = Getsovanchesizes(doc);
             p.ProductUrl = link;
             p.Description = Getdescription(doc);
+            p.Retail_Price = GetRetail_Price(doc)??0;
             p.ScraperName = Scrappername;
             p.New = true;
             p.Condition = GetCondition(doc);
+            p.ConditionGrade = p.Condition=="New"?"New": GetConditionGrade(doc);
             p.Enriched=true;
         }
         catch (Exception ex)
@@ -259,6 +262,43 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         return conditionNode != null ? conditionNode.InnerText.Trim() : string.Empty;
     }
+
+    private string GetConditionGrade(HtmlDocument doc)
+    {
+        var gradeNode = doc.DocumentNode.SelectSingleNode(
+            "//div[contains(@class, 'tw-font-medium') and contains(text(), 'Pre-Owned')]"
+        );
+
+        if (gradeNode != null)
+        {
+            var text = gradeNode.InnerText.Trim();
+            var parts = text.Split(new[] { "Pre-Owned." }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0)
+            {
+                return parts[0].Trim(); 
+            }
+        }
+
+        return string.Empty;
+    }
+    private decimal? GetRetail_Price(HtmlDocument doc)
+    {
+        var priceNode = doc.DocumentNode
+        .SelectSingleNode("//span[contains(@class, 'metafield-multi_line_text_field') and contains(text(), '$')]");
+
+        if (priceNode == null) return null;
+
+        var text = priceNode.InnerText.Trim();
+
+        // Remove the '$' and any commas, then parse to decimal
+        if (decimal.TryParse(text.Replace("$", "").Replace(",", ""), out decimal price))
+        {
+            return price;
+        }
+
+        return null;
+    }
+
     private static string ExtractTextWithLineBreaks(HtmlNode node)
     {
         var sb = new StringBuilder();

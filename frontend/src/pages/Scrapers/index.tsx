@@ -11,52 +11,25 @@ import {
   import { Badge } from "@/components/ui/badge";
   import { usePageTitle } from "@/hooks/use-page-title";
   import {useScrapper} from "@/contexts/Scrapper-context"
-
-
-  const Scrapers=[{
-    Name:"Savonches",
-    Status:"Active",
-    Lastrun: Date.now(),
-    runtime:"100min"
-  }]
+  import { useProduct } from '@/contexts/products-context';
+  import { useNavigate } from 'react-router-dom';
+  
 
 const Scraperspage = () => {
   usePageTitle('Scrapers');
+  const navigate=useNavigate();
   const {getScrappers}=useScrapper();
   const {scrappers}=useScrapper();
-
+  const {getScraperProducts,normalizedate,Normalizetime}=useProduct();
+  
   useEffect(()=>{
     const Getall=async()=>{
       await getScrappers();
     }
     Getall()
   },[])
-  function normalizedate(d:string)
-  {
-    const re=d.split("T")[0];
-    return re;
-  }
-  function Normalizetime(runtime:string)
-  {
-    const [hours, minutes, secondsWithMs] = runtime.split(":");
-const seconds = parseFloat(secondsWithMs);
 
-const totalSeconds =
-  Number(hours) * 3600 +
-  Number(minutes) * 60 +
-  seconds;
-
-console.log(totalSeconds); 
-
-
- function pad(n:number) { return n.toString().padStart(2, "0"); }
-
-const h = pad(Number(hours));
-const m = pad(Number(minutes));
-const s = pad(Math.floor(seconds));
-return `${h}:${m}:${s}`
-
-  }
+ 
 
   return (
     <div className="flex-1 space-y-4  p-4 sm:p-6 lg:p-8 pt-6">
@@ -87,7 +60,13 @@ return `${h}:${m}:${s}`
                          </TableCell>
                          <TableCell>{normalizedate(scrap.lastrun.toString())}</TableCell>
                          <TableCell>{Normalizetime(scrap.runtime)}</TableCell>
-                         <TableCell className=' text-right'>{<Button className='bg-blue-700 hover:bg-blue-500'>View products </Button>}</TableCell>
+                         <TableCell className=' text-right'>{<Button 
+                         onClick={()=>{
+                          getScraperProducts(scrap,1,10)
+                          navigate(`/Scrapers/products/`)
+                        }
+                         }
+                         className='bg-blue-700 hover:bg-blue-500'>View products </Button>}</TableCell>
                     </TableRow>
                 ))
             }

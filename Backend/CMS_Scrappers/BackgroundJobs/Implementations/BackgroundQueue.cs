@@ -2,8 +2,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using CMS_Scrappers.BackgroundJobs.Interfaces;
 
-public class BackgroundQueue:IBackgroundTaskQueue{
+//High priority queue
+public class BackgroundQueue: IHighPriorityTaskQueue{
     private readonly SemaphoreSlim _signal=new(0);
     private readonly ConcurrentQueue<Func<IServiceProvider,CancellationToken,Task>> _workitem=new(); 
 
