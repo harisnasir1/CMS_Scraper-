@@ -17,6 +17,7 @@ import {
   Tags,
   ChevronRight,
   ShoppingBag,
+  CloudCog
 } from 'lucide-react';
 
 
@@ -39,13 +40,21 @@ const menuSections = [
   {
     items: [
       { text: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, path: 'dashboard' },
-      { text: 'Sell', icon: <ShoppingBag className="w-4 h-4" />, path: 'sell' },
+       
+    ]
+  },
+  {
+    title: 'Products',
+    items: [
+      { text: 'Live feed', icon: <CloudCog className="w-4 h-4" />, path: 'LiveFeed' },
+      { text: 'Review Products', icon: <Users className="w-4 h-4" />, path: 'Reviewproducts' },
+      { text: 'Database', icon: <Settings className="w-4 h-4" />, path: 'Database' },
     ]
   },
   {
     title: 'Admin',
     items: [
-      { text: 'Products', icon: <Package className="w-4 h-4" />, path: 'products' },
+      { text: 'Scrapers', icon: <CloudCog className="w-4 h-4" />, path: 'Scrapers' },
       { text: 'Users', icon: <Users className="w-4 h-4" />, path: 'users' },
       { text: 'Settings', icon: <Settings className="w-4 h-4" />, path: 'settings' },
     ]

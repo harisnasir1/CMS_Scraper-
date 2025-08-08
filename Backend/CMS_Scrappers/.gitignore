@@ -42,6 +42,7 @@ Migrations/
 
 # Secrets
 secrets.json
+appsettings.json
 appsettings.*.json
 
 # OS-specific
