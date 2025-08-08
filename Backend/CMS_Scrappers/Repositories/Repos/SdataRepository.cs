@@ -130,6 +130,7 @@ namespace CMS_Scrappers.Repositories.Repos
             .Include(s => s.Variants)
             .Where(s => productUrls.Contains(s.ProductUrl) && s.Status=="Live")
             .ToDictionaryAsync(s => s.ProductUrl);
+
             return dbProductsDict;
         }
     }

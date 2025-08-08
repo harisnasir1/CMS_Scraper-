@@ -9,6 +9,7 @@ import { selectedimages } from "@/types/Simagestypes"
 interface ProductContextType {
   products: Sdata[] | null
   ReviewProducts:Sdata[] | null
+  LiveProducts:Sdata[] | null
   isLoading: boolean
   SelectedScraper:Scraper|null,
   Selectedproduct:Sdata|null
@@ -20,6 +21,7 @@ interface ProductContextType {
   Normalizetime:(runtime:string)=>string
   normalizeDateTime:(dateString:string)=>string
   getReviewProducts : (PageNumber:number,PageSize:number)=>Promise<void>
+  getLiveProducts : (PageNumber:number,PageSize:number)=>Promise<void>
   Addselectedproduct:(data:Sdata)=>void
   Setcurrentpage:(page:number)=>void
   GetSimilarImg:(id:string)=>void
@@ -27,6 +29,7 @@ interface ProductContextType {
   Submit:(id:string)=>void
   GetAiDescription:(id:string)=>Promise<string>
   UpdateProductDetails:(productid:string,sku:string,price:number,title:string,description:string)=>void
+  GetProductCount:(status:string)=>Promise<number>
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -34,6 +37,7 @@ const ProductContext = createContext<ProductContextType | undefined>(undefined)
 export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Sdata[] | null>(null);
   const [ReviewProducts,setReviewProducts]=useState<Sdata[]|null>(null);
+  const [LiveProducts,setLiveProducts]=useState<Sdata[]|null>(null);
   const [SelectedScraper,setSelectedScraper]=useState<Scraper|null>(null);
   const [Selectedproduct,setSelectedproduct]=useState<Sdata|null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -70,7 +74,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
      
       const data = await api.getpendingreviewproducts(PageNumber,PageSize)
       setReviewProducts(data);
-      console.log(data)
+     
       settotalproducts(data.length)
       
     } catch (e) {
@@ -79,7 +83,21 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false)
     }
   }
-
+  const getLiveProducts = async (PageNumber:number=1,PageSize:number=10) => {
+    try {
+      setIsLoading(true)
+     
+      const data = await api.getlivefeedproducts(PageNumber,PageSize)
+      setLiveProducts(data);
+    
+      settotalproducts(data.length)
+      
+    } catch (e) {
+      console.error("Failed to fetch live products", e)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const Addselectedproduct=(data:Sdata)=>
   {
@@ -159,6 +177,17 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
      }
    }
 
+   const GetProductCount=async(status:string)=>
+   {
+    try{
+      const re=await api.GetProductCount(status)
+      return re;
+     }
+     catch{
+       console.log("error getting ai description");
+       return 0;
+     }
+   }
    
 
  
@@ -208,7 +237,8 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   return (
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
-     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails
+     currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails,
+     GetProductCount,getLiveProducts,LiveProducts
      }}>
       {children}
     </ProductContext.Provider>

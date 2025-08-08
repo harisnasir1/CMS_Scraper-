@@ -15,7 +15,7 @@ namespace CMS_Scrappers.Repositories.Repos
         {
             _logger.LogError($"page number ={PageNumber} \n pagesize ={PageSize}");
             return await _context.Sdata
-                  .Where(s => s.Sid == scraper && s.Status== "Categorized")
+                  .Where(s => s.Sid == scraper && s.Status== "Categorized"&&s.Condition=="New" && (s.Brand== "Chrome Hearts" || s.Brand == "Louis Vuitton"))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .Skip((PageNumber - 1) * PageSize)
@@ -25,7 +25,18 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
             return await _context.Sdata
-                  .Where(s =>  s.Status == "Categorized")
+                  .Where(s =>  s.Status == "Categorized" && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton"))
+                  .Include(s => s.Image)
+                  .Include(s => s.Variants)
+                  .OrderByDescending(s => s.CreatedAt)
+                  .Skip((PageNumber - 1) * PageSize)
+                   .Take(PageSize)
+                  .ToListAsync();
+        }
+        public async Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize)
+        {
+            return await _context.Sdata
+                  .Where(s => s.Status == "Live" && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton"))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .OrderByDescending(s => s.CreatedAt)
@@ -159,7 +170,10 @@ namespace CMS_Scrappers.Repositories.Repos
                 return false;
             }
         }
-
+        public async Task<int> TotalStatusProdcuts(string status)
+        {
+            return await _context.Sdata.Where(s=>s.Status==status && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton")).CountAsync();
+        }
 
     }
 }

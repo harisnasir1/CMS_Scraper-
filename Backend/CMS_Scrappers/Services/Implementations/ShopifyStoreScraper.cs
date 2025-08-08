@@ -52,20 +52,31 @@ public class ShopifyStoreScraper : IScrappers
         TimeStart = DateTime.UtcNow;
 
         var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
+        int i = 0;
+        foreach (var page in rawProduct.Pages)
+        {
+            _logger.LogWarning($"Scrapping page {i} done! ");
+            var batchResponse = new ShopifyGetAllProductsResponse
+            {
+                Pages = new List<ShopifyStoreProductsResponse> { page }
+            };
 
-        List<ShopifyFlatProduct> flatProduct = await _parsingStrategy.MapAndEnrichProductAsync(rawProduct, _storeBaseUrl);
+          
+            List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _storeBaseUrl);
+
+            var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
+            var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
+
+            List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
+
+            await _sdataRepository.Add(trendBatch, scrapperid);
+
+            await Updateliveproducts(flatBatch);
+            i++;
+        }
+
 
         TimeEnd = DateTime.UtcNow;
-
-        var Categoyfact=_serviceProvider.GetRequiredService<ICategoryMapperFact>();
-
-        var Category_Mapper=Categoyfact.GetCategoryMapper("savonches");
-
-        List<ShopifyFlatProduct> Trenddata =Category_Mapper.TrendCategoryMapper(flatProduct);
-
-        await _sdataRepository.Add(Trenddata,scrapperid);
-
-        await Updateliveproducts(flatProduct);
 
         TimeSpan Diff = TimeEnd - TimeStart;
 
@@ -91,7 +102,7 @@ public class ShopifyStoreScraper : IScrappers
           
             using var scope = serviceProvider.CreateScope();
             var shclient = scope.ServiceProvider.GetService<IShopifyService>();
-            shclient.UpdateProduct(existingProducts, dbexistingproducts);
+          await  shclient.UpdateProduct(existingProducts, dbexistingproducts);
          });
     }
 }

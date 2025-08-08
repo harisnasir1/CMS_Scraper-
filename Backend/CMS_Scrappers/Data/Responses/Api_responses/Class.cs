@@ -19,6 +19,10 @@
         public string productid { get; set; }
     }
 
+    public class CountRequest
+    {
+        public string status { get; set; }
+    }
     public class UpdateDetails
     {
         public string productid { get; set; }

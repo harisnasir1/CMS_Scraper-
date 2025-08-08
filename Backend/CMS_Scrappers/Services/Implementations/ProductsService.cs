@@ -45,6 +45,11 @@ namespace CMS_Scrappers.Services.Implementations
             var data = await _repository.GetPendingReviewproducts(PageNumber, PageSize);
             return data;
         }
+        public async Task<List<Sdata>> Livefeedproducts(int PageNumber, int PageSize)
+        {
+            var data = await _repository.GetLiveproducts(PageNumber, PageSize);
+            return data;
+        }
         public async Task<ApiResponse<Object>> GetSimilarimages(Guid ProductId, int start)
         {
             var data = await _repository.Getproductbyid(ProductId);
@@ -58,20 +63,13 @@ namespace CMS_Scrappers.Services.Implementations
             var Images = new List<ProductImageRecord>();
             foreach (var image in copiedImages)
             {
-                var resultJson = await _backgroundRemover.RemoveBackgroundAsync(imageUrl: image.Url);
-                _logger.LogError($"Url: {resultJson}");
-                var json = System.Text.Json.JsonDocument.Parse(resultJson);
-                if (json.RootElement.TryGetProperty("result_url", out var outputUrlElement))
-                {
-                    string newUrl = outputUrlElement.GetString();
-                    if (string.IsNullOrEmpty(newUrl)) continue;
-
-                    using var imagestream = await _httpClient.GetStreamAsync(newUrl);
-                    if (imagestream == null) continue;
-                    var finalurl = await _S3service.Uploadimage(imagestream);
-                    image.Url = finalurl;
+                using var processedStream = await _backgroundRemover.RemoveBackgroundAsync(imageUrl: image.Url);
+                if (processedStream == null || processedStream.Length == 0) continue;
+                    var finalurl = await _S3service.Uploadimage(processedStream);
+                if (string.IsNullOrEmpty(finalurl)) continue;
+                image.Url = finalurl;
                     Images.Add(image);
-                }
+                
             }
             if (Images.Count > 0)
             {
@@ -101,5 +99,11 @@ namespace CMS_Scrappers.Services.Implementations
         {
             return await _repository.UpdateProductDetailsAsync(id, sku, title, description, price);
         }
+
+        public async Task<int>ProductCountStatus(string status)
+        {
+            return await _repository.TotalStatusProdcuts(status);
+        }
+        
     }
 }

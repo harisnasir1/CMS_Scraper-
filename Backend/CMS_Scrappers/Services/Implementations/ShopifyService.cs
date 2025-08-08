@@ -3,6 +3,7 @@ using System.Text;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
 using System.Xml.Linq;
+using Amazon.S3.Model;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -19,7 +20,6 @@ namespace CMS_Scrappers.Services.Implementations
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
             _locationId = "";
-
         }
         public async Task<string> PushProductAsync(Sdata sdata)
         {
@@ -31,11 +31,16 @@ namespace CMS_Scrappers.Services.Implementations
                     body_html = sdata.Description,
                     vendor = sdata.Brand,
                     product_type = sdata.ProductType,
-                    tags = $" 'ALL PRODUCTS',{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},'Not in HQ'",
+                    template_suffix = sdata.ProductType== "Accessories" ? "single-size":"Default product",
+                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ",
+                    options = new[]
+                    {
+                        new { name = "Size" }
+                    },
                     variants = sdata.Variants.Select(v => new
                     {
                         option1 = v.Size,
-                        price = v.Price.ToString("F2"),
+                        price = Addmarkup(v.Price).ToString("F2"),
                         sku = v.SKU,
                         inventory_management = "shopify",
                         inventory_quantity = 1,
@@ -68,16 +73,14 @@ namespace CMS_Scrappers.Services.Implementations
         {
            
             var ownerId = $"gid://shopify/Product/{productId}";
-
-           
             var metafieldInputs = new[]
             {
-        new { ownerId = ownerId, key = "scraper_origin", @namespace = "custom", value = sdata.ScraperName, type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = sdata.Condition, type = "single_line_text_field" },
+        new { ownerId = ownerId, key = "scraper_origin", @namespace = "custom", value = sdata.ScraperName??" ", type = "single_line_text_field" },
+        new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = sdata.Condition??" ", type = "single_line_text_field" },
         new { ownerId = ownerId, key = "age_group", @namespace = "custom", value = "Adult", type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "category", @namespace = "custom", value = sdata.Category, type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "product_type", @namespace = "custom", value = sdata.ProductType, type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "gender", @namespace = "custom", value =GetGender(sdata.Gender), type = "single_line_text_field" },
+        new { ownerId = ownerId, key = "category", @namespace = "custom", value = sdata.Category ?? " ", type = "single_line_text_field" },
+        new { ownerId = ownerId, key = "product_type", @namespace = "custom", value = sdata.ProductType??" ", type = "single_line_text_field" },
+        new { ownerId = ownerId, key = "gender", @namespace = "custom", value =GetGender(sdata.Gender)??" ", type = "single_line_text_field" },
        
             };
 
@@ -150,7 +153,7 @@ namespace CMS_Scrappers.Services.Implementations
                 return "";
             }
         }
-        //only updates shpoify quantity
+     
         public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
         {
             var locationId = await GetFirstLocationIdAsync();
@@ -160,7 +163,7 @@ namespace CMS_Scrappers.Services.Implementations
                 _logger.LogError("Could not find a Shopify location to update inventory.");
                 return;
             }
-            decimal Batchsizes = 50;
+            decimal Batchsizes = 500;
             decimal totalproduct=existingproduct.Count();
             decimal Batchcount = Math.Ceiling(totalproduct/Batchsizes);
 
@@ -271,7 +274,7 @@ namespace CMS_Scrappers.Services.Implementations
                 string size = null;
                 foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
                 {
-                    if (option.GetProperty("name").GetString().Equals("Title", StringComparison.OrdinalIgnoreCase))
+                    if (option.GetProperty("name").GetString().Equals("Size", StringComparison.OrdinalIgnoreCase))
                     {
                         size = option.GetProperty("value").GetString();
                         break;
@@ -320,10 +323,18 @@ namespace CMS_Scrappers.Services.Implementations
             {
                 throw new Exception($"GraphQL Error: {errors.ToString()}");
             }
-
             return jsonDoc.RootElement.GetProperty("data");
         }
 
+        private double Addmarkup(decimal price)
+        {
+            double p = (float)price;
+            if(price<=0)return 0;
+            double markup = 0.1 * p;
+            double ourprice = p + markup;
+            double pound = Math.Round(ourprice * 0.74);
+            return pound;
+        }
     }
 
 }

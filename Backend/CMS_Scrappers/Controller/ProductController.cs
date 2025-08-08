@@ -38,6 +38,12 @@ namespace CMS_Scrappers.Controller
             var data=await _ProductSerivce.pendingReviewproducts(request.PageNumber,request.PageSize);
             return Ok(data);
         }
+        [HttpPost("Livefeed")]
+        public async Task<IActionResult> Livefeed([FromBody] ReviewProductRequest request)
+        {
+            var data = await _ProductSerivce.Livefeedproducts(request.PageNumber, request.PageSize);
+            return Ok(data);
+        }
 
         [HttpPost("Similarimages")]
         public async Task<IActionResult> GetSimilarImg([FromBody] SimilarproductRequest request)
@@ -58,7 +64,7 @@ namespace CMS_Scrappers.Controller
                 _logger.LogInformation("shopify product pushing in process");
                 using var scope = serviceProvider.CreateScope();
                 var pservice = scope.ServiceProvider.GetService<IProducts>();
-                //await pservice.RemovingBackgroundimages(guid);
+                await pservice.RemovingBackgroundimages(guid);
                 await pservice.PushProductShopify(guid);
                 await pservice.UpdateStatus(guid, "Live");
                 _logger.LogInformation("shopify product pushing ended");
@@ -80,6 +86,12 @@ namespace CMS_Scrappers.Controller
            bool k= await _ProductSerivce.UpdateProductDetails(guid,request.sku,request.title,request.description,request.price);
             if (!k) return Ok(false);
             return Ok(true);
+        }
+        [HttpPost("GetCount")]
+        public async Task<IActionResult> GetProductCount([FromBody] CountRequest request)
+        {
+            int re=await _ProductSerivce.ProductCountStatus(request.status);
+            return Ok(re);
         }
 
     }

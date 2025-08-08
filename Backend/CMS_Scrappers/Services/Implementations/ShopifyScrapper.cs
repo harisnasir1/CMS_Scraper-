@@ -32,14 +32,16 @@ public class ShoipfyScrapper:Scrap_shopify{
             {
                 break;
             }
-            if(pageNumber>10)
+            
+            response.Pages.Add(productsResponse);
+
+            pageNumber++;
+            if(pageNumber>15)
             {
                 break;
             }
-            
-            response.Pages.Add(productsResponse);
-            pageNumber++;
-            await Task.Delay(2000);
+
+            await Task.Delay(3000);
         }
         return response;
     }

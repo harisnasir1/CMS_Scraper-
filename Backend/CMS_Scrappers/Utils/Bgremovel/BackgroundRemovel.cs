@@ -9,7 +9,7 @@ public class BackgroundRemover
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
-    private const string ApiUrl = "https://api.developer.pixelcut.ai/v1/remove-background";
+    private const string ApiUrl = "https://api.remove.bg/v1.0/removebg";
 
     public BackgroundRemover(HttpClient httpClient, string apiKey)
     {
@@ -17,27 +17,25 @@ public class BackgroundRemover
         _apiKey = apiKey;
     }
 
-    public async Task<string> RemoveBackgroundAsync(string imageUrl)
+    public async Task<Stream> RemoveBackgroundAsync(string imageUrl)
     {
-        var payload = new
-        {
-            image_url = imageUrl,
-            format = "png"
-        };
 
-        string jsonPayload = JsonSerializer.Serialize(payload);
+        using var formdata = new MultipartFormDataContent();
+        formdata.Add(new StringContent(imageUrl), "image_url");
+        formdata.Add(new StringContent("auto"), "size");
+
 
         using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
-        request.Headers.Accept.Clear();
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.Add("X-API-KEY", _apiKey);
+        request.Content = formdata;
 
-        request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+      
 
         using var response = await _httpClient.SendAsync(request);
-
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadAsStringAsync();
+        var imgaebytes=await response.Content.ReadAsByteArrayAsync();
+
+        return new MemoryStream(imgaebytes);
     }
 }

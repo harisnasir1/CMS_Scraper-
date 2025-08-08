@@ -47,6 +47,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         var initialProductList = allRawProducts.Select(product =>
         {
+            
             var images = product.Images.Select(i => new ProductImageRecordDTO
             {
                 Priority = i.Position,

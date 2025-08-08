@@ -22,13 +22,13 @@ namespace CMS_Scrappers.Services.Implementations
             var client = new AmazonS3Client(_settings.AccessKey, _settings.SecretKey, region);
             var fileTransferUtility = new TransferUtility(client);
             var fileName = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{Guid.NewGuid()}";
-            var key = $"CMS/{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{fileName}.jpg";
+            var key = $"CMS/{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{fileName}.png";
             var uploadRequest = new TransferUtilityUploadRequest
             {
                 InputStream = images,
                 Key = key,
                 BucketName = _settings.BucketName,
-                ContentType = "image/jpeg"
+                ContentType = "image/png"
             };
             await fileTransferUtility.UploadAsync(uploadRequest);
             return $"https://{_settings.BucketName}.s3.{_settings.Region}.amazonaws.com/{key}";

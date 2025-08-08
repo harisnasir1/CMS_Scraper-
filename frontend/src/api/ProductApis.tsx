@@ -13,6 +13,11 @@ export class productsapis{
         const response=await api.post<Sdata[]>("Product/pendingreview",{PageNumber,PageSize});
         return response.data;
     }
+    async getlivefeedproducts(PageNumber:Number,PageSize:Number)
+    {
+        const response=await api.post<Sdata[]>("Product/Livefeed",{PageNumber,PageSize});
+        return response.data;
+    }
     async getsimilarimages( productid:string,PageSize:number)
     {
       const response=await api.post<string[]>("Product/Similarimages",{productid:productid,page:PageSize});
@@ -33,6 +38,11 @@ export class productsapis{
     async SumitDetails(productid:string,sku:string,price:number,title:string,description:string)
     {
         const response=await api.post<string>("Product/SaveDetails",{productid:productid,sku,description,title,price});
+        return response.data
+    }
+    async GetProductCount(status:string)
+    {
+        const response=await api.post<number>("Product/GetCount",{status:status});
         return response.data
     }
 }

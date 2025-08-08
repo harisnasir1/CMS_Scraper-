@@ -39,9 +39,20 @@ builder.Services.AddHttpClient();
 
 //configs
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
-    ServiceLifetime.Scoped  
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,                 
+                maxRetryDelay: TimeSpan.FromSeconds(10), 
+                errorCodesToAdd: null             
+            );
+        }
+    ),
+    ServiceLifetime.Scoped
 );
+
 builder.Services.AddTransient<BackgroundRemover>(serviceProvider =>
 {
     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
