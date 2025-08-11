@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+
 [ApiController]
 [Route("api/[controller]")]
 public class UserController:ControllerBase
@@ -17,12 +18,6 @@ public class UserController:ControllerBase
         _jwtSettings = jwtSettings;
     }
  
-    [HttpGet("ping")]
-    public async Task<IActionResult> Ping()
-    {
-       
-        return Ok("Scraper is ready");
-    }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(UserRegistrationDto dto)
@@ -45,8 +40,8 @@ public class UserController:ControllerBase
         {
         HttpOnly = false,
         Secure = HttpContext.Request.IsHttps || string.Equals(HttpContext.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase),
-        SameSite = SameSiteMode.Lax,
-        Expires = DateTimeOffset.UtcNow.AddDays(7)
+        SameSite = SameSiteMode.None,
+        Expires = DateTimeOffset.UtcNow.AddDays(2)
         });
 
         return Ok(new { message = "Login successful" });

@@ -153,8 +153,8 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
     private string GetGender(List<string> tags)
     {
-        if (tags.Contains("Male")) return "Male";
-        if (tags.Contains("Female")) return "Female";
+        if (tags.Contains("Male")) return "Men";
+        if (tags.Contains("Female")) return "Women";
         if (tags.Contains("Unisex")) return "Unisex";
         return string.Empty;
     }
