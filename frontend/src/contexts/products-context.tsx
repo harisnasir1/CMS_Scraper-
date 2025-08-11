@@ -1,10 +1,10 @@
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { productsapis } from "@/api/ProductApis"
 import { Sdata } from "@/types/Sdata"
 import { Scraper } from "@/types/Scrappertype"
-import { selectedimages } from "@/types/Simagestypes"
+
 
 interface ProductContextType {
   products: Sdata[] | null

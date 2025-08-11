@@ -1,6 +1,6 @@
 // src/context/ScrapperContext.tsx
 import { createContext, useContext, useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
+
 import { Scraperapis } from '@/api/Scrapperapis'
 import { Scraper } from "@/types/Scrappertype"
 
@@ -16,7 +16,6 @@ export function ScrapperProvider({ children }: { children: React.ReactNode })
 {
   const [scrappers, setScrappers] = useState<Scraper[] | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const navigate = useNavigate()
   const scrapis = new Scraperapis()
 
   const getScrappers = async () => {

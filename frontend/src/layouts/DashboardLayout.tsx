@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { useResizeObserver } from '@/hooks/use-resize-observer';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -12,11 +11,7 @@ import {
   User,
   LogOut,
   CreditCard,
-  UserPlus,
-  Package,
-  Tags,
   ChevronRight,
-  ShoppingBag,
   CloudCog
 } from 'lucide-react';
 
@@ -65,7 +60,7 @@ const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const location = useLocation();
-  const dimensions = useResizeObserver();
+
 
   // Handle window resize
   useEffect(() => {
