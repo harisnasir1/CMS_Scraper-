@@ -20,6 +20,7 @@ using CMS_Scrappers.BackgroundJobs.Implementations;
 var builder = WebApplication.CreateBuilder(args);
 
 //settings
+builder.Configuration.AddEnvironmentVariables();
 var googleSettings = builder.Configuration.GetSection("_thirdParties").Get<GoogleAPISettings>();
 builder.Services.AddSingleton(googleSettings);
 
@@ -58,7 +59,7 @@ builder.Services.AddTransient<BackgroundRemover>(serviceProvider =>
     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
     var httpClient = httpClientFactory.CreateClient();
     var config = serviceProvider.GetRequiredService<IConfiguration>();
-    var apiToken = config["RemovalAi:ApiToken"];
+    var apiToken = config["Removebg:ApiToken"];
     return new BackgroundRemover(httpClient, apiToken);
 });
 builder.Services.AddCors(options =>
