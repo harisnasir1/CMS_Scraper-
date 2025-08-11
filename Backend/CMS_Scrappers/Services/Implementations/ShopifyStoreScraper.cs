@@ -92,8 +92,7 @@ public class ShopifyStoreScraper : IScrappers
     }
 
     private async Task Updateliveproducts(List<ShopifyFlatProduct> data)
-    {
-        
+    { 
         var existingProducts = data.Where(p => !p.New).ToList();
         var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
         _logger.LogError($"shopify update queue is in process {existingProducts}");
