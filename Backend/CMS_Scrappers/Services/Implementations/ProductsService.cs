@@ -64,12 +64,13 @@ namespace CMS_Scrappers.Services.Implementations
             foreach (var image in copiedImages)
             {
                 using var processedStream = await _backgroundRemover.RemoveBackgroundAsync(imageUrl: image.Url);
-                if (processedStream == null || processedStream.Length == 0) continue;
-                    var finalurl = await _S3service.Uploadimage(processedStream);
+                using var resizeimage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048);
+                if (resizeimage == null || resizeimage.Length == 0) continue;
+                    var finalurl = await _S3service.Uploadimage(resizeimage);
                 if (string.IsNullOrEmpty(finalurl)) continue;
-                image.Url = finalurl;
+                    image.Url = finalurl;
                     Images.Add(image);
-                
+                await Task.Delay(1000);
             }
             if (Images.Count > 0)
             {

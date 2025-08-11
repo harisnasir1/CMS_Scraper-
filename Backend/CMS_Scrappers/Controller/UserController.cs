@@ -43,9 +43,9 @@ public class UserController:ControllerBase
         var Token=GenerateJWtToken(user);
         Response.Cookies.Append("token", Token, new CookieOptions
         {
-        HttpOnly = true,
+        HttpOnly = false,
         Secure = HttpContext.Request.IsHttps || string.Equals(HttpContext.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase),
-        SameSite = SameSiteMode.None,
+        SameSite = SameSiteMode.Lax,
         Expires = DateTimeOffset.UtcNow.AddDays(7)
         });
 
