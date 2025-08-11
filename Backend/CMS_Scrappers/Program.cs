@@ -71,7 +71,8 @@ builder.Services.AddCors(options =>
                "http://localhost:5173",
                "http://127.0.0.1:5173",
                "https://localhost:5173",
-               "https://cms-scraper-rvny.vercel.app"
+               "https://cms-scraper-rvny.vercel.app",
+               "https://cms-scraper-rvny-cf63mhc3f-harisnasir1s-projects.vercel.app"
            )
            .AllowAnyHeader()
            .AllowAnyMethod()
