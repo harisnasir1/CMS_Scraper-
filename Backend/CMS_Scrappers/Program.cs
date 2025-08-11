@@ -129,6 +129,7 @@ builder.Services.AddControllers();
 var app = builder.Build();
 app.UseRouting();
 app.UseCors();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
