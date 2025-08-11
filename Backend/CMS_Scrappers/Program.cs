@@ -66,7 +66,14 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(
+               "http://localhost:3000",
+               "http://localhost:5173",
+               "http://127.0.0.1:5173",
+               "https://localhost:5173",
+               "https://cms-scraper-rvny.vercel.app",
+               "https://cms-scraper-rvny-cf63mhc3f-harisnasir1s-projects.vercel.app"
+           )
            .AllowAnyHeader()
            .AllowAnyMethod()
            .AllowCredentials();
@@ -89,6 +96,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         OnMessageReceived = context =>
         {
             var token = context.Request.Cookies["token"];
+               Console.WriteLine("Token from cookie: " + token); 
             if (!string.IsNullOrEmpty(token))
             {
                 context.Token = token;
@@ -128,6 +136,14 @@ builder.Services.AddScoped<IShopifyService, ShopifyService>();
 builder.Services.AddControllers();
 var app = builder.Build();
 app.UseRouting();
+// Ensure ASP.NET Core knows it's behind a proxy/HTTPS on Railway so cookie Secure and scheme are respected
+app.Use((context, next) => {
+    if (context.Request.Headers.ContainsKey("X-Forwarded-Proto"))
+    {
+        context.Request.Scheme = context.Request.Headers["X-Forwarded-Proto"];    
+    }
+    return next();
+});
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

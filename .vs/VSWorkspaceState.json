@@ -1,14 +1,7 @@
 {
   "ExpandedNodes": [
-    "",
-    "\\Backend",
-    "\\Backend\\CMS_Scrappers",
-    "\\Backend\\CMS_Scrappers\\Services\\Implementations",
-    "\\Backend\\CMS_Scrappers\\Strategies\\Implementation",
-    "\\frontend\\src",
-    "\\frontend\\src\\pages",
-    "\\frontend\\src\\pages\\dashboard"
+    ""
   ],
-  "SelectedNode": "\\Backend\\CMS_Scrappers\\CMS_Scrappers.csproj",
+  "SelectedNode": "\\CMS_Scrappers.sln",
   "PreviewInSolutionExplorer": false
 }

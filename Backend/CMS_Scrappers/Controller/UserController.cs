@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+
 [ApiController]
 [Route("api/[controller]")]
 public class UserController:ControllerBase
@@ -17,12 +18,6 @@ public class UserController:ControllerBase
         _jwtSettings = jwtSettings;
     }
  
-    [HttpGet("ping")]
-    public async Task<IActionResult> Ping()
-    {
-       
-        return Ok("Scraper is ready");
-    }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(UserRegistrationDto dto)
@@ -43,10 +38,10 @@ public class UserController:ControllerBase
         var Token=GenerateJWtToken(user);
         Response.Cookies.Append("token", Token, new CookieOptions
         {
-        HttpOnly = true,
-        Secure = false, 
+        HttpOnly = false,
+        Secure = HttpContext.Request.IsHttps || string.Equals(HttpContext.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase),
         SameSite = SameSiteMode.None,
-        Expires = DateTimeOffset.UtcNow.AddDays(7) 
+        Expires = DateTimeOffset.UtcNow.AddDays(2)
         });
 
         return Ok(new { message = "Login successful" });
@@ -56,6 +51,7 @@ public class UserController:ControllerBase
     public IActionResult Me()
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
         if(userId==null)return BadRequest("Invalid token");
         var userinfo=_userService.Userinfo(userId); 
         return Ok(new { userinfo });

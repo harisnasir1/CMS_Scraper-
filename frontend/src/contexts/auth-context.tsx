@@ -26,9 +26,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const response = await api.get<User>("/User/me")
-      console.log(response)
-      setUser(response.data)
+      const response = await api.get<{ userinfo: User }>("/User/me")
+      setUser(response.data?.userinfo ?? null)
     } catch (error) {
       setUser(null)
       // Only redirect to login if we're not already there
