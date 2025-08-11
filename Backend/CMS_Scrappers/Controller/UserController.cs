@@ -45,7 +45,7 @@ public class UserController:ControllerBase
         {
         HttpOnly = true,
         Secure = false, 
-        SameSite = SameSiteMode.Lax, // or SameSiteMode.Strict/SameSiteMode.None (if on cross-domain with HTTPS)
+        SameSite = SameSiteMode.None,
         Expires = DateTimeOffset.UtcNow.AddDays(7) 
         });
 
