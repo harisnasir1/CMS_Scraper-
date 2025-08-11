@@ -13,7 +13,6 @@ import Reviewproducts from './pages/Reviewproducts';
 
 // Import pages
 import DashboardPage from './pages/dashboard';
-import ProductsPage from './pages/products';
 import { CreateProductPage } from './pages/products/create';
 import ProductSearchPage from './pages/products/search';
 import UsersPage from './pages/users';

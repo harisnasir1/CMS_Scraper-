@@ -43,10 +43,10 @@ public class UserController:ControllerBase
         var Token=GenerateJWtToken(user);
         Response.Cookies.Append("token", Token, new CookieOptions
         {
-        HttpOnly = true,
-        Secure = false, 
-        SameSite = SameSiteMode.None,
-        Expires = DateTimeOffset.UtcNow.AddDays(7) 
+        HttpOnly = false,
+        Secure = HttpContext.Request.IsHttps || string.Equals(HttpContext.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase),
+        SameSite = SameSiteMode.Lax,
+        Expires = DateTimeOffset.UtcNow.AddDays(7)
         });
 
         return Ok(new { message = "Login successful" });
@@ -56,6 +56,7 @@ public class UserController:ControllerBase
     public IActionResult Me()
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
         if(userId==null)return BadRequest("Invalid token");
         var userinfo=_userService.Userinfo(userId); 
         return Ok(new { userinfo });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import  { useState, useEffect } from "react";
 import {
   Accordion,
   AccordionItem,
@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/accordion"; // adjust import path to your accordion setup
 import { Button } from "@/components/ui/button"; // Assuming you have a button component
 import { Search, Check } from 'lucide-react'; // Import icons from lucide-react
-import { useProduct } from "@/contexts/products-context";
 
 const IMAGES_PER_PAGE = 10;
 const RENDER_DELAY_MS = 140;
@@ -22,9 +21,7 @@ export const ImageGallery = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [accordionValue, setAccordionValue] = useState("gallery");
   const [isContentVisible, setIsContentVisible] = useState(true);
-  // const {Selectedproduct,GetMoreSimilarImg}=useProduct()
-  const [sp,setsp]=useState<number>(2);
-  console.log(images)
+  
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
@@ -57,12 +54,12 @@ export const ImageGallery = ({
   };
 
   
-  const handleSearchClick = (imageUrl: string) => {
-    // if(Selectedproduct)
-    // {  GetMoreSimilarImg(Selectedproduct?.id,sp)
-    //    setsp(s=>s+1)
-    // }
-  };
+  // const handleSearchClick = (imageUrl: string) => {
+  //   // if(Selectedproduct)
+  //   // {  GetMoreSimilarImg(Selectedproduct?.id,sp)
+  //   //    setsp(s=>s+1)
+  //   // }
+  // };
 
   const handleSelectClick = (imageUrl: string) => {
     console.log("Select icon clicked for:", imageUrl);
@@ -99,7 +96,7 @@ export const ImageGallery = ({
                     {/* Hover overlay with icons */}
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
                       <button
-                        onClick={() => handleSearchClick(img)}
+                        // onClick={() => handleSearchClick(img)}
                         className="p-2 bg-white/80 rounded-full text-gray-800 hover:bg-white hover:scale-110 transition-transform"
                         aria-label="Search image"
                       >

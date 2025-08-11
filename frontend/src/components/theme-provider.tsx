@@ -50,7 +50,7 @@ export function ThemeProvider({
 
     applyTheme(theme)
 
-    const mediaQueryListener = (e: MediaQueryListEvent) => {
+    const mediaQueryListener = () => {
       if (theme === "system") {
         applyTheme("system")
       }

@@ -1,7 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, TooltipProps } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { format } from "date-fns";
-import { useTheme } from "@/components/theme-provider";
 
 const data = [
   {
@@ -79,7 +78,7 @@ const data = [
 ];
 
 export function RevenueChart() {
-  const { theme } = useTheme();
+
   return (
     <Card className="col-span-4 shadow-sm hover:shadow-md transition-shadow duration-200">
       <CardHeader className="space-y-1 px-3 sm:px-4 lg:px-6">
@@ -129,7 +128,7 @@ export function RevenueChart() {
                             Revenue
                           </span>
                           <span className="font-bold text-muted-foreground">
-                            £{payload[0].value.toLocaleString()}
+                            £{payload[0].value&&payload[0]?.value.toLocaleString()}
                           </span>
                         </div>
                         <div className="flex flex-col">
@@ -137,7 +136,7 @@ export function RevenueChart() {
                             Profit
                           </span>
                           <span className="font-bold text-muted-foreground">
-                            £{payload[1].value.toLocaleString()}
+                            £{payload[1].value&&payload[1].value.toLocaleString()}
                           </span>
                         </div>
                       </div>
