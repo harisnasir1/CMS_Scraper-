@@ -92,17 +92,16 @@ public class ShopifyStoreScraper : IScrappers
     }
 
     private async Task Updateliveproducts(List<ShopifyFlatProduct> data)
-    {
-        
+    { 
         var existingProducts = data.Where(p => !p.New).ToList();
         var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
-        _logger.LogError($"shopify update queue is in process {existingProducts}");
+ 
         if (dbexistingproducts.Count <=0 || dbexistingproducts.Count<=0) { return; }
         _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
-          
+            _logger.LogError($"shopify update queue is in process {existingProducts}");
             using var scope = serviceProvider.CreateScope();
             var shclient = scope.ServiceProvider.GetService<IShopifyService>();
-          await  shclient.UpdateProduct(existingProducts, dbexistingproducts);
+            await  shclient.UpdateProduct(existingProducts, dbexistingproducts);
          });
     }
 }

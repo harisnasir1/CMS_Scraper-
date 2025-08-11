@@ -64,7 +64,7 @@ namespace CMS_Scrappers.Controller
                 _logger.LogInformation("shopify product pushing in process");
                 using var scope = serviceProvider.CreateScope();
                 var pservice = scope.ServiceProvider.GetService<IProducts>();
-                await pservice.RemovingBackgroundimages(guid);
+                //await pservice.RemovingBackgroundimages(guid);
                 await pservice.PushProductShopify(guid);
                 await pservice.UpdateStatus(guid, "Live");
                 _logger.LogInformation("shopify product pushing ended");
