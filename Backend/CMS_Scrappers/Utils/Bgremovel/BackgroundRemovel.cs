@@ -39,36 +39,58 @@ public class BackgroundRemover
 
         return new MemoryStream(imgaebytes);
     }
-    public async Task<Stream> ResizeImageAsync(Stream instream, int boxWidth, int boxHeight, int margin)
+    public async Task<Stream> ResizeImageAsync(Stream instream, int boxWidth, int boxHeight, int margin, bool fillBox = false)
     {
         instream.Position = 0;
         using var image = await Image.LoadAsync<Rgba32>(instream);
 
-        // Reduce the max drawable area by the margin
-        int targetWidth = boxWidth - (margin * 2);
-        int targetHeight = boxHeight - (margin * 2);
+        if (!fillBox)
+        {
+            // ====== FIT MODE (with margin & centering) ======
+            int targetWidth = boxWidth - (margin * 2);
+            int targetHeight = boxHeight - (margin * 2);
 
-        // Calculate proportional scale so image fits entirely inside the reduced area
-        double scale = Math.Min((double)targetWidth / image.Width, (double)targetHeight / image.Height);
-        int newWidth = (int)Math.Round(image.Width * scale);
-        int newHeight = (int)Math.Round(image.Height * scale);
+            double scale = Math.Min((double)targetWidth / image.Width, (double)targetHeight / image.Height);
+            int newWidth = (int)Math.Round(image.Width * scale);
+            int newHeight = (int)Math.Round(image.Height * scale);
 
-        // Resize the image (upscale or downscale)
-        image.Mutate(x => x.Resize(newWidth, newHeight));
+            image.Mutate(x => x.Resize(newWidth, newHeight));
 
-        // Create a transparent canvas for final output
-        using var canvas = new Image<Rgba32>(boxWidth, boxHeight, Color.Transparent);
+            using var canvas = new Image<Rgba32>(boxWidth, boxHeight, Color.Transparent);
+            int xPos = (boxWidth - newWidth) / 2;
+            int yPos = (boxHeight - newHeight) / 2;
+            canvas.Mutate(x => x.DrawImage(image, new Point(xPos, yPos), 1f));
 
-        // Center the resized image within the box, leaving margin space
-        int xPos = (boxWidth - newWidth) / 2;
-        int yPos = (boxHeight - newHeight) / 2;
-        canvas.Mutate(x => x.DrawImage(image, new Point(xPos, yPos), 1f));
+            var outStream = new MemoryStream();
+            await canvas.SaveAsync(outStream, new PngEncoder());
+            outStream.Position = 0;
+            return outStream;
+        }
+        else
+        {
+            // ====== FILL MODE (cover, may crop) ======
+            double scale = Math.Max((double)boxWidth / image.Width, (double)boxHeight / image.Height);
+            int newWidth = (int)Math.Round(image.Width * scale);
+            int newHeight = (int)Math.Round(image.Height * scale);
 
-        // Output to PNG stream (keeps transparency)
-        var outStream = new MemoryStream();
-        await canvas.SaveAsync(outStream, new PngEncoder());
-        outStream.Position = 0;
-        return outStream;
+            image.Mutate(x => x.Resize(newWidth, newHeight));
+
+            // Crop to exactly the box size
+            var cropRect = new Rectangle(
+                (newWidth - boxWidth) / 2,
+                (newHeight - boxHeight) / 2,
+                boxWidth,
+                boxHeight
+            );
+
+            image.Mutate(x => x.Crop(cropRect));
+
+            var outStream = new MemoryStream();
+            await image.SaveAsync(outStream, new PngEncoder());
+            outStream.Position = 0;
+            return outStream;
+        }
     }
+
 
 }

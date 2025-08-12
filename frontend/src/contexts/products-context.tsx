@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import { productsapis } from "@/api/ProductApis"
 import { Sdata, ISelectedImgs } from "@/types/Sdata"
 import { Scraper } from "@/types/Scrappertype"
-
+import toast, { Toaster } from "react-hot-toast";
 
 interface ProductContextType {
   products: Sdata[] | null
@@ -179,6 +179,8 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
    {
     try{
       const re=await api.SumitDetails(productid,sku,price,title,description);
+      console.log(re)
+      toast.success("Product Details saved!")
       return re;
      }
      catch{
@@ -274,6 +276,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
      currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails,
      GetProductCount,getLiveProducts,LiveProducts,selectedimg,AddSelectedimgs,ImgToggleBgflag
      }}>
+      <Toaster/>
       {children}
     </ProductContext.Provider>
   )

@@ -94,14 +94,43 @@ public class ShopifyStoreScraper : IScrappers
     private async Task Updateliveproducts(List<ShopifyFlatProduct> data)
     { 
         var existingProducts = data.Where(p => !p.New).ToList();
+        
+        // Early return if no existing products to update
+        if (!existingProducts.Any())
+        {
+            _logger.LogInformation("No existing products found to update");
+            return;
+        }
+
         var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
  
-        if (dbexistingproducts.Count <=0 || dbexistingproducts.Count<=0) { return; }
+        // Check if we have database products to update
+        if (dbexistingproducts.Count <= 0)
+        { 
+            _logger.LogWarning("No live products found in database for updates");
+            return; 
+        }
+
         _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
-            _logger.LogError($"shopify update queue is in process {existingProducts}");
-            using var scope = serviceProvider.CreateScope();
-            var shclient = scope.ServiceProvider.GetService<IShopifyService>();
-            await  shclient.UpdateProduct(existingProducts, dbexistingproducts);
-         });
+            try
+            {
+                _logger.LogInformation($"Shopify update queue is processing {existingProducts.Count} products");
+                using var scope = serviceProvider.CreateScope();
+                var shclient = scope.ServiceProvider.GetService<IShopifyService>();
+                
+                if (shclient == null)
+                {
+                    _logger.LogError("IShopifyService not found in service provider");
+                    return;
+                }
+                
+                await shclient.UpdateProduct(existingProducts, dbexistingproducts);
+                _logger.LogInformation("Shopify update completed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while updating Shopify products");
+            }
+        });
     }
 }

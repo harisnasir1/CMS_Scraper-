@@ -65,7 +65,7 @@ namespace CMS_Scrappers.Services.Implementations
             if (existingData == null) return;
 
             var processedImages = new List<ProductImageRecordDTO>();
-
+            int i = 0;
             foreach (var image in Imgs)
             {
                 try
@@ -86,8 +86,9 @@ namespace CMS_Scrappers.Services.Implementations
                         }
                         processedStream = await response.Content.ReadAsStreamAsync();
                     }
+                    bool fill = i < 2 ? false : true;
 
-                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048,40);
+                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048,40,fill);
                     if (resizedImage == null || resizedImage.Length == 0)
                     {
                         _logger.LogWarning($"Resizing failed: {image.Url} skipping it_");
@@ -109,7 +110,8 @@ namespace CMS_Scrappers.Services.Implementations
                         Bgremove = image.Bgremove
                     });
 
-                    await Task.Delay(900); 
+                    await Task.Delay(900);
+                    i++;
                 }
                 catch (Exception ex)
                 {
