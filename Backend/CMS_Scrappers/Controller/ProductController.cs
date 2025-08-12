@@ -55,21 +55,20 @@ namespace CMS_Scrappers.Controller
         }
 
         [HttpPost("Push")]
-        public async Task<IActionResult> Submit([FromBody] SubmitRequest request )
+        public async Task<IActionResult> Submit([FromBody] PushRequest request )
         {
-            Guid guid = new Guid(request.productid);
+            var guid= new Guid(request.id);
+            var Images = request.productimage;
             var update=await _ProductSerivce.UpdateStatus(guid, "Shopify Queued");
             _taskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>
             {
                 _logger.LogInformation("shopify product pushing in process");
                 using var scope = serviceProvider.CreateScope();
                 var pservice = scope.ServiceProvider.GetService<IProducts>();
-                await pservice.RemovingBackgroundimages(guid);
+                await pservice.RemovingBackgroundimages(guid,Images);
                 await pservice.PushProductShopify(guid);
                 await pservice.UpdateStatus(guid, "Live");
                 _logger.LogInformation("shopify product pushing ended");
-               
-
             });
             return Ok(true);
         }
@@ -85,7 +84,7 @@ namespace CMS_Scrappers.Controller
         public async Task<IActionResult> UpdateDetails([FromBody] UpdateDetails request)
         {
             Guid guid = new Guid(request.productid);
-           bool k= await _ProductSerivce.UpdateProductDetails(guid,request.sku,request.title,request.description,request.price);
+            bool k= await _ProductSerivce.UpdateProductDetails(guid,request.sku,request.title,request.description,request.price);
             if (!k) return Ok(false);
             return Ok(true);
         }

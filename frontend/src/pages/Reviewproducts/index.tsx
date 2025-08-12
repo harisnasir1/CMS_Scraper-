@@ -18,9 +18,9 @@ import { Sdata } from "@/types/Sdata";
 const Reviewproducts = () => {
   const navigate=useNavigate()
   const [tc,setc]=useState<number>(0)
-  const {getReviewProducts,ReviewProducts,normalizeDateTime,Addselectedproduct,GetProductCount}=useProduct()
+  const {getReviewProducts,ReviewProducts,normalizeDateTime,Addselectedproduct,GetProductCount,currentPage}=useProduct()
   const getproducts=async()=>{
-   await getReviewProducts(1,10);
+   await getReviewProducts(currentPage?currentPage:1,10);
   }
   const getcount=async()=>{
     const re=await GetProductCount("Categorized");

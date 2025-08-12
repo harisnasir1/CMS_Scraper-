@@ -71,21 +71,71 @@ namespace CMS_Scrappers.Services.Implementations
 
         public async Task<bool> pushmetafields(Sdata sdata, string productId)
         {
-           
-            var ownerId = $"gid://shopify/Product/{productId}";
-            var metafieldInputs = new[]
+            _logger.LogInformation($"Starting metafield update for product {productId}");
+         
+            _logger.LogDebug($"Product data for {productId}: ScraperName='{sdata.ScraperName}', Condition='{sdata.Condition}', Category='{sdata.Category}', ProductType='{sdata.ProductType}', Gender='{sdata.Gender}'");
+            
+            var result = await RetryWithBackoff(async () => await PushMetafieldsInternal(sdata, productId), 
+                maxRetries: 3, 
+                baseDelay: 2000);
+                
+            if (result)
             {
-        new { ownerId = ownerId, key = "scraper_origin", @namespace = "custom", value = sdata.ScraperName??" ", type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = sdata.Condition??" ", type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "age_group", @namespace = "custom", value = "Adult", type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "category", @namespace = "custom", value = sdata.Category ?? " ", type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "product_type", @namespace = "custom", value = sdata.ProductType??" ", type = "single_line_text_field" },
-        new { ownerId = ownerId, key = "gender", @namespace = "custom", value =GetGender(sdata.Gender)??" ", type = "single_line_text_field" },
-       
-            };
+                _logger.LogInformation($"Metafield update completed successfully for product {productId}");
+            }
+            else
+            {
+                _logger.LogError($"Metafield update failed for product {productId} after all retry attempts");
+            }
+            
+            return result;
+        }
+
+        private async Task<bool> PushMetafieldsInternal(Sdata sdata, string productId)
+        {
+            try
+            {
+                var ownerId = $"gid://shopify/Product/{productId}";
+                var metafieldInputs = new List<object>();
+
+                
+                if (IsValidMetafieldValue(sdata.ScraperName))
+                {
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "scraper_origin", @namespace = "custom", value = sdata.ScraperName.Trim(), type = "single_line_text_field" });
+                }
+
+                if (IsValidMetafieldValue(sdata.Condition))
+                {
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = sdata.Condition.Trim(), type = "single_line_text_field" });
+                }
 
             
-            var mutation = @"
+                metafieldInputs.Add(new { ownerId = ownerId, key = "age_group", @namespace = "custom", value = "Adult", type = "single_line_text_field" });
+
+                if (IsValidMetafieldValue(sdata.Category))
+                {
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "category", @namespace = "custom", value = sdata.Category.Trim(), type = "single_line_text_field" });
+                }
+
+                if (IsValidMetafieldValue(sdata.ProductType))
+                {
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "product_type", @namespace = "custom", value = sdata.ProductType.Trim(), type = "single_line_text_field" });
+                }
+
+                var gender = GetGender(sdata.Gender);
+                if (IsValidMetafieldValue(gender))
+                {
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "gender", @namespace = "custom", value = gender, type = "single_line_text_field" });
+                }
+
+               
+                if (!metafieldInputs.Any())
+                {
+                    _logger.LogWarning($"No valid metafields found for product {productId}");
+                    return true;
+                }
+
+                var mutation = @"
         mutation setMetafields($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
             metafields {
@@ -99,65 +149,159 @@ namespace CMS_Scrappers.Services.Implementations
           }
         }";
 
-          
-            var payload = new
+                var payload = new
+                {
+                    query = mutation,
+                    variables = new { metafields = metafieldInputs }
+                };
+
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                _logger.LogInformation($"Setting {metafieldInputs.Count} metafields for product {productId}");
+
+                var response = await _httpClient.PostAsync(
+                    $"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2025-07/graphql.json", 
+                    content
+                ).ConfigureAwait(false);
+
+                var responseBody = await response.Content.ReadAsStringAsync();
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError($"GraphQL request failed with status {response.StatusCode}. Response: {responseBody}");
+                    return false;
+                }
+
+                using var doc = JsonDocument.Parse(responseBody);
+                
+              
+                if (doc.RootElement.TryGetProperty("errors", out var errors))
+                {
+                    _logger.LogError($"GraphQL operation failed: {errors.ToString()}");
+                    return false;
+                }
+
+             
+                if (doc.RootElement.TryGetProperty("data", out var data) && 
+                    data.TryGetProperty("metafieldsSet", out var metafieldsSet) &&
+                    metafieldsSet.TryGetProperty("userErrors", out var userErrors))
+                {
+                    var userErrorsArray = userErrors.EnumerateArray().ToList();
+                    if (userErrorsArray.Any())
+                    {
+                        foreach (var error in userErrorsArray)
+                        {
+                            _logger.LogError($"Metafield user error: {error.ToString()}");
+                        }
+                        return false;
+                    }
+                }
+
+                _logger.LogInformation($"Successfully set {metafieldInputs.Count} metafields for product {productId} via GraphQL.");
+                return true;
+            }
+            catch (Exception ex)
             {
-                query = mutation,
-                variables = new { metafields = metafieldInputs }
-            };
-
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-          
-            var response = await _httpClient.PostAsync(
-                $"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2025-07/graphql.json", 
-                content
-            ).ConfigureAwait(false);
-
-            _logger.LogError(response.ToString());
-            var responseBody = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError($"GraphQL request failed with status {response.StatusCode}. Response: {responseBody}");
+                _logger.LogError(ex, $"Exception occurred while setting metafields for product {productId}");
                 return false;
             }
+        }
 
-          
-            using var doc = JsonDocument.Parse(responseBody);
-            if (doc.RootElement.TryGetProperty("errors", out var errors))
+        private bool IsValidMetafieldValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
             {
-                _logger.LogError($"GraphQL operation failed: {errors.ToString()}");
+                _logger.LogDebug($"Metafield value rejected: null or whitespace");
                 return false;
             }
-
-            _logger.LogInformation($"Successfully set metafields for product {productId} via GraphQL.");
+       
+            var trimmedValue = value.Trim();
+            if (trimmedValue.Length < 2)
+            {
+                _logger.LogDebug($"Metafield value rejected: too short (length: {trimmedValue.Length})");
+                return false;
+            }
+                
+          
+            var lowerValue = trimmedValue.ToLowerInvariant();
+            var emptyValues = new[] { "n/a", "na", "none", "null", "undefined", "unknown", "-", "--", "..." };
+            
+            if (emptyValues.Contains(lowerValue))
+            {
+                _logger.LogDebug($"Metafield value rejected: common empty value '{value}'");
+                return false;
+            }
+                
+            _logger.LogDebug($"Metafield value accepted: '{value}'");
             return true;
+        }
+
+        private async Task<bool> RetryWithBackoff(Func<Task<bool>> operation, int maxRetries = 3, int baseDelay = 1000)
+        {
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    var result = await operation();
+                    if (result)
+                    {
+                        return true;
+                    }
+                    
+             
+                    if (attempt == 1)
+                    {
+                        _logger.LogWarning("Metafield operation failed, not retrying as it's not a transient error");
+                    }
+                    return false;
+                }
+                catch (Exception ex) when (attempt < maxRetries)
+                {
+                    var delay = baseDelay * (int)Math.Pow(2, attempt - 1); 
+                    _logger.LogWarning(ex, $"Metafield operation attempt {attempt} failed, retrying in {delay}ms");
+                    await Task.Delay(delay);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Metafield operation failed after {maxRetries} attempts");
+                    return false;
+                }
+            }
+            
+            return false;
         }
         private string GetGender(string s)
         {
-            if(s == "Male")
+            if (string.IsNullOrWhiteSpace(s))
+                return string.Empty;
+                
+            var normalizedGender = s.Trim().ToLowerInvariant();
+            
+            switch (normalizedGender)
             {
-                return "Men";
-            }
-            else if(s=="Unisex")
-            {
-                return "Unisex";
-            }
-            else if(s=="Female")
-            {
-                return "Women";
-            }
-            else
-            {
-                return "";
+                case "male":
+                case "men":
+                case "m":
+                    return "Men";
+                case "female":
+                case "women":
+                case "f":
+                case "w":
+                    return "Women";
+                case "unisex":
+                case "u":
+                    return "Unisex";
+                default:
+                    _logger.LogWarning($"Unknown gender value: '{s}', skipping gender metafield");
+                    return string.Empty;
             }
         }
      
         public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
         {
             var locationId = await GetFirstLocationIdAsync();
-            _logger.LogError("locationId");
+           
             if (string.IsNullOrEmpty(locationId))
             {                
                 _logger.LogError("Could not find a Shopify location to update inventory.");

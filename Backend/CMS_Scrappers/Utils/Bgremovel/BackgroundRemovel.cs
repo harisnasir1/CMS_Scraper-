@@ -1,7 +1,7 @@
 ﻿using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Formats.Png; 
-
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
 public class BackgroundRemover
 {
     private readonly HttpClient _httpClient;
@@ -39,19 +39,58 @@ public class BackgroundRemover
 
         return new MemoryStream(imgaebytes);
     }
-    public async Task<Stream> ResizeImageAsync(Stream instream, int width, int height)
+    public async Task<Stream> ResizeImageAsync(Stream instream, int boxWidth, int boxHeight, int margin, bool fillBox = false)
     {
         instream.Position = 0;
-        using var image = await Image.LoadAsync(instream);
-        image.Mutate(x => x.Resize(new ResizeOptions
-        {
-            Size = new Size(width, height),
-            Mode=ResizeMode.Crop,
-        }));
-        var outstream = new MemoryStream();
-        await image.SaveAsync(outstream, new PngEncoder() );
-        outstream.Position = 0;
-        return outstream;
+        using var image = await Image.LoadAsync<Rgba32>(instream);
 
+        if (!fillBox)
+        {
+            // ====== FIT MODE (with margin & centering) ======
+            int targetWidth = boxWidth - (margin * 2);
+            int targetHeight = boxHeight - (margin * 2);
+
+            double scale = Math.Min((double)targetWidth / image.Width, (double)targetHeight / image.Height);
+            int newWidth = (int)Math.Round(image.Width * scale);
+            int newHeight = (int)Math.Round(image.Height * scale);
+
+            image.Mutate(x => x.Resize(newWidth, newHeight));
+
+            using var canvas = new Image<Rgba32>(boxWidth, boxHeight, Color.Transparent);
+            int xPos = (boxWidth - newWidth) / 2;
+            int yPos = (boxHeight - newHeight) / 2;
+            canvas.Mutate(x => x.DrawImage(image, new Point(xPos, yPos), 1f));
+
+            var outStream = new MemoryStream();
+            await canvas.SaveAsync(outStream, new PngEncoder());
+            outStream.Position = 0;
+            return outStream;
+        }
+        else
+        {
+            // ====== FILL MODE (cover, may crop) ======
+            double scale = Math.Max((double)boxWidth / image.Width, (double)boxHeight / image.Height);
+            int newWidth = (int)Math.Round(image.Width * scale);
+            int newHeight = (int)Math.Round(image.Height * scale);
+
+            image.Mutate(x => x.Resize(newWidth, newHeight));
+
+            // Crop to exactly the box size
+            var cropRect = new Rectangle(
+                (newWidth - boxWidth) / 2,
+                (newHeight - boxHeight) / 2,
+                boxWidth,
+                boxHeight
+            );
+
+            image.Mutate(x => x.Crop(cropRect));
+
+            var outStream = new MemoryStream();
+            await image.SaveAsync(outStream, new PngEncoder());
+            outStream.Position = 0;
+            return outStream;
+        }
     }
+
+
 }

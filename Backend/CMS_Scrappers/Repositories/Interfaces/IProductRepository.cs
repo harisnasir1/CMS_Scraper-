@@ -4,7 +4,7 @@
     {
         Task<List<Sdata>> GiveProducts(Guid scrapper,int PageNumber,int PageSize);
         Task<List<Sdata>> GetPendingReviewproducts(int PageNumber,int PageSize);
-        Task UpdateImages(Guid id,List<ProductImageRecord> updatedImages);
+        Task UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages);
         Task<Sdata> Getproductbyid(Guid productid);
         Task UpdateDescription(Guid id, string desc);
         Task<bool> AddShopifyproductid(Sdata data, string Shopifyid);

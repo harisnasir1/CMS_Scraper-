@@ -6,7 +6,9 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion"; // adjust import path to your accordion setup
 import { Button } from "@/components/ui/button"; // Assuming you have a button component
-import { Search, Check } from 'lucide-react'; // Import icons from lucide-react
+import {  Check } from 'lucide-react'; // Import icons from lucide-react
+import { useProduct } from "@/contexts/products-context";
+import { ISelectedImgs } from "@/types/Sdata";
 
 const IMAGES_PER_PAGE = 10;
 const RENDER_DELAY_MS = 140;
@@ -14,10 +16,14 @@ const RENDER_DELAY_MS = 140;
 export const ImageGallery = ({
   title,
   images,
+  Selectedflag,
 }: {
   title: string;
-  images: string[];
+  images: ISelectedImgs[];
+  Selectedflag:boolean
 }) => {
+  
+  const {ImgToggleBgflag}=useProduct();
   const [currentPage, setCurrentPage] = useState(1);
   const [accordionValue, setAccordionValue] = useState("gallery");
   const [isContentVisible, setIsContentVisible] = useState(true);
@@ -61,11 +67,13 @@ export const ImageGallery = ({
   //   // }
   // };
 
-  const handleSelectClick = (imageUrl: string) => {
-    console.log("Select icon clicked for:", imageUrl);
-    
-  };
-
+  // const handleSelectClick = (imageUrl: ISelectedImgs) => {
+  //   console.log("Select icon clicked for:", imageUrl);
+  // };
+       const handlebgremove=(id:string)=>
+       {
+        ImgToggleBgflag(id);
+       }
   return (
     <Accordion
       type="single"
@@ -81,21 +89,21 @@ export const ImageGallery = ({
             <>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {currentImages.map((img, index) => (
-                  img!=""&&
+                  img.Url!=""&&
                   <div
                     key={`${currentPage}-${index}`}
                     className="group relative aspect-square bg-gray-100 rounded-md overflow-hidden shadow-sm"
                   >
                     <img
-                      src={img}
+                      src={img.Url}
                       alt={`${title} ${firstImageIndex + index + 1}`}
                       loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       onError={(e) => { e.currentTarget.src = 'https://placehold.co/300x300/CCCCCC/FFFFFF?text=Error'; }}
                     />
-                    {/* Hover overlay with icons */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
-                      <button
+                   
+                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 opacity-0 group-hover:opacity-100">
+                      {/* <button
                         // onClick={() => handleSearchClick(img)}
                         className="p-2 bg-white/80 rounded-full text-gray-800 hover:bg-white hover:scale-110 transition-transform"
                         aria-label="Search image"
@@ -108,7 +116,15 @@ export const ImageGallery = ({
                         aria-label="Select image"
                       >
                         <Check size={20} />
-                      </button>
+                      </button> */}
+
+                   {Selectedflag&&    <button
+                           onClick={() => handlebgremove(img.Id)}
+                           className="absolute top-2 left-2 w-6 h-6 flex items-center border-green-500 border-1 justify-center bg-white/80 rounded-full text-gray-800 hover:bg-white hover:scale-110 transition-transform"
+                           aria-label="Select image"
+                         >
+                           {img.Bgremove ? <Check size={14} color="green" /> : null}
+                         </button>}
                     </div>
                   </div>
                 ))}
