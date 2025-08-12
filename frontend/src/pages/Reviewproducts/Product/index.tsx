@@ -3,11 +3,11 @@ import { useProduct } from '@/contexts/products-context';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {ImageGallery} from '@/components/ui/ImageGallery'
-import {ArrowBigLeft, Flag} from "lucide-react"
+import {ArrowBigLeft} from "lucide-react"
 import { ISelectedImgs } from '@/types/Sdata';
 const Product = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit,GetAiDescription,UpdateProductDetails,AddSelectedimgs,selectedimg} = useProduct();
+  const { Selectedproduct, normalizeDateTime,GetSimilarImg,Submit,GetAiDescription,UpdateProductDetails,AddSelectedimgs,selectedimg} = useProduct();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -15,7 +15,7 @@ const Product = () => {
   const [price, setPrice] = useState(0);
   const [Sku,setsku]=useState<string>("");
   const [condition, setCondition] = useState('');
-  const [images,setimages]=useState<string[]|null>(null)
+  // const [images,setimages]=useState<string[]|null>(null)
   const initRef = useRef<string | null>(null)
 
   const GetDescription=async(id:string)=>
@@ -58,7 +58,7 @@ const Product = () => {
       setPrice(Selectedproduct.price || 0);
       setSizes(Selectedproduct.variants ? Selectedproduct.variants.map(v => ({ size: v.size, instock: v.inStock })) : []);
       setCondition(Selectedproduct.condition || '');
-      setimages(Selectedproduct.image?Selectedproduct.image.map(v=>v.url):[])
+      // setimages(Selectedproduct.image?Selectedproduct.image.map(v=>v.url):[])
       if (initRef.current !== Selectedproduct.id) {
         AddSelectedimages();
         initRef.current = Selectedproduct.id;

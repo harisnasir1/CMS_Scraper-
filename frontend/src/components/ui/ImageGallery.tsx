@@ -6,9 +6,9 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion"; // adjust import path to your accordion setup
 import { Button } from "@/components/ui/button"; // Assuming you have a button component
-import { Search, Check } from 'lucide-react'; // Import icons from lucide-react
+import {  Check } from 'lucide-react'; // Import icons from lucide-react
 import { useProduct } from "@/contexts/products-context";
-import { ISelectedImgs, ProductImageRecord } from "@/types/Sdata";
+import { ISelectedImgs } from "@/types/Sdata";
 
 const IMAGES_PER_PAGE = 10;
 const RENDER_DELAY_MS = 140;

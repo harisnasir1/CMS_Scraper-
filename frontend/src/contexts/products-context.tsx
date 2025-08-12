@@ -117,7 +117,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
        setcurrentpage(page)
   }
 
-  const GetSimilarImg = async (id: string) => {
+  const GetSimilarImg = async () => {
     try {
       // const r: string[] = await api.getsimilarimages(id,1);
       // if (r && Array.isArray(r)) {
