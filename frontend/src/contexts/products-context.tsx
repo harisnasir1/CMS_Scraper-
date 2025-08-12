@@ -2,7 +2,7 @@
 import { createContext, useContext, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { productsapis } from "@/api/ProductApis"
-import { Sdata } from "@/types/Sdata"
+import { Sdata, ISelectedImgs } from "@/types/Sdata"
 import { Scraper } from "@/types/Scrappertype"
 
 
@@ -16,6 +16,7 @@ interface ProductContextType {
   totalproducts:number|null
   currentPage:number|null
   similarimages:string[]|null,
+  selectedimg:ISelectedImgs[],
   getScraperProducts: (scr:Scraper,PageNumber:number,PageSize:number) => Promise<void>
   normalizedate:(d:string)=>string
   Normalizetime:(runtime:string)=>string
@@ -30,6 +31,8 @@ interface ProductContextType {
   GetAiDescription:(id:string)=>Promise<string>
   UpdateProductDetails:(productid:string,sku:string,price:number,title:string,description:string)=>void
   GetProductCount:(status:string)=>Promise<number>
+  AddSelectedimgs:(s:ISelectedImgs)=>Promise<void>
+  ImgToggleBgflag:(id:string)=>void
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -44,6 +47,8 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [totalproducts,settotalproducts]=useState<number>(0);
   const [currentPage,setcurrentpage]=useState(1);
   const [similarimages,setsimilarimages]=useState<string[]|null>(null)
+  const [selectedimg,setselectedimg]=useState<ISelectedImgs[]>([])
+  
   const navigate = useNavigate()
   const api = new productsapis()
 
@@ -74,7 +79,6 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
      
       const data = await api.getpendingreviewproducts(PageNumber,PageSize)
       setReviewProducts(data);
-     
       settotalproducts(data.length)
       
     } catch (e) {
@@ -101,8 +105,11 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   const Addselectedproduct=(data:Sdata)=>
   {
+    console.log(data)
+    setselectedimg([])
     setsimilarimages([""])
        setSelectedproduct(data);
+      
   }
 
   const Setcurrentpage=(page:number)=>
@@ -112,10 +119,10 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   const GetSimilarImg = async (id: string) => {
     try {
-      const r: string[] = await api.getsimilarimages(id,1);
-      if (r && Array.isArray(r)) {
-        setsimilarimages(r);
-      }
+      // const r: string[] = await api.getsimilarimages(id,1);
+      // if (r && Array.isArray(r)) {
+      //   setsimilarimages(r);
+      // }
     } catch {
       console.log("error getting similar images");
     }
@@ -141,12 +148,14 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
    const Submit=async(id:string)=>{
       try{
-        const re=await api.PushShopify(id)
-        console.log(re)
+        console.log(id)
+        if(selectedimg&&selectedimg?.length>0)
+       { const re=await api.PushShopify(id,selectedimg)
+       
         if(re)
         {
           navigate('/')
-        }
+        }}
       }
       catch{
         console.log("error getting similar images");
@@ -157,10 +166,11 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
    {
     try{
      const re=await api.AiDescription(id);
+     
      return re;
     }
-    catch{
-      console.log("error getting ai description");
+    catch(e){
+      console.log("error getting ai description",e);
       return "";
     }
    }
@@ -189,7 +199,31 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
      }
    }
    
-
+   const AddSelectedimgs=async(s:ISelectedImgs)=>
+   {
+      setselectedimg((prev=>{
+        const exists = prev.some(item => item.Id === s.Id);
+        if (exists) return prev;
+        return [...prev, s];
+      }))
+   }
+   
+   const ImgToggleBgflag=async(id:string)=>
+   {
+     const updateimgs=selectedimg.map((imgs)=>{
+      if(imgs.Id==id)
+      {
+        return {
+          ...imgs,
+          Bgremove:!imgs.Bgremove
+        }
+      }
+      else{
+        return imgs
+      }
+     })
+     setselectedimg(updateimgs)
+   }
  
 
 
@@ -238,7 +272,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
      currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails,
-     GetProductCount,getLiveProducts,LiveProducts
+     GetProductCount,getLiveProducts,LiveProducts,selectedimg,AddSelectedimgs,ImgToggleBgflag
      }}>
       {children}
     </ProductContext.Provider>

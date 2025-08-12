@@ -32,8 +32,12 @@ public class ShopifyFlatProduct
 
 public class ProductImageRecordDTO
 {
+    public string? Id { get; set; }
     public int Priority { get; set; }
     public string Url { get; set; } = "";
+    public bool ?Bgremove { get; set; }=false;
+
+
 }
 
 public class ProductVariantRecordDTO

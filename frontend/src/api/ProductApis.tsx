@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { Sdata } from "@/types/Sdata";
+import { ISelectedImgs, Sdata } from "@/types/Sdata";
 
 export class productsapis{
 
@@ -23,10 +23,10 @@ export class productsapis{
       const response=await api.post<string[]>("Product/Similarimages",{productid:productid,page:PageSize});
       return response.data
     }
-    async PushShopify(productid:string)
+    async PushShopify(productid:string,images:ISelectedImgs[])
     {
-     
-        const response=await api.post<string[]>("Product/Push",{productid:productid});
+  
+        const response=await api.post<string[]>("Product/Push",{id:productid,productimage:images});
         console.log(response)
         return response.data
     }

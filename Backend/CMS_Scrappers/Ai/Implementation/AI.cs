@@ -30,8 +30,7 @@ namespace CMS_Scrappers.Ai.Implementation
                             $"Brand: {data.Brand}\n" +
                             $"Category: {data.Category}\n" +
                             $"Condition: {data.Condition}\n" +
-                            $"Gender: {data.Gender}\n" +
-                            $"Price: {data.Price}";
+                            $"Gender: {data.Gender}\n" ;
 
             var body = new
             {

@@ -17,6 +17,23 @@
     public class SubmitRequest
     {
         public string productid { get; set; }
+
+
+    }
+
+    public class PushRequest
+    {
+        public string id { get; set; }
+
+        public List<Requestimages> productimage { get; set; }
+    }
+    public class Requestimages
+    {
+        public int Id { get; set; }
+        public int Priority { get; set; }
+        public string Url { get; set; } = "";
+        public bool? Bgremove { get; set; } = false;
+
     }
 
     public class CountRequest

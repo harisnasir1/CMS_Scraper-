@@ -1,4 +1,5 @@
 ﻿using CMS_Scrappers.Ai;
+using CMS_Scrappers.Data.Responses.Api_responses;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -56,29 +57,74 @@ namespace CMS_Scrappers.Services.Implementations
             string query = $"{data.Brand + data.Title}";
             return await _googleImageService.SearchImagesAsync(query, start);
         }
-        public async Task RemovingBackgroundimages(Guid id)
+        public async Task RemovingBackgroundimages(Guid id, List<Requestimages> Imgs)
         {
-            var data = await _repository.Getproductbyid(id);
-            var copiedImages = data.Image.ToList();
-            var Images = new List<ProductImageRecord>();
-            foreach (var image in copiedImages)
+            if (Imgs == null || Imgs.Count == 0) return;
+
+            var existingData = await _repository.Getproductbyid(id);
+            if (existingData == null) return;
+
+            var processedImages = new List<ProductImageRecordDTO>();
+
+            foreach (var image in Imgs)
             {
-                using var processedStream = await _backgroundRemover.RemoveBackgroundAsync(imageUrl: image.Url);
-                using var resizeimage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048);
-                if (resizeimage == null || resizeimage.Length == 0) continue;
-                    var finalurl = await _S3service.Uploadimage(resizeimage);
-                if (string.IsNullOrEmpty(finalurl)) continue;
-                    image.Url = finalurl;
-                    Images.Add(image);
-                await Task.Delay(1000);
+                try
+                {
+                    Stream processedStream;
+
+                    if (image.Bgremove == true)
+                    {
+                        processedStream = await _backgroundRemover.RemoveBackgroundAsync(image.Url);
+                    }
+                    else
+                    {
+                        var response = await _httpClient.GetAsync(image.Url);
+                        if (response == null || response.StatusCode != System.Net.HttpStatusCode.OK)
+                        {
+                            _logger.LogWarning($"Image download failed: {image.Url}! skipping it_");
+                            continue; 
+                        }
+                        processedStream = await response.Content.ReadAsStreamAsync();
+                    }
+
+                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048,40);
+                    if (resizedImage == null || resizedImage.Length == 0)
+                    {
+                        _logger.LogWarning($"Resizing failed: {image.Url} skipping it_");
+                        continue;
+                    }
+
+                    var finalUrl = await _S3service.Uploadimage(resizedImage);
+                    if (string.IsNullOrEmpty(finalUrl))
+                    {
+                        _logger.LogWarning($"S3 upload failed: {image.Url}");
+                        continue;
+                    }
+
+                    processedImages.Add(new ProductImageRecordDTO
+                    {
+                        Id = image.Id.ToString(),
+                        Priority = image.Priority,
+                        Url = finalUrl,
+                        Bgremove = image.Bgremove
+                    });
+
+                    await Task.Delay(900); 
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Image processing failed: {image.Url}");
+                }
             }
-            if (Images.Count > 0)
+            if (processedImages.Count > 0)
             {
-                await _repository.UpdateImages(id, Images);
+                await _repository.UpdateImages(id, processedImages);
             }
         }
+
         public async Task<string> AIGeneratedDescription(Guid id)
         {
+            _logger.LogCritical("comming for ai description");
             return await _Ai.GenerateDescription(id);
         }
 

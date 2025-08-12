@@ -1,12 +1,13 @@
-import  { useState, useEffect } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useProduct } from '@/contexts/products-context';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {ImageGallery} from '@/components/ui/ImageGallery'
-import {ArrowBigLeft} from "lucide-react"
+import {ArrowBigLeft, Flag} from "lucide-react"
+import { ISelectedImgs } from '@/types/Sdata';
 const Product = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit,GetAiDescription,UpdateProductDetails} = useProduct();
+  const { Selectedproduct, normalizeDateTime,similarimages,GetSimilarImg,Submit,GetAiDescription,UpdateProductDetails,AddSelectedimgs,selectedimg} = useProduct();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -15,6 +16,7 @@ const Product = () => {
   const [Sku,setsku]=useState<string>("");
   const [condition, setCondition] = useState('');
   const [images,setimages]=useState<string[]|null>(null)
+  const initRef = useRef<string | null>(null)
 
   const GetDescription=async(id:string)=>
   {
@@ -30,6 +32,22 @@ const Product = () => {
      setsku(full??"");
   }
 
+  const AddSelectedimages=()=>{
+   
+    Selectedproduct?.image.forEach((imgs,i) => {
+      const s:ISelectedImgs={
+       Id:imgs.id,
+       Url:imgs.url,
+       Priority:i,
+       Bgremove:false
+      }
+      if(s){
+        AddSelectedimgs(s)
+      }   
+    });
+    
+  }
+
   useEffect(() => {
     if (Selectedproduct) {
        Getsku();
@@ -41,6 +59,10 @@ const Product = () => {
       setSizes(Selectedproduct.variants ? Selectedproduct.variants.map(v => ({ size: v.size, instock: v.inStock })) : []);
       setCondition(Selectedproduct.condition || '');
       setimages(Selectedproduct.image?Selectedproduct.image.map(v=>v.url):[])
+      if (initRef.current !== Selectedproduct.id) {
+        AddSelectedimages();
+        initRef.current = Selectedproduct.id;
+      }
     } else {
       navigate("/Reviewproducts");
     }
@@ -149,15 +171,15 @@ const Product = () => {
 
       
         <div className="bg-white lg:flex-[1.3] rounded-lg shadow-sm p-4 space-y-8">
-            <ImageGallery title="Current Images" images={images?images:[""]} />
-            <ImageGallery title="Suggested Images" images={similarimages!=null?similarimages:[""]} />
+            <ImageGallery title="Current Images" images={selectedimg?selectedimg:[]} Selectedflag={true} />
+            {/* <ImageGallery title="Suggested Images" images={similarimages!=null?similarimages:[""]} Selectedflag={false}/> */}
         </div>
       </div>
 
      
       <div className="  flex items-center justify-end gap-8 mb-4 ">
            <Button
-           onClick={()=>Submit(Selectedproduct.id)}
+            onClick={()=>Submit(Selectedproduct.id)}
            className='bg-[#1D7DBD]'>Re-Push</Button>
            <Button className="bg-white border-2 border-[#1D7DBD] text-[#1D7DBD]">Back</Button>
 

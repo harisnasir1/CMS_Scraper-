@@ -28,7 +28,6 @@ namespace CMS_Scrappers.Repositories.Repos
           
             if (existingProducts.Any())
             {
-             
                 var productUrls = existingProducts.Select(p => p.ProductUrl).ToList();
                 var dbProductsDict = await _context.Sdata
                     .Include(s => s.Variants)

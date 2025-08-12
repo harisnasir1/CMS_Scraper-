@@ -54,42 +54,60 @@ namespace CMS_Scrappers.Repositories.Repos
                 .FirstOrDefaultAsync(s => s.Id == productid);
         }
 
-        public async Task UpdateImages(Guid id,List<ProductImageRecord> updatedImages)
+        public async Task UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages)
         {
-           try{ var data = await _context.Sdata
-                .Include(s => s.Image)
-                .FirstOrDefaultAsync(s => s.Id == id);
-
-            if (data == null)
-                throw new Exception("Sdata not found");
-
-            foreach (var updatedImage in updatedImages)
+            try
             {
-                var existingImage = data.Image.FirstOrDefault(img => img.Id == updatedImage.Id);
-                if (existingImage != null)
-                {
-                    existingImage.Url = updatedImage.Url;   
-                }
-                else
-                {
-                    data.Image.Add(updatedImage);
-                }
-            }
-            var updatedImageIds = updatedImages.Select(i => i.Id).ToHashSet();
-            var imagesToRemove = data.Image.Where(img => !updatedImageIds.Contains(img.Id)).ToList();
-            foreach (var imgToRemove in imagesToRemove)
-            {
-                data.Image.Remove(imgToRemove);
+                var data = await _context.Sdata
+                 .Include(s => s.Image)
+                 .FirstOrDefaultAsync(s => s.Id == id);
 
-            }
+                if (data == null)
+                    throw new Exception("Sdata not found");
 
-            data.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                var finalimages = new List<ProductImageRecord>();
+
+                foreach (var oldimg in data.Image)
+                {
+                    var newimg = updatedImages.FirstOrDefault(x => x.Id == oldimg.Id.ToString());
+                    if (newimg == null)
+                    {
+                        finalimages.Add(oldimg);
+                    }
+                    else
+                    {
+                        finalimages.Add(
+                            new ProductImageRecord
+                            {
+                                Id = oldimg.Id,
+                                SdataId = oldimg.SdataId,
+                                Url = newimg.Url,
+                                Priority = newimg.Priority,
+                            }
+                            );
+                    }
+                }
+
+                var newimgs=updatedImages.Where(imgs=>string.IsNullOrEmpty(imgs.Id)).ToList();
+               if(newimgs!=null){
+                    foreach (var nimg in newimgs)
+                    {
+                        finalimages.Add(new ProductImageRecord
+                        {
+                            SdataId = data.Id,
+                            Url = nimg.Url,
+                            Priority = nimg.Priority,
+                        });
+                    }
+                }
+                finalimages=finalimages.OrderBy(o=>o.Priority).ToList();
+                data.Image= finalimages;
+               await _context.SaveChangesAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating product details.");
-               
+
             }
         }
 
