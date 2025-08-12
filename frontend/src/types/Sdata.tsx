@@ -1,6 +1,7 @@
 // src/types/SdataType.ts
 
 export interface ProductImageRecord {
+    id:string,
     url: string
     Priority:number
     altText?: string
@@ -37,4 +38,10 @@ export interface ProductImageRecord {
     hashimg?: string
     createdAt: string
     updatedAt: string
+  }
+  export interface ISelectedImgs{
+    Id:string,
+    Url:string,
+    Priority:number,
+    Bgremove:boolean,
   }

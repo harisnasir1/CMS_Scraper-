@@ -88,7 +88,7 @@ function LiveFeed({}: Props) {
      
       </div>
       <Pagination
-          totalItems={120}
+          totalItems={tc}
           itemsPerPage={10}
           onPageChange={(page:number)=>{
             
