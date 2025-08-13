@@ -62,7 +62,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       setSelectedScraper(scr);
       const data = await api.getScraperProducts(scr.id,PageNumber,PageSize)
       setProducts(data)
-      console.log(data,"for page =",PageNumber)
+    
       settotalproducts(data.length)
       
     } catch (e) {
@@ -105,7 +105,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   const Addselectedproduct=(data:Sdata)=>
   {
-    console.log(data)
+
     setselectedimg([])
     setsimilarimages([""])
        setSelectedproduct(data);
@@ -148,7 +148,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
    const Submit=async(id:string)=>{
       try{
-        console.log(id)
+       
         if(selectedimg&&selectedimg?.length>0)
        { const re=await api.PushShopify(id,selectedimg)
        
@@ -179,7 +179,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
    {
     try{
       const re=await api.SumitDetails(productid,sku,price,title,description);
-      console.log(re)
+   
       toast.success("Product Details saved!")
       return re;
      }
