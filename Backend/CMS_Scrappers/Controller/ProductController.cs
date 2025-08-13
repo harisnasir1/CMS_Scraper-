@@ -58,7 +58,7 @@ namespace CMS_Scrappers.Controller
         public async Task<IActionResult> Submit([FromBody] PushRequest request )
         {
             var guid= new Guid(request.id);
-            string status=await _ProductSerivce.GetProductStatus(guid);
+           
            
             var Images = request.productimage;
             
