@@ -12,5 +12,6 @@
         Task<bool> UpdateProductDetailsAsync(Guid id, string sku, string title, string description, int price);
         Task<int> TotalStatusProdcuts(string status);
         Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize);
+        
     }
 }

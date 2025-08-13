@@ -1,4 +1,5 @@
-﻿using CMS_Scrappers.Repositories.Interfaces;
+﻿using Amazon.S3.Model;
+using CMS_Scrappers.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 namespace CMS_Scrappers.Repositories.Repos
 {
@@ -197,6 +198,7 @@ namespace CMS_Scrappers.Repositories.Repos
                   .Where(s => s.Variants.Any(v => v.InStock))
                 .CountAsync();
         }
+         
 
 
     }

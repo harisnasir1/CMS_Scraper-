@@ -154,11 +154,12 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
        
         if(re)
         {
-          navigate('/')
+          navigate('/LiveFeed')
         }}
       }
       catch{
         console.log("error getting similar images");
+        navigate('/Reviewproducts')
       }
    }
 

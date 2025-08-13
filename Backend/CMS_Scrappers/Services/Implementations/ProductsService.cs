@@ -237,5 +237,14 @@ namespace CMS_Scrappers.Services.Implementations
             return await _repository.TotalStatusProdcuts(status);
         }
         
+        public async Task<string> GetProductStatus(Guid id)
+        {
+            var product = await _repository.Getproductbyid(id);
+            return product?.Status ?? "Unknown";
+        }
+
+
+
+
     }
 }

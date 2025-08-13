@@ -58,19 +58,44 @@ namespace CMS_Scrappers.Controller
         public async Task<IActionResult> Submit([FromBody] PushRequest request )
         {
             var guid= new Guid(request.id);
+            string status=await _ProductSerivce.GetProductStatus(guid);
+           
             var Images = request.productimage;
+            
+           
+            var currentStatus = await _ProductSerivce.GetProductStatus(guid);
+            if (currentStatus == "Shopify Queued" || currentStatus == "Processing")
+            {
+                return BadRequest(new { message = "Product is already being processed. Please wait." });
+            }
+            
             var update=await _ProductSerivce.UpdateStatus(guid, "Shopify Queued");
+            if (!update)
+            {
+                return BadRequest(new { message = "Failed to update product status" });
+            }
+            
             _taskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>
             {
-                _logger.LogInformation("shopify product pushing in process");
+                _logger.LogInformation($"shopify product pushing in process for product {guid}");
                 using var scope = serviceProvider.CreateScope();
                 var pservice = scope.ServiceProvider.GetService<IProducts>();
-                await pservice.RemovingBackgroundimages(guid,Images);
-                await pservice.PushProductShopify(guid);
-                await pservice.UpdateStatus(guid, "Live");
-                _logger.LogInformation("shopify product pushing ended");
+                
+                try
+                {
+                    await pservice.UpdateStatus(guid, "Processing");
+                    await pservice.RemovingBackgroundimages(guid,Images);
+                    await pservice.PushProductShopify(guid);
+                    await pservice.UpdateStatus(guid, "Live");
+                    _logger.LogInformation($"shopify product pushing completed successfully for product {guid}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Error processing product {guid}");
+                    await pservice.UpdateStatus(guid, "Failed");
+                }
             });
-            return Ok(true);
+            return Ok(new { message = "Product queued for processing", productId = guid });
         }
 
         [HttpPost("AiDescription")]
