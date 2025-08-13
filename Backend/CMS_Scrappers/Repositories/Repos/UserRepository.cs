@@ -8,7 +8,7 @@ public class UserRepository:IUserRepository{
     }
     public async Task<User>GetByEmailAsync(string email)
     {
-        return await _context.Users.FirstOrDefaultAsync(u=>u.Email== email);
+        return await _context.Users.FirstOrDefaultAsync(u=>EF.Functions.ILike(u.Email, email));
     }
     public async Task AddUserAsync(User user)
     {
