@@ -95,7 +95,7 @@ public class ShopifyStoreScraper : IScrappers
     { 
         var existingProducts = data.Where(p => !p.New).ToList();
         
-        // Early return if no existing products to update
+     
         if (!existingProducts.Any())
         {
             _logger.LogInformation("No existing products found to update");
@@ -104,7 +104,7 @@ public class ShopifyStoreScraper : IScrappers
 
         var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
  
-        // Check if we have database products to update
+       
         if (dbexistingproducts.Count <= 0)
         { 
             _logger.LogWarning("No live products found in database for updates");
