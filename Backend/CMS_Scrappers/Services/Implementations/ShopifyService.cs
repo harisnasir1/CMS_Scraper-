@@ -23,6 +23,10 @@ namespace CMS_Scrappers.Services.Implementations
         }
         public async Task<string> PushProductAsync(Sdata sdata)
         {
+            if (!string.IsNullOrEmpty(sdata.Shopifyid))
+            {
+                return null;
+            }
             var product = new
             {
                 product = new
@@ -335,7 +339,7 @@ namespace CMS_Scrappers.Services.Implementations
                                 {
                                     inventoryItemId = inventoryItemId,
                                     locationId = locationId,
-                                    quantity = 0
+                                    quantity = newQuantity
                                 });
                             }
                         }

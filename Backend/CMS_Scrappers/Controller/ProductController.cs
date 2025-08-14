@@ -62,12 +62,6 @@ namespace CMS_Scrappers.Controller
            
             var Images = request.productimage;
             
-           
-            var currentStatus = await _ProductSerivce.GetProductStatus(guid);
-            if (currentStatus == "Shopify Queued" || currentStatus == "Processing")
-            {
-                return BadRequest(new { message = "Product is already being processed. Please wait." });
-            }
             
             var update=await _ProductSerivce.UpdateStatus(guid, "Shopify Queued");
             if (!update)
@@ -79,21 +73,31 @@ namespace CMS_Scrappers.Controller
             {
                 _logger.LogInformation($"shopify product pushing in process for product {guid}");
                 using var scope = serviceProvider.CreateScope();
-                var pservice = scope.ServiceProvider.GetService<IProducts>();
-                
+                var pservice = scope.ServiceProvider.GetService<IProducts>();               
                 try
                 {
-                    await pservice.UpdateStatus(guid, "Processing");
+                   var k1= await pservice.UpdateStatus(guid, "Processing");
+                    if(!k1) {
+                        throw new Exception("Error in updating status");
+                        }
                     await pservice.RemovingBackgroundimages(guid,Images);
-                    await pservice.PushProductShopify(guid);
-                    await pservice.UpdateStatus(guid, "Live");
+                   var k2= await pservice.PushProductShopify(guid);
+                    if (!k2)
+                    {
+                        throw new Exception("Error in pusing shopify order");
+                    }
+                  var k3=  await pservice.UpdateStatus(guid, "Live");
+                    if (!k3)
+                    {
+                        throw new Exception("Error in updating status");
+                    }
                     _logger.LogInformation($"shopify product pushing completed successfully for product {guid}");
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Error processing product {guid}");
-                    await pservice.UpdateStatus(guid, "Failed");
                 }
+            
             });
             return Ok(new { message = "Product queued for processing", productId = guid });
         }
@@ -118,6 +122,15 @@ namespace CMS_Scrappers.Controller
         {
             int re=await _ProductSerivce.ProductCountStatus(request.status);
             return Ok(re);
+        }
+        [HttpPost("GetStatus")]
+        public async Task <IActionResult> GetStatus([FromBody] SubmitRequest request)
+        {
+            
+            var id = new Guid(request.productid);
+            var data = await _ProductSerivce.GetProductStatus(id);
+            if(data==null || data== "Unknown") return BadRequest();
+            return Ok(data);
         }
 
     }
