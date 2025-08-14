@@ -44,44 +44,57 @@ public class BackgroundRemover
         instream.Position = 0;
         using var image = await Image.LoadAsync<Rgba32>(instream);
 
-        // Margin as percentage of box size
-        int marginX = (boxWidth * margin) / 100;
-        int marginY = (boxHeight * margin) / 100;
-
-        int targetWidth = boxWidth - (marginX * 2);
-        int targetHeight = boxHeight - (marginY * 2);
-
-        double scale;
-
         if (!fillBox)
         {
-            // Fit inside (never exceed box)
-            scale = Math.Min((double)targetWidth / image.Width, (double)targetHeight / image.Height);
+           
+            int targetWidth = boxWidth - (margin * 2);
+            int targetHeight = boxHeight - (margin * 2);
+
+            double scale = Math.Min((double)targetWidth / image.Width, (double)targetHeight / image.Height);
+            int newWidth = (int)Math.Round(image.Width * scale);
+            int newHeight = (int)Math.Round(image.Height * scale);
+
+            if (newWidth <= 0 || newHeight <= 0)
+                throw new InvalidOperationException("Margin too large compared to image size.");
+
+            image.Mutate(x => x.Resize(newWidth, newHeight));
+
+           
+            using var canvas = new Image<Rgba32>(boxWidth, boxHeight, Color.Transparent);
+            int offsetX = (boxWidth - newWidth) / 2;
+            int offsetY = (boxHeight - newHeight) / 2;
+
+            canvas.Mutate(x => x.DrawImage(image, new Point(offsetX, offsetY), 1f));
+
+            var outStream = new MemoryStream();
+            await canvas.SaveAsync(outStream, new PngEncoder());
+            outStream.Position = 0;
+            return outStream;
         }
         else
         {
-            // Fill as much as possible (maximize usage of box, but no cropping)
-            scale = Math.Max((double)targetWidth / image.Width, (double)targetHeight / image.Height);
+          
+            double scale = Math.Max((double)boxWidth / image.Width, (double)boxHeight / image.Height);
+            int newWidth = (int)Math.Round(image.Width * scale);
+            int newHeight = (int)Math.Round(image.Height * scale);
 
-            // Make sure we don’t overshoot the box (important!)
-            scale = Math.Min(scale, 1.0); // prevents upscale beyond original
+            image.Mutate(x => x.Resize(newWidth, newHeight));
+
+           
+            var cropRect = new Rectangle(
+                (newWidth - boxWidth) / 2,
+                (newHeight - boxHeight) / 2,
+                boxWidth,
+                boxHeight
+            );
+
+            image.Mutate(x => x.Crop(cropRect));
+
+            var outStream = new MemoryStream();
+            await image.SaveAsync(outStream, new PngEncoder());
+            outStream.Position = 0;
+            return outStream;
         }
-
-        int newWidth = (int)Math.Round(image.Width * scale);
-        int newHeight = (int)Math.Round(image.Height * scale);
-
-        image.Mutate(x => x.Resize(newWidth, newHeight));
-
-        // Place on a transparent canvas
-        using var canvas = new Image<Rgba32>(boxWidth, boxHeight, Color.Transparent);
-        int xPos = (boxWidth - newWidth) / 2;
-        int yPos = (boxHeight - newHeight) / 2;
-        canvas.Mutate(x => x.DrawImage(image, new Point(xPos, yPos), 1f));
-
-        var outStream = new MemoryStream();
-        await canvas.SaveAsync(outStream, new PngEncoder());
-        outStream.Position = 0;
-        return outStream;
     }
 
 
