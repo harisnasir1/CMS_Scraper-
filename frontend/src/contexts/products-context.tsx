@@ -154,7 +154,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
        
         if(re)
         {
-          navigate('/LiveFeed')
+          navigate('/Reviewproducts')
         }}
       }
       catch{

@@ -43,17 +43,18 @@ public class BackgroundRemover
     {
         instream.Position = 0;
         using var image = await Image.LoadAsync<Rgba32>(instream);
-
+       
         if (!fillBox)
         {
-            // ====== FIT MODE (with margin & centering) ======
-            int targetWidth = boxWidth - (margin * 2);
-            int targetHeight = boxHeight - (margin * 2);
-
-            double scale = Math.Min((double)targetWidth / image.Width, (double)targetHeight / image.Height);
+            double scale = Math.Min((double)boxWidth / image.Width, (double)boxHeight / image.Height);
             int newWidth = (int)Math.Round(image.Width * scale);
             int newHeight = (int)Math.Round(image.Height * scale);
-
+            newWidth -= margin * 2;
+            newHeight -= margin * 2;
+            if (newWidth <= 0 || newHeight <= 0)
+            {
+                throw new InvalidOperationException("Margin too large compared to image size.");
+            }
             image.Mutate(x => x.Resize(newWidth, newHeight));
 
             using var canvas = new Image<Rgba32>(boxWidth, boxHeight, Color.Transparent);
@@ -68,14 +69,11 @@ public class BackgroundRemover
         }
         else
         {
-            // ====== FILL MODE (cover, may crop) ======
             double scale = Math.Max((double)boxWidth / image.Width, (double)boxHeight / image.Height);
             int newWidth = (int)Math.Round(image.Width * scale);
             int newHeight = (int)Math.Round(image.Height * scale);
-
             image.Mutate(x => x.Resize(newWidth, newHeight));
 
-            // Crop to exactly the box size
             var cropRect = new Rectangle(
                 (newWidth - boxWidth) / 2,
                 (newHeight - boxHeight) / 2,
@@ -84,7 +82,6 @@ public class BackgroundRemover
             );
 
             image.Mutate(x => x.Crop(cropRect));
-
             var outStream = new MemoryStream();
             await image.SaveAsync(outStream, new PngEncoder());
             outStream.Position = 0;
