@@ -119,7 +119,7 @@ namespace CMS_Scrappers.Services.Implementations
                     bool fill = i < 2 && image.Bgremove==false ? false : true;
                     Console.WriteLine($"[RAILWAY_DEBUG] Resizing image {i + 1}: {image.Url} (fill: {fill})");
 
-                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048, 40, fill);
+                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048, 10, fill);
                     if (resizedImage == null || resizedImage.Length == 0)
                     {
                         Console.WriteLine($"[RAILWAY_ERROR] Resizing failed: {image.Url}");
