@@ -116,7 +116,7 @@ namespace CMS_Scrappers.Services.Implementations
                         continue;
                     }
 
-                    bool fill = image.Bgremove==false ? false : true;
+                    bool fill = image.Bgremove==false ? true : false;
                     Console.WriteLine($"[RAILWAY_DEBUG] Resizing image {i + 1}: {image.Url} (fill: {fill})");
 
                     using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048, 10, fill);

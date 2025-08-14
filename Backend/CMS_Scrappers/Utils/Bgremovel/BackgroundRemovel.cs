@@ -39,7 +39,7 @@ public class BackgroundRemover
 
         return new MemoryStream(imgaebytes);
     }
-    public async Task<Stream> ResizeImageAsync(Stream instream, int boxWidth, int boxHeight, int margin, bool fillBox = false)
+    public async Task<Stream> ResizeImageAsync(Stream instream, int boxWidth, int boxHeight, int margin, bool fillBox )
     {
         instream.Position = 0;
         using var image = await Image.LoadAsync<Rgba32>(instream);
