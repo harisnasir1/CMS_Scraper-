@@ -46,7 +46,7 @@ public class BackgroundRemover
 
         if (!fillBox)
         {
-            margin = Math.Min(margin, Math.Min(boxWidth / 2 - 1, boxHeight / 2 - 1));
+           margin = Math.Min(margin, Math.Min(boxWidth / 2 - 1, boxHeight / 2 - 1));
             int targetWidth = boxWidth - (margin * 2);
             int targetHeight = boxHeight - (margin * 2);
 
