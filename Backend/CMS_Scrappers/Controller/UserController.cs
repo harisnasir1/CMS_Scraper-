@@ -36,15 +36,15 @@ public class UserController:ControllerBase
         if(user==null)return Unauthorized("Invalid credentials");
 
         var Token=GenerateJWtToken(user);
-        Response.Cookies.Append("token", Token, new CookieOptions
-        {
-        HttpOnly = true,
-        Secure = true,
-        SameSite = SameSiteMode.None,
-        Expires = DateTimeOffset.UtcNow.AddDays(100)
-        });
+        // Response.Cookies.Append("token", Token, new CookieOptions
+        // {
+        // HttpOnly = true,
+        // Secure = true,
+        // SameSite = SameSiteMode.None,
+        // Expires = DateTimeOffset.UtcNow.AddDays(100)
+        // });
 
-        return Ok(new { message = "Login successful" });
+        return Ok(new { message = "Login successful",token=Token });
     }
     
     [HttpGet("me")]
