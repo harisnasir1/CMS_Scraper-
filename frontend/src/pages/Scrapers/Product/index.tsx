@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 type Props = {}
 
 function ScrapedProducts({ }: Props) {
-  const {SelectedScraper,getScraperProducts,products,totalproducts}=useProduct()
+  const {SelectedScraper,getScraperProducts,products,totalproducts,Checkifoutofstock}=useProduct()
   const navigate=useNavigate()
    useEffect(()=>{
     if(products==null)
@@ -84,7 +84,7 @@ function ScrapedProducts({ }: Props) {
                 <TableCell>
                   {product.condition}
                 </TableCell>
-                <TableCell className="hidden sm:table-cell">{product.variants[0].inStock==true?"in stock":"out of stock"}</TableCell>
+                <TableCell className="hidden sm:table-cell">{Checkifoutofstock(product.variants)==true?"in stock":"out of stock"}</TableCell>
                 {/* <TableCell>
                   <Button
                     variant="ghost"
