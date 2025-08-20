@@ -36,7 +36,7 @@ public class ShoipfyScrapper:Scrap_shopify{
             response.Pages.Add(productsResponse);
 
             pageNumber++;
-            if(pageNumber>15)
+            if(pageNumber>25)
             {
                 break;
             }

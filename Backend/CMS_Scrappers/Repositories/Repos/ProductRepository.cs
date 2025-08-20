@@ -1,5 +1,8 @@
-﻿using CMS_Scrappers.Repositories.Interfaces;
+﻿using System;
+using Amazon.S3.Model;
+using CMS_Scrappers.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 namespace CMS_Scrappers.Repositories.Repos
 {
     public class ProductRepository:IProductRepository
@@ -24,10 +27,11 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
-            return await _context.Sdata
+           return await _context.Sdata
                   .Where(s =>  s.Status == "Categorized" && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton")&& (s.ProductType != "" || s.Category!= ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
+                  .Where(s => s.Variants.Any(v => v.InStock))
                   .OrderByDescending(s => s.CreatedAt)
                   .Skip((PageNumber - 1) * PageSize)
                    .Take(PageSize)
@@ -145,11 +149,33 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task <bool> UpdateStatus(Guid id,string status)
         {
 
-         try{   var data= await _context.Sdata.FindAsync(id);
-            if (data == null) return false;
-            data.Status=status;
-            await _context.SaveChangesAsync();
-                return true;
+         try{
+                var strategy = _context.Database.CreateExecutionStrategy();
+
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
+
+                    var product = await _context.Sdata.FirstOrDefaultAsync(p => p.Id == id);
+                    if (product == null) return false;
+
+                    var current = product.Status;
+                    bool allowed = (current, status) switch
+                    {
+                        ("Categorized", "Shopify Queued") => true,
+                        ("Shopify Queued", "Processing") => true,
+                        ("Processing", "Live") => true,
+                        ("Processing", "Failed") => true,
+                        _ => false
+                    };
+
+                    if (!allowed) return false;
+
+                    product.Status = status;
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                    return true;
+                });
             }
             catch (Exception ex)
             {
@@ -190,8 +216,13 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<int> TotalStatusProdcuts(string status)
         {
-            return await _context.Sdata.Where(s=>s.Status==status && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton") && (s.ProductType != "" || s.Category != "")).CountAsync();
+            return await _context.Sdata
+                .Where(s=>s.Status==status && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton") && (s.ProductType != "" || s.Category != ""))
+                 .Include(s => s.Variants)
+                  .Where(s => s.Variants.Any(v => v.InStock))
+                .CountAsync();
         }
+         
 
 
     }

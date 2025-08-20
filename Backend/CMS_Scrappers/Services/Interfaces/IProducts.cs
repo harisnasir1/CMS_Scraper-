@@ -14,5 +14,7 @@ namespace CMS_Scrappers.Services.Interfaces
         Task<bool> UpdateStatus(Guid id, string status);
         Task<bool> UpdateProductDetails(Guid id, string sku, string title, string description, int price);
         Task<int> ProductCountStatus(string status);
+
+        Task<string> GetProductStatus(Guid id);
     }
 }

@@ -18,12 +18,12 @@ public class UserService:IUserService
        var existinguser=await _userRepository.GetByEmailAsync(dto.Email);
        if (existinguser != null) return false;
 
-       var hashedpassword = HashPassword(dto.password);
+       var hashedpassword = HashPassword(dto.password.Trim());
 
        var user=new User{
         Id=Guid.NewGuid(),
-        Name = dto.Name,
-        Email =dto.Email,
+        Name = dto.Name.Trim(),
+        Email =dto.Email.Trim(),
         Password = hashedpassword,
         CreatedAt =DateTime.UtcNow,
         UpdatedAt =DateTime.UtcNow
@@ -74,7 +74,7 @@ public class UserService:IUserService
         var salt=Convert.FromBase64String(parts[0]);
         var storedHash=parts[1];
         string enteredHash=Convert.ToBase64String(KeyDerivation.Pbkdf2(
-            password:enteredPassword,
+            password:enteredPassword.Trim(),
             salt:salt,
             prf:KeyDerivationPrf.HMACSHA256,
             iterationCount:10000,
