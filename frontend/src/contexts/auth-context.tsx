@@ -41,10 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      await api.post("/User/Login", { email, password })
+      const d=await api.post("/User/Login", { email, password })
+      localStorage.setItem("token", d.data.token);
       await checkAuth()
       navigate("/dashboard")
-    } catch (error) {
+    } catch (error)
+    {
       throw new Error("Invalid credentials")
     }
   }

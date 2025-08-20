@@ -59,48 +59,88 @@ namespace CMS_Scrappers.Services.Implementations
         }
         public async Task RemovingBackgroundimages(Guid id, List<Requestimages> Imgs)
         {
-            if (Imgs == null || Imgs.Count == 0) return;
+            if (Imgs == null || Imgs.Count == 0) 
+            {
+                Console.WriteLine($"[RAILWAY_DEBUG] No images to process for product {id}");
+                return;
+            }
 
             var existingData = await _repository.Getproductbyid(id);
-            if (existingData == null) return;
+            if (existingData == null) 
+            {
+                Console.WriteLine($"[RAILWAY_DEBUG] Product {id} not found in database");
+                return;
+            }
+
+            Console.WriteLine($"[RAILWAY_DEBUG] Starting image processing for product {id}. Total images: {Imgs.Count}");
+            _logger.LogInformation($"[RAILWAY_DEBUG] Starting image processing for product {id}. Total images: {Imgs.Count}");
 
             var processedImages = new List<ProductImageRecordDTO>();
             int i = 0;
+            int successCount = 0;
+            int failureCount = 0;
+
             foreach (var image in Imgs)
             {
+                Stream processedStream = null;
+                Console.WriteLine($"[RAILWAY_DEBUG] Processing image {i + 1}/{Imgs.Count}: {image.Url}");
+                
                 try
                 {
-                    Stream processedStream;
-
                     if (image.Bgremove == true)
                     {
+                        Console.WriteLine($"[RAILWAY_DEBUG] Removing background for image: {image.Url}");
                         processedStream = await _backgroundRemover.RemoveBackgroundAsync(image.Url);
+                        Console.WriteLine($"[RAILWAY_DEBUG] Background removal completed for: {image.Url}");
                     }
                     else
                     {
+                        Console.WriteLine($"[RAILWAY_DEBUG] Downloading image: {image.Url}");
                         var response = await _httpClient.GetAsync(image.Url);
                         if (response == null || response.StatusCode != System.Net.HttpStatusCode.OK)
                         {
+                            Console.WriteLine($"[RAILWAY_ERROR] Image download failed: {image.Url} - Status: {response?.StatusCode}");
                             _logger.LogWarning($"Image download failed: {image.Url}! skipping it_");
+                            failureCount++;
                             continue; 
                         }
                         processedStream = await response.Content.ReadAsStreamAsync();
+                        Console.WriteLine($"[RAILWAY_DEBUG] Image download completed: {image.Url}");
                     }
-                    bool fill = i < 2 ? false : true;
 
-                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048,40,fill);
-                    if (resizedImage == null || resizedImage.Length == 0)
+                    if (processedStream == null)
                     {
-                        _logger.LogWarning($"Resizing failed: {image.Url} skipping it_");
+                        Console.WriteLine($"[RAILWAY_ERROR] Failed to get image stream for: {image.Url}");
+                        _logger.LogWarning($"Failed to get image stream for: {image.Url}");
+                        failureCount++;
                         continue;
                     }
 
+                    bool fill = image.Bgremove==false ? true : false;
+                    Console.WriteLine($"[RAILWAY_DEBUG] Resizing image {i + 1}: {image.Url} (fill: {fill})");
+
+                    using var resizedImage = await _backgroundRemover.ResizeImageAsync(processedStream, 2048, 2048, 10, fill);
+                    if (resizedImage == null || resizedImage.Length == 0)
+                    {
+                        Console.WriteLine($"[RAILWAY_ERROR] Resizing failed: {image.Url}");
+                        _logger.LogWarning($"Resizing failed: {image.Url} skipping it_");
+                        failureCount++;
+                        continue;
+                    }
+
+                    Console.WriteLine($"[RAILWAY_DEBUG] Resizing completed. Image size: {resizedImage.Length} bytes");
+
+                    Console.WriteLine($"[RAILWAY_DEBUG] Uploading to S3: {image.Url}");
                     var finalUrl = await _S3service.Uploadimage(resizedImage);
                     if (string.IsNullOrEmpty(finalUrl))
                     {
+                        Console.WriteLine($"[RAILWAY_ERROR] S3 upload failed: {image.Url}");
                         _logger.LogWarning($"S3 upload failed: {image.Url}");
+                        failureCount++;
                         continue;
                     }
+
+                    Console.WriteLine($"[RAILWAY_DEBUG] S3 upload successful: {finalUrl}");
 
                     processedImages.Add(new ProductImageRecordDTO
                     {
@@ -110,17 +150,60 @@ namespace CMS_Scrappers.Services.Implementations
                         Bgremove = image.Bgremove
                     });
 
+                    successCount++;
+                    Console.WriteLine($"[RAILWAY_SUCCESS] Image {i + 1}/{Imgs.Count} processed successfully: {image.Url} -> {finalUrl}");
+                    _logger.LogInformation($"Successfully processed image {i + 1}/{Imgs.Count}: {image.Url} -> {finalUrl}");
+                    
                     await Task.Delay(900);
                     i++;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Image processing failed: {image.Url}");
+                    failureCount++;
+                    Console.WriteLine($"[RAILWAY_ERROR] Image processing failed for {image.Url}: {ex.Message}");
+                    Console.WriteLine($"[RAILWAY_ERROR] Stack trace: {ex.StackTrace}");
+                    _logger.LogError(ex, $"Image processing failed for {image.Url}: {ex.Message}");
+                }
+                finally
+                {
+                    // Ensure stream is properly disposed
+                    if (processedStream != null)
+                    {
+                        try
+                        {
+                            processedStream.Dispose();
+                        }
+                        catch (Exception disposeEx)
+                        {
+                            Console.WriteLine($"[RAILWAY_WARNING] Failed to dispose stream for {image.Url}: {disposeEx.Message}");
+                            _logger.LogWarning($"Failed to dispose stream for {image.Url}: {disposeEx.Message}");
+                        }
+                    }
                 }
             }
+            
+            Console.WriteLine($"[RAILWAY_SUMMARY] Processing complete for product {id}. Success: {successCount}, Failed: {failureCount}, Total: {Imgs.Count}");
+            
             if (processedImages.Count > 0)
             {
-                await _repository.UpdateImages(id, processedImages);
+                try
+                {
+                    Console.WriteLine($"[RAILWAY_DEBUG] Updating database with {processedImages.Count} images");
+                    await _repository.UpdateImages(id, processedImages);
+                    Console.WriteLine($"[RAILWAY_SUCCESS] Database update successful for product {id}");
+                    _logger.LogInformation($"Successfully updated {processedImages.Count} images for product {id}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RAILWAY_ERROR] Database update failed for product {id}: {ex.Message}");
+                    Console.WriteLine($"[RAILWAY_ERROR] Database stack trace: {ex.StackTrace}");
+                    _logger.LogError(ex, $"Failed to update images in database for product {id}: {ex.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[RAILWAY_WARNING] No images were successfully processed for product {id}");
+                _logger.LogWarning($"No images were successfully processed for product {id}");
             }
         }
 
@@ -135,7 +218,7 @@ namespace CMS_Scrappers.Services.Implementations
             var data=await _repository.Getproductbyid(id);
             if (data == null) return false;
             string response=await _shopifyService.PushProductAsync(data);
-          
+            if(response == null) return false;
             var updated = await _repository.AddShopifyproductid(data, response);
           
             return true;
@@ -154,5 +237,14 @@ namespace CMS_Scrappers.Services.Implementations
             return await _repository.TotalStatusProdcuts(status);
         }
         
+        public async Task<string> GetProductStatus(Guid id)
+        {
+            var product = await _repository.Getproductbyid(id);
+            return product?.Status ?? "Unknown";
+        }
+
+
+
+
     }
 }

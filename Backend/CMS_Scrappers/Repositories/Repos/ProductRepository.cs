@@ -1,5 +1,8 @@
-﻿using CMS_Scrappers.Repositories.Interfaces;
+﻿using System;
+using Amazon.S3.Model;
+using CMS_Scrappers.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 namespace CMS_Scrappers.Repositories.Repos
 {
     public class ProductRepository:IProductRepository
@@ -146,11 +149,33 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task <bool> UpdateStatus(Guid id,string status)
         {
 
-         try{   var data= await _context.Sdata.FindAsync(id);
-            if (data == null) return false;
-            data.Status=status;
-            await _context.SaveChangesAsync();
-                return true;
+         try{
+                var strategy = _context.Database.CreateExecutionStrategy();
+
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
+
+                    var product = await _context.Sdata.FirstOrDefaultAsync(p => p.Id == id);
+                    if (product == null) return false;
+
+                    var current = product.Status;
+                    bool allowed = (current, status) switch
+                    {
+                        ("Categorized", "Shopify Queued") => true,
+                        ("Shopify Queued", "Processing") => true,
+                        ("Processing", "Live") => true,
+                        ("Processing", "Failed") => true,
+                        _ => false
+                    };
+
+                    if (!allowed) return false;
+
+                    product.Status = status;
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                    return true;
+                });
             }
             catch (Exception ex)
             {
@@ -197,6 +222,7 @@ namespace CMS_Scrappers.Repositories.Repos
                   .Where(s => s.Variants.Any(v => v.InStock))
                 .CountAsync();
         }
+         
 
 
     }
