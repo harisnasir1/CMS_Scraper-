@@ -411,6 +411,14 @@ namespace CMS_Scrappers.Services.Implementations
             var data = await ExecuteGraphQLAsync(payload);
 
             var variants = new Dictionary<string, string>();
+
+            var productElement = data.GetProperty("product");
+            if (productElement.ValueKind == JsonValueKind.Null)
+            {
+               
+                _logger.LogWarning($"No product found for gid {productGid}");
+                return variants;
+            }
             var variantEdges = data.GetProperty("product").GetProperty("variants").GetProperty("edges");
 
             foreach (var edge in variantEdges.EnumerateArray())
