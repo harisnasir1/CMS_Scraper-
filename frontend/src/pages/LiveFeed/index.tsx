@@ -20,7 +20,7 @@ type Props = {}
 function LiveFeed({}: Props) {
   
   const [tc,setc]=useState<number>(0)
-  const {getLiveProducts,LiveProducts,normalizeDateTime,GetProductCount}=useProduct()
+  const {getLiveProducts,LiveProducts,normalizeDateTime,GetProductCount,Checkifoutofstock}=useProduct()
   const getproducts=async()=>{
    await getLiveProducts(1,10);
   }
@@ -56,7 +56,7 @@ function LiveFeed({}: Props) {
               <TableHead className="hidden sm:table-cell">Product Name</TableHead>
               <TableHead className="hidden sm:table-cell">Scraper</TableHead>
               <TableHead className="hidden sm:table-cell">Last Update</TableHead>
-             
+              <TableHead className="hidden sm:table-cell">Availability</TableHead>
               <TableHead className="hidden sm:table-cell"></TableHead>
              
             </TableRow>
@@ -80,7 +80,8 @@ function LiveFeed({}: Props) {
                 <TableCell className="hidden sm:table-cell">{product.title}</TableCell>
                 <TableCell className="hidden sm:table-cell">{product.scraperName}</TableCell>
                 <TableCell className="hidden sm:table-cell">{normalizeDateTime(product.updatedAt)}</TableCell>
-
+                <TableCell className="hidden sm:table-cell">{Checkifoutofstock(product.variants)==true?"in stock":"out of stock"}</TableCell>
+                
               </TableRow>
             ))}
           </TableBody>
