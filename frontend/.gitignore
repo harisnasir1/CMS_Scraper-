@@ -3,7 +3,7 @@ node_modules/
 
 # production
 /dist/
-/idea/
+/.idea/
 ./dist/
 # misc
 .DS_Store
