@@ -20,8 +20,8 @@ const Scraperspage = () => {
   const navigate=useNavigate();
   const {getScrappers}=useScrapper();
   const {scrappers}=useScrapper();
-  const {getScraperProducts,normalizedate,Normalizetime}=useProduct();
-  
+  const {getScraperProducts,normalizeDateTime,Normalizetime}=useProduct();
+  console.log(scrappers)
   useEffect(()=>{
     const Getall=async()=>{
       await getScrappers();
@@ -58,7 +58,7 @@ const Scraperspage = () => {
                                {scrap.status}
                              </Badge>
                          </TableCell>
-                         <TableCell>{normalizedate(scrap.lastrun.toString())}</TableCell>
+                         <TableCell>{normalizeDateTime(scrap.lastrun.toString())}</TableCell>
                          <TableCell>{Normalizetime(scrap.runtime)}</TableCell>
                          <TableCell className=' text-right'>{<Button 
                          onClick={()=>{
