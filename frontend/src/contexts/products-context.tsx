@@ -242,16 +242,22 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   function Normalizetime(runtime:string)
   {
-    const [hours, minutes, secondsWithMs] = runtime.split(":");
-    const seconds = parseFloat(secondsWithMs);
+    
+  const [hours, minutes, secondsWithMs] = runtime.split(":");
+  const seconds = parseFloat(secondsWithMs);
 
+  const h = Number(hours);
+  const m = Number(minutes);
+  const s = Math.floor(seconds);
 
- function pad(n:number) { return n.toString().padStart(2, "0"); }
+  // Human-readable duration
+  const parts = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+  const humanReadable = parts.join(" ");
 
-   const h = pad(Number(hours));
-   const m = pad(Number(minutes));
-   const s = pad(Math.floor(seconds));
-   return `${h}:${m}:${s}`
+  return  humanReadable ;
 
   }
   function normalizeDateTime(dateString:string) {

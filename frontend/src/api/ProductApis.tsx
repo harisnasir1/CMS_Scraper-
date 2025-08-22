@@ -16,7 +16,7 @@ export class productsapis{
     async getlivefeedproducts(PageNumber:Number,PageSize:Number)
     {
         const response=await api.post<Sdata[]>("Product/Livefeed",{PageNumber,PageSize});
-        console.log(response.data)
+      
         return response.data;
     }
     async getsimilarimages( productid:string,PageSize:number)
@@ -28,7 +28,7 @@ export class productsapis{
     {
   
         const response=await api.post<string[]>("Product/Push",{id:productid,productimage:images});
-        console.log(response)
+      
         return response.data
     }
     async AiDescription(productid:string)
