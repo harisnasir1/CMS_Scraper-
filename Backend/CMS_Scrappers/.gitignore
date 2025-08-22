@@ -1,7 +1,7 @@
 # .NET build results
 **/bin/
 **/obj/
-
+./idea/
 # .NET user-specific files
 *.user
 *.suo

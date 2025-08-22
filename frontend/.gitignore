@@ -3,7 +3,8 @@ node_modules/
 
 # production
 /dist/
-
+/idea/
+./dist/
 # misc
 .DS_Store
 .env
