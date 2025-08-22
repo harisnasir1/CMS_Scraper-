@@ -23,9 +23,6 @@ public class BackgroundRemover
         using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
         request.Headers.Add("X-API-KEY", _apiKey);
         request.Content = formdata;
-
-      
-
         using var response = await _httpClient.SendAsync(request);
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && retry==false) 
         {
