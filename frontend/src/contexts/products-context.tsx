@@ -250,10 +250,6 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   const m = Number(minutes);
   const s = Math.floor(seconds);
 
-  // Pad for hh:mm:ss
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const formatted = `${pad(h)}:${pad(m)}:${pad(s)}`;
-
   // Human-readable duration
   const parts = [];
   if (h > 0) parts.push(`${h}h`);
