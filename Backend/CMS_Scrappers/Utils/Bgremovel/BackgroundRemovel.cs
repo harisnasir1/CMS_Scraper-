@@ -6,7 +6,7 @@ public class BackgroundRemover
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
-    private const string ApiUrl = "https://api.remove.bg/v1.0/removebg";
+    private const string ApiUrl = "https://rmizhq2lxoty3l-8000.proxy.runpod.net/image/";
     private bool retry = false;
 
     public BackgroundRemover(HttpClient httpClient, string apiKey)
@@ -18,11 +18,13 @@ public class BackgroundRemover
     public async Task<Stream> RemoveBackgroundAsync(string imageUrl)
     {
         using var formdata = new MultipartFormDataContent();
-        formdata.Add(new StringContent(imageUrl), "image_url");
+        using var image_content= await _httpClient.GetAsync(imageUrl);
+        image_content.EnsureSuccessStatusCode();
+        var imagesource=await image_content.Content.ReadAsStreamAsync();
+        formdata.Add(new StreamContent(imagesource), "file","upload.png");
         formdata.Add(new StringContent("auto"), "size");
         using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
-        request.Headers.Add("X-API-KEY", _apiKey);
-        request.Content = formdata;
+        request.Content = formdata;     
         using var response = await _httpClient.SendAsync(request);
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && retry==false) 
         {
