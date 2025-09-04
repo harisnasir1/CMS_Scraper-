@@ -290,7 +290,7 @@ export function CreateProductPage() {
                         </div>
                       </SortableContext>
                     </DndContext>
-                    <div className="flex aspect-square sm:aspect-video items-center justify-center rounded-lg border-2 border-dashed">
+                    <div className="flex aspect-square sm:aspect-video items-center justify-center rounded-lg border-2 border-dashed ">
                       <label className="flex cursor-pointer flex-col items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
