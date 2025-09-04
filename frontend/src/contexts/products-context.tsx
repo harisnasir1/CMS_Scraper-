@@ -2,8 +2,8 @@
 import { createContext, useContext, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { productsapis } from "@/api/ProductApis"
-import { Sdata, ISelectedImgs } from "@/types/Sdata"
-import { Scraper } from "@/types/Scrappertype"
+import { Sdata, ISelectedImgs, ProductVariantRecord } from "@/types/Sdata"
+import { Scraper } from "@/types/Scrappertype";
 import toast, { Toaster } from "react-hot-toast";
 
 interface ProductContextType {
@@ -33,6 +33,7 @@ interface ProductContextType {
   GetProductCount:(status:string)=>Promise<number>
   AddSelectedimgs:(s:ISelectedImgs)=>Promise<void>
   ImgToggleBgflag:(id:string)=>void
+   Checkifoutofstock:(product:ProductVariantRecord[])=>boolean
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined)
@@ -87,6 +88,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false)
     }
   }
+
   const getLiveProducts = async (PageNumber:number=1,PageSize:number=10) => {
     try {
       setIsLoading(true)
@@ -240,16 +242,22 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   function Normalizetime(runtime:string)
   {
-    const [hours, minutes, secondsWithMs] = runtime.split(":");
-    const seconds = parseFloat(secondsWithMs);
+    
+  const [hours, minutes, secondsWithMs] = runtime.split(":");
+  const seconds = parseFloat(secondsWithMs);
 
+  const h = Number(hours);
+  const m = Number(minutes);
+  const s = Math.floor(seconds);
 
- function pad(n:number) { return n.toString().padStart(2, "0"); }
+  // Human-readable duration
+  const parts = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+  const humanReadable = parts.join(" ");
 
-   const h = pad(Number(hours));
-   const m = pad(Number(minutes));
-   const s = pad(Math.floor(seconds));
-   return `${h}:${m}:${s}`
+  return  humanReadable ;
 
   }
   function normalizeDateTime(dateString:string) {
@@ -268,14 +276,21 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   }
 
-
+  function Checkifoutofstock(product: ProductVariantRecord[]): boolean {
+    for (const element of product) {
+      if (element.inStock === true) {
+        return true;
+      }
+    }
+    return false;
+  }
 
 
   return (
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
      currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails,
-     GetProductCount,getLiveProducts,LiveProducts,selectedimg,AddSelectedimgs,ImgToggleBgflag
+     GetProductCount,getLiveProducts,LiveProducts,selectedimg,AddSelectedimgs,ImgToggleBgflag, Checkifoutofstock
      }}>
       <Toaster/>
       {children}

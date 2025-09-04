@@ -489,18 +489,9 @@ namespace CMS_Scrappers.Services.Implementations
             double markup = 0.1 * p;
             double ourprice = p + markup;
             double pound = (int)Math.Round(ourprice * 0.74);
-            double l=pound%10;
-            if(l>=3 && l<5)
-            {
-                double n=l-5;
-                return pound+n;
-            }
-            else if(l<=3 && l>0)
-            {
-                return pound-l;
-            }
-            
-            return  pound;
+            double k = (int)pound / 5;
+            double converted = k * 5;            
+            return converted;
         }
     }
 
