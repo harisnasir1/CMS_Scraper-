@@ -40,7 +40,7 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize)
         {
             return await _context.Sdata
-                  .Where(s => s.Status == "Live"  && (s.Brand == "Goyard" ) && (s.ProductType != "" || s.Category != ""))
+                  .Where(s => s.Status == "Live"  && (s.Brand != "Goyard" ) && (s.ProductType != "" || s.Category != ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .OrderByDescending(s => s.CreatedAt)
