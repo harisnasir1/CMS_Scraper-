@@ -18,7 +18,7 @@ namespace CMS_Scrappers.Repositories.Repos
         {
             _logger.LogError($"page number ={PageNumber} \n pagesize ={PageSize}");
             return await _context.Sdata
-                  .Where(s => s.Sid == scraper && s.Status== "Categorized"&&s.Condition=="New" && (s.Brand== "Chrome Hearts" || s.Brand == "Louis Vuitton"))
+                  .Where(s => s.Sid == scraper && s.Status== "Categorized"&&s.Condition=="New" && s.Brand!= "Goyard")
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .Skip((PageNumber - 1) * PageSize)
