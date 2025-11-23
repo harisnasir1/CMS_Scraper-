@@ -43,7 +43,7 @@ namespace CMS_Scrappers.Repositories.Repos
                   .Where(s => s.Status == "Live"  && (s.Brand != "Goyard" ) && (s.ProductType != "" || s.Category != ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
-                  .OrderByDescending(s => s.CreatedAt)
+                  .OrderByDescending(s => s.UpdatedAt)
                   .Skip((PageNumber - 1) * PageSize)
                    .Take(PageSize)
                   .ToListAsync();
