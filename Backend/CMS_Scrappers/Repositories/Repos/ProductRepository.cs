@@ -18,7 +18,7 @@ namespace CMS_Scrappers.Repositories.Repos
         {
             _logger.LogError($"page number ={PageNumber} \n pagesize ={PageSize}");
             return await _context.Sdata
-                  .Where(s => s.Sid == scraper && s.Status== "Categorized"&&s.Condition=="New" && s.Brand!= "Goyard")
+                  .Where(s => s.Sid == scraper && s.Status== "Categorized" && s.Brand!= "Goyard")
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .Skip((PageNumber - 1) * PageSize)
@@ -28,7 +28,7 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
            return await _context.Sdata
-                  .Where(s =>  s.Status == "Categorized" && s.Condition == "New" && s.Brand != "Goyard" && (s.ProductType != "" || s.Category!= ""))
+                  .Where(s =>  s.Status == "Categorized"  && s.Brand != "Goyard" && (s.ProductType != "" || s.Category!= ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .Where(s => s.Variants.Any(v => v.InStock))
@@ -40,7 +40,7 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize)
         {
             return await _context.Sdata
-                  .Where(s => s.Status == "Live" && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton") && (s.ProductType != "" || s.Category != ""))
+                  .Where(s => s.Status == "Live"  && (s.Brand == "Goyard" ) && (s.ProductType != "" || s.Category != ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .OrderByDescending(s => s.CreatedAt)
@@ -217,7 +217,7 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<int> TotalStatusProdcuts(string status)
         {
             return await _context.Sdata
-                .Where(s=>s.Status==status && s.Condition == "New" && (s.Brand != "Goyard") && (s.ProductType != "" || s.Category != ""))
+                .Where(s=>s.Status==status && (s.Brand != "Goyard") && (s.ProductType != "" || s.Category != ""))
                  .Include(s => s.Variants)
                   .Where(s => s.Variants.Any(v => v.InStock))
                 .CountAsync();
