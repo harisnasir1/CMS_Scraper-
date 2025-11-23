@@ -28,7 +28,7 @@ namespace CMS_Scrappers.Repositories.Repos
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
            return await _context.Sdata
-                  .Where(s =>  s.Status == "Categorized" && s.Condition == "New" && (s.Brand == "Chrome Hearts" || s.Brand == "Louis Vuitton")&& (s.ProductType != "" || s.Category!= ""))
+                  .Where(s =>  s.Status == "Categorized" && s.Condition == "New" && s.Brand != "Goyard" && (s.ProductType != "" || s.Category!= ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .Where(s => s.Variants.Any(v => v.InStock))
