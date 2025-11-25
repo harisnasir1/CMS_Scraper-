@@ -38,7 +38,7 @@ namespace CMS_Scrappers.Services.Implementations
                     vendor = sdata.Brand,
                     product_type = sdata.ProductType,
                     template_suffix = sdata.ProductType== "Accessories" ? "single-size":"Default product",
-                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ",
+                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ,{(sdata.Condition == "Pre-Owned" ? "PRELOVED":"")}",
                     options = new[]
                     {
                         new { name = "Size" }
@@ -110,10 +110,31 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     metafieldInputs.Add(new { ownerId = ownerId, key = "scraper_origin", @namespace = "custom", value = sdata.ScraperName.Trim(), type = "single_line_text_field" });
                 }
+                if (IsValidMetafieldValue(sdata?.ConditionGrade))
+                {
+                    var condi_grade=Map_Condition_Grade(sdata.ConditionGrade.Trim());
+                    if(condi_grade!="")
+                    {
+                        metafieldInputs.Add(new
+                        {
+                            ownerId = ownerId, key = "product_condition_grade_preloved", @namespace = "custom",
+                            value = condi_grade.Trim(), type = "single_line_text_field"
+                        });
+                    }
+                }
 
                 if (IsValidMetafieldValue(sdata.Condition))
                 {
-                    metafieldInputs.Add(new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = sdata.Condition.Trim(), type = "single_line_text_field" });
+                    string condition = "";
+                    if (sdata.Condition == "Pre-Owned")
+                    {
+                        condition = "Preloved";
+                    }
+                    else
+                    {
+                        condition = "New";
+                    }
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = condition.Trim(), type = "single_line_text_field" });
                 }
 
             
@@ -608,7 +629,25 @@ namespace CMS_Scrappers.Services.Implementations
             
             return dbVariants.Find(v => v.Size == size);
         }
-        
+
+
+        private string Map_Condition_Grade(string condition)
+        {
+            var gradeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Used Condition.", "worn condition" },
+                { "Good Condition.", "good condition" },
+                { "Great Condition.", "excellent condition" },
+                { "Like New Condition.", "like new" }
+            };
+
+            if (string.IsNullOrWhiteSpace(condition))
+                return string.Empty;
+
+            return gradeMap.TryGetValue(condition.Trim(), out var mappedValue) 
+                ? mappedValue 
+                : ""; 
+        }
     }
 
 }
