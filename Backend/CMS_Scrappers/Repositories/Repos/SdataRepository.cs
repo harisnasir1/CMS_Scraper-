@@ -74,7 +74,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 if (incomingVariantsDict.TryGetValue(dbVariant.Size, out var incomingVariant))
                 {
                     dbVariant.InStock = incomingVariant.Available == 1;
-                   // dbVariant.Price = incomingVariant.Price; => need later not now
+                    dbVariant.Price = incomingVariant.Price;
                 }
             }
         }
