@@ -23,8 +23,17 @@ public class ShoipfyScrapper:Scrap_shopify{
             var httpResponse =
                 await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
 
-            if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
-                throw new Exception();
+            try
+            {
+                if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
+                    throw new Exception(httpResponse.ToString());
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine("Error occurred:");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+            }
 
             var productsResponse = await httpResponse.Content.ReadFromJsonAsync<ShopifyStoreProductsResponse>();
 
