@@ -21,6 +21,8 @@ namespace CMS_Scrappers.Services.Implementations
             _logger = logger;
             _locationId = "";
         }
+       
+        
         public async Task<string> PushProductAsync(Sdata sdata)
         {
             if (!string.IsNullOrEmpty(sdata.Shopifyid))
@@ -36,7 +38,7 @@ namespace CMS_Scrappers.Services.Implementations
                     vendor = sdata.Brand,
                     product_type = sdata.ProductType,
                     template_suffix = sdata.ProductType== "Accessories" ? "single-size":"Default product",
-                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ",
+                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ,{(sdata.Condition == "Pre-Owned" ? "PRELOVED":"")}",
                     options = new[]
                     {
                         new { name = "Size" }
@@ -47,7 +49,7 @@ namespace CMS_Scrappers.Services.Implementations
                         price = Addmarkup(v.Price).ToString("F2"),
                         sku = v.SKU,
                         inventory_management = "shopify",
-                        inventory_quantity = 1,
+                        inventory_quantity = v.InStock?1:0,
                         requires_shipping = true
                     }),
                     images = sdata.Image.Select(i => new { src = i.Url })
@@ -95,6 +97,7 @@ namespace CMS_Scrappers.Services.Implementations
             return result;
         }
 
+        
         private async Task<bool> PushMetafieldsInternal(Sdata sdata, string productId)
         {
             try
@@ -107,10 +110,31 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     metafieldInputs.Add(new { ownerId = ownerId, key = "scraper_origin", @namespace = "custom", value = sdata.ScraperName.Trim(), type = "single_line_text_field" });
                 }
+                if (IsValidMetafieldValue(sdata?.ConditionGrade))
+                {
+                    var condi_grade=Map_Condition_Grade(sdata.ConditionGrade.Trim());
+                    if(condi_grade!="")
+                    {
+                        metafieldInputs.Add(new
+                        {
+                            ownerId = ownerId, key = "product_condition_grade_preloved", @namespace = "custom",
+                            value = condi_grade.Trim(), type = "single_line_text_field"
+                        });
+                    }
+                }
 
                 if (IsValidMetafieldValue(sdata.Condition))
                 {
-                    metafieldInputs.Add(new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = sdata.Condition.Trim(), type = "single_line_text_field" });
+                    string condition = "";
+                    if (sdata.Condition == "Pre-Owned")
+                    {
+                        condition = "Preloved";
+                    }
+                    else
+                    {
+                        condition = "New";
+                    }
+                    metafieldInputs.Add(new { ownerId = ownerId, key = "product_condition", @namespace = "custom", value = condition.Trim(), type = "single_line_text_field" });
                 }
 
             
@@ -212,6 +236,7 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
 
+        
         private bool IsValidMetafieldValue(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -275,6 +300,8 @@ namespace CMS_Scrappers.Services.Implementations
             
             return false;
         }
+        
+        
         private string GetGender(string s)
         {
             if (string.IsNullOrWhiteSpace(s))
@@ -302,6 +329,7 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
      
+        
         public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
         {
             var locationId = await GetFirstLocationIdAsync();
@@ -319,72 +347,60 @@ namespace CMS_Scrappers.Services.Implementations
             {
                 _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...");
                 var inventoryQuantities = new List<object>();
+                var priceUpdate = new List<object>();
                 int startIndex = i * (int)Batchsizes;
                 int endIndex = Math.Min(startIndex + (int)Batchsizes, existingproduct.Count);
                 var currentBatch = existingproduct.GetRange(startIndex, endIndex - startIndex);
                 foreach (var incomingProduct in currentBatch)
                 {
-                   
                     if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))
                     {
                         string gid = $"gid://shopify/Product/{dbProduct.Shopifyid}";
-                        Dictionary<string , string > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
-
+                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+                        List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
                         {
-                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var inventoryItemId))
+                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
                             {
                                 int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
                                 inventoryQuantities.Add(new
                                 {
-                                    inventoryItemId = inventoryItemId,
+                                    inventoryItemId = details.inventoryId,
                                     locationId = locationId,
                                     quantity = newQuantity
                                 });
+                                //get the db current variant first.
+                                 var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
+                                //check if db price is changed from comming variant price then update the price.
+                                //well we can not check if price get change because we updated price beofre this step.
+                                //at it is very long to go back so just check fi they are in stock then update the price.
+                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
+                                {
+                                    priceUpdate.Add(new
+                                    {
+                                        productId = gid,
+                                        id = details.variantId,
+                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
+                                    });
+                                }
                             }
                         }
                     }
                 }
                 if(inventoryQuantities.Count > 0)
                 {
-                    var mutation = @"
-                mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
-                    inventorySetOnHandQuantities(input: $input) {
-                        userErrors {
-                            field
-                            message
-                        }
-                        inventoryAdjustmentGroup {
-                            id
-                            reason
-                        }
-                    }
-                }";
-                    var variables = new
-                    {
-                        input = new
-                        {
-                            reason = "restock", 
-                            setQuantities = inventoryQuantities
-                        }
-                    };
-                    var payload = new { query = mutation, variables };
-
-                    try
-                    {
-                        var data = await ExecuteGraphQLAsync(payload);
-                        Console.WriteLine($"Batch {i + 1} updated successfully.");
-                       
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error updating batch {i + 1}: {ex.Message}");
-                    }
+                   await Update_Variant_Quantites_batch(inventoryQuantities, i);
+                }
+                if(priceUpdate.Count > 0)
+                {
+                    await UpdatePricesBatch(priceUpdate, i);
                 }
 
             }
         }
-        public async Task<Dictionary<string, string>> GetVariantInventoryIdsAsync(string productGid)
+        
+        
+        private async Task<Dictionary<string, (string variantId, string inventoryId)>> GetVariantInventoryIdsAsync(string productGid)
         {
             var query = @"
         query getProductVariants($id: ID!) {
@@ -410,12 +426,11 @@ namespace CMS_Scrappers.Services.Implementations
             var payload = new { query, variables };
             var data = await ExecuteGraphQLAsync(payload);
 
-            var variants = new Dictionary<string, string>();
+            var variants = new Dictionary<string, (string,string)>();
 
             var productElement = data.GetProperty("product");
             if (productElement.ValueKind == JsonValueKind.Null)
             {
-               
                 _logger.LogWarning($"No product found for gid {productGid}");
                 return variants;
             }
@@ -424,9 +439,9 @@ namespace CMS_Scrappers.Services.Implementations
             foreach (var edge in variantEdges.EnumerateArray())
             {
                 var node = edge.GetProperty("node");
+                var variantId = node.GetProperty("id").GetString();
                 var inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
-
-              
+                
                 string size = null;
                 foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
                 {
@@ -437,20 +452,19 @@ namespace CMS_Scrappers.Services.Implementations
                     }
                 }
 
-                if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId))
+                if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId)&&!string.IsNullOrEmpty(variantId))
                 {
-                    variants[size] = inventoryItemId;
+                    variants[size] = (variantId,inventoryItemId);
                 }
             }
 
             return variants;
         }
 
-        public async Task<string> GetFirstLocationIdAsync()
+        
+        private async Task<string> GetFirstLocationIdAsync()
         {
-
-
-            string query = "query { locations(first: 1) { edges { node { id } } } }";
+            var query = "query { locations(first: 1) { edges { node { id } } } }";
 
             var payload = new { query };
             var data = await ExecuteGraphQLAsync(payload);
@@ -458,6 +472,8 @@ namespace CMS_Scrappers.Services.Implementations
             _locationId = data.GetProperty("locations").GetProperty("edges")[0].GetProperty("node").GetProperty("id").GetString();
             return _locationId;
         }
+        
+        
         private async Task<JsonElement> ExecuteGraphQLAsync(object payload)
         {
             var jsonContent = JsonSerializer.Serialize(payload);
@@ -482,6 +498,112 @@ namespace CMS_Scrappers.Services.Implementations
             return jsonDoc.RootElement.GetProperty("data");
         }
 
+        private async Task UpdatePricesBatch(List<object> priceUpdates, int batchIndex)
+        {
+            // Group by productId
+            var groupedByProduct = priceUpdates
+                .Cast<dynamic>()
+                .GroupBy(v => (string)v.productId)
+                .ToList();
+    
+            foreach (var productGroup in groupedByProduct)
+            {
+                var mutation = @"
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                    product {
+                        id
+                    }
+                    productVariants {
+                        id
+                        price
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }";
+
+                // Transform to only include id and price (remove productId)
+                var variantsForMutation = productGroup.Select(v => new 
+                {
+                    id = v.id,
+                    price = v.price
+                }).ToList();
+
+                var variables = new
+                {
+                    productId = productGroup.Key,
+                    variants = variantsForMutation
+                };
+
+                var payload = new { query = mutation, variables };
+
+                try
+                {
+                  
+                    var response = await ExecuteGraphQLAsync(payload);
+
+                    // handle errors
+                    if (response.TryGetProperty("productVariantsBulkUpdate", out var result) &&
+                        result.TryGetProperty("userErrors", out var errors))
+                    {
+                        foreach (var e in errors.EnumerateArray())
+                        {
+                            _logger.LogError($"Bulk error: {e.GetProperty("message").GetString()}");
+                        }
+                    }
+
+                    _logger.LogInformation($"Updated {variables.variants.Count} variants for product {variables.productId}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error updating prices for product {productGroup.Key}: {ex.Message}");
+                }
+            }
+            
+        }
+        
+        
+        private async Task  Update_Variant_Quantites_batch(List<object>inventoryQuantities,int i)
+        {
+            var mutation = @"
+                 mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
+                    inventorySetOnHandQuantities(input: $input) {
+                        userErrors {
+                            field
+                            message
+                        }
+                        inventoryAdjustmentGroup {
+                            id
+                            reason
+                        }
+                    }
+                 }";
+            var variables = new
+            {
+                input = new
+                {
+                    reason = "restock", 
+                    setQuantities = inventoryQuantities
+                }
+            };
+            var payload = new { query = mutation, variables };
+
+            try
+            {
+                var data = await ExecuteGraphQLAsync(payload);
+                Console.WriteLine($"Batch {i + 1} updated Quantity successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error updating inventory batch {i + 1}: {ex.Message}");
+                throw; 
+            }
+        }
+
+       
         private double Addmarkup(decimal price)
         {
             double p = (float)price;
@@ -492,6 +614,39 @@ namespace CMS_Scrappers.Services.Implementations
             double k = (int)pound / 5;
             double converted = k * 5;            
             return converted;
+        }
+
+        private ProductVariantRecord? Get_Current_db_variant(List<ProductVariantRecord>? dbVariants, string? size)
+        {
+            
+            if (string.IsNullOrEmpty(size))
+                return null;
+
+            
+            if (dbVariants == null || dbVariants.Count == 0)
+                return null;
+
+            
+            return dbVariants.Find(v => v.Size == size);
+        }
+
+
+        private string Map_Condition_Grade(string condition)
+        {
+            var gradeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Used Condition.", "worn condition" },
+                { "Good Condition.", "good condition" },
+                { "Great Condition.", "excellent condition" },
+                { "Like New Condition.", "like new" }
+            };
+
+            if (string.IsNullOrWhiteSpace(condition))
+                return string.Empty;
+
+            return gradeMap.TryGetValue(condition.Trim(), out var mappedValue) 
+                ? mappedValue 
+                : ""; 
         }
     }
 
