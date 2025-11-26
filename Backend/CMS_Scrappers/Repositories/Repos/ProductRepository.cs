@@ -16,19 +16,43 @@ namespace CMS_Scrappers.Repositories.Repos
 
         public async Task <List<Sdata>> GiveProducts(Guid scraper, int PageNumber, int PageSize)
         {
-            _logger.LogError($"page number ={PageNumber} \n pagesize ={PageSize}");
+            _logger.LogInformation($"page number ={PageNumber} \n pagesize ={PageSize}");
             return await _context.Sdata
                   .Where(s => s.Sid == scraper && s.Status== "Categorized" && s.Brand!= "Goyard")
+ 
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
+                  .AsSplitQuery()
                   .Skip((PageNumber - 1) * PageSize)
                    .Take(PageSize)
                   .ToListAsync();
         }
+        public async Task <List<Sdata>> GiveInstockProducts(Guid scraper, int PageNumber, int PageSize)
+        {
+            _logger.LogInformation($"page number ={PageNumber} \n pagesize ={PageSize}");
+            return await _context.Sdata
+                .Where(s => s.Sid == scraper && s.Status== "Categorized" && s.Brand!= "Goyard")
+                .Include(s => s.Image)
+                .Include(s => s.Variants)
+                .Where(s => s.Variants.Any(v => v.InStock))
+                .AsSplitQuery()
+                .Skip((PageNumber - 1) * PageSize)
+                .Take(PageSize)
+                .ToListAsync();
+        }
+        public async Task <int> GiveProducts_Count(Guid scraper)
+        {
+            return await _context.Sdata
+                .Where(s => s.Sid == scraper 
+                            && s.Status == "Categorized" 
+                            && s.Brand != "Goyard")
+                .CountAsync();
+
+        }
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
            return await _context.Sdata
-                  .Where(s =>  s.Status == "Categorized"  && s.Brand != "Goyard" && (s.ProductType != "" || s.Category!= ""))
+                  .Where(s => (s.Status == "Sync_ready")&& s.Brand != "Goyard" && (s.ProductType != "" || s.Category!= ""))
                   .Include(s => s.Image)
                   .Include(s => s.Variants)
                   .Where(s => s.Variants.Any(v => v.InStock))
@@ -50,8 +74,6 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<Sdata> Getproductbyid(Guid productid)
         {
-
-
             return await _context.Sdata
                 .Include(s => s.Image)
                 .Include(s => s.Variants)
@@ -162,9 +184,12 @@ namespace CMS_Scrappers.Repositories.Repos
                     bool allowed = (current, status) switch
                     {
                         ("Categorized", "Shopify Queued") => true,
+                        ("Categorized", "Sync_ready") => true,
                         ("Shopify Queued", "Processing") => true,
                         ("Processing", "Live") => true,
                         ("Processing", "Failed") => true,
+                        ("Sync_ready", "Live") => true,
+                        ("Sync_ready", "Failed") => true,
                         _ => false
                     };
 

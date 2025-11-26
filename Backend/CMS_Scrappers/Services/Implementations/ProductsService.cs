@@ -1,4 +1,5 @@
-﻿using CMS_Scrappers.Ai;
+﻿using System.Threading.Tasks.Dataflow;
+using CMS_Scrappers.Ai;
 using CMS_Scrappers.Data.Responses.Api_responses;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
@@ -242,7 +243,93 @@ namespace CMS_Scrappers.Services.Implementations
             var product = await _repository.Getproductbyid(id);
             return product?.Status ?? "Unknown";
         }
+        public async Task<int> product_Count_per_Scarpper(Guid id)
+        {
+            return await _repository.GiveProducts_Count(id);
+        }
 
+        public async Task<bool> PushAllScraperProductsLive(Guid sid,int? limit)
+        {
+            //step 1 to check if any scrapper is running or syncing. can do later have to do . make scrapper running if product is syncing.
+            
+            //step 2 to get the count of categorized product for each scraper.
+            int batch_size = 1;
+            int total_d = limit ?? (await _repository.GiveProducts_Count(sid));
+
+            int Spcount = (int)Math.Ceiling(total_d / (double)batch_size);
+         
+            for (int i = 0; i < Spcount; i++)
+            {
+                try 
+                {
+                    var sdata = await _repository.GiveInstockProducts(sid, i+1, batch_size);
+                    _logger.LogInformation($"Successfully retrieved {sdata.Count} products");
+                    foreach (var data in sdata)
+                    {
+                        var ai_des=await _Ai.GenerateDescription(data.Id);
+                        await _repository.UpdateProductDetailsAsync(data.Id,  Gen_Sku(data.Brand), data.Title, ai_des, data.Price);
+                    
+                        var images = new List<Requestimages>();
+                        var allImages = data.Image.ToList();
+                        int total = allImages.Count;
+
+                        int removeCount = 0;
+                    
+                        if (total > 6)
+                        {
+                            removeCount = 3;
+                        }
+                        else if (total > 5)  
+                        {
+                            removeCount = 2;
+                        }
+                        else if (total > 1)  
+                        {
+                            removeCount = 1;
+                        }
+                       
+
+                        for (int k = 0; k < total; k++)
+                        {
+                            bool bgRemoveValue = k < removeCount;   
+
+                            images.Add(new Requestimages
+                            {
+                                Id = unchecked((int)allImages[k].Id),
+                                Url = allImages[k].Url,
+                                Priority=k,
+                                Bgremove = bgRemoveValue,
+                            });
+                        }
+                        await this.RemovingBackgroundimages(data.Id, images);
+                        await _repository.UpdateStatus(data.Id, "Sync_ready");
+                        
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get products. SID: {ScraperId}", sid);
+                    throw;
+                }
+         
+            }
+            
+            return true;
+            
+        }
+
+        private string Gen_Sku(string brand)
+        {
+            string prefix = brand?.Substring(0, Math.Min(2, brand.Length)); // safe 2-letter slice
+
+            var random = new Random();
+            int number = random.Next(99999, 9999999); // same as JS range
+
+            string full = prefix + number.ToString();
+
+            return full ?? "";
+        }
 
 
 

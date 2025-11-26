@@ -96,4 +96,11 @@ public class ScrapperRepository : IScrapperRepository
     {
         return await _context.Scrappers.ToListAsync();
     }
+
+    public async Task<string> Get_Status_by_id(Guid id)
+    {
+        var src = await _context.Scrappers
+            .FirstOrDefaultAsync(u => u.ID==id);
+        return src.Status ?? "";
+    }
 }

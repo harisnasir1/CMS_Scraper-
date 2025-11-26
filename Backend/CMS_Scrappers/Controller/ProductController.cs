@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
 namespace CMS_Scrappers.Controller
-{   [Authorize]
+{   //[Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class ProductController : ControllerBase
@@ -15,13 +15,14 @@ namespace CMS_Scrappers.Controller
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
-
-        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider, ILogger<ProductController> logger)
+        private readonly IScrapperRepository _scrapperRepository;
+        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger)
         {
             _ProductSerivce=service;
             _serviceProvider = serviceProvider;
             _logger = logger;
             _taskQueue = taskQueue;
+            _scrapperRepository = scrapperRepository;
         }
         
         [HttpPost("Readytoreview")]
@@ -132,7 +133,33 @@ namespace CMS_Scrappers.Controller
             if(data==null || data== "Unknown") return BadRequest();
             return Ok(data);
         }
+        [HttpPost("Sync_inventory")]
+        public async Task <IActionResult> Sync_inventory([FromBody] ReviewProductRequest request)
+        {
+            // Validate request object
+            if (request == null || string.IsNullOrEmpty(request.ScraperId))
+                return BadRequest("Invalid request body.");
 
+            Guid id;
+
+            // Validate GUID
+            if (!Guid.TryParse(request.ScraperId, out id))
+                return BadRequest("Invalid ScraperId format.");
+
+            int? limit = request.PageSize;
+
+            var status = await _scrapperRepository.Get_Status_by_id(id);
+
+            // Check scraper status
+            if (string.IsNullOrEmpty(status) || status != "active")
+                return BadRequest("Scraper is not active.");
+
+            await _ProductSerivce.PushAllScraperProductsLive(id, limit);
+
+            return Ok("ok");
+        }
+
+        
     }
 
 }
