@@ -36,7 +36,7 @@ public class ShoipfyScrapper:Scrap_shopify{
             }
 
             var productsResponse = await httpResponse.Content.ReadFromJsonAsync<ShopifyStoreProductsResponse>();
-
+            
             if (productsResponse?.Products.Count == 0 || productsResponse==null )
             {
                 break;
