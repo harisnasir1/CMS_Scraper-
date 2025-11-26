@@ -14,7 +14,6 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly ILogger<ShopifyService> _logger;
         private string _locationId;
         public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger) {
-        
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);

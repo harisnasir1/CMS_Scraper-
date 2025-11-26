@@ -144,7 +144,6 @@ namespace CMS_Scrappers.Repositories.Repos
                 _logger.LogError(ex, "Error updating product details.");
                 return false;
             }
-
         }
         public async Task <bool> UpdateStatus(Guid id,string status)
         {
