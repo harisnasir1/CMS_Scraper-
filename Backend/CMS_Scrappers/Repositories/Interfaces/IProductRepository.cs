@@ -6,6 +6,7 @@
         Task<List<Sdata>> GiveInstockProducts(Guid scrapper,int PageNumber,int PageSize);
         Task<int> GiveProducts_Count(Guid scrapper);
         Task<List<Sdata>> GetPendingReviewproducts(int PageNumber,int PageSize);
+        Task<List<Sdata>> GetPendingSyncproducts(Guid sid);
         Task UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages);
         Task<Sdata> Getproductbyid(Guid productid);
         Task UpdateDescription(Guid id, string desc);

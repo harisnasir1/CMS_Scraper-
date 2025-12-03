@@ -647,6 +647,152 @@ namespace CMS_Scrappers.Services.Implementations
                 ? mappedValue 
                 : ""; 
         }
+        
+        ///for bulk operations
+        ///
+        /// we are gonna take from below onwards
+        
+        public bool Bulk_mutation_shopify_product_creation(List<Sdata> data)
+        {
+            var jonldata = PrepareProductInputForGraphQL(data);
+            
+            return true;
+        }
+        
+        private List<object> PrepareProductInputForGraphQL(List<Sdata> data)
+        {
+            List<object> shopifydata = new List<object>();
+            foreach (var sdata in data)
+            {
+                // Prepare metafields
+                var metafields = new List<object>();
+
+                if (IsValidMetafieldValue(sdata.ScraperName))
+                {
+                    metafields.Add(new
+                    {
+                        key = "scraper_origin",
+                        @namespace = "custom",
+                        value = sdata.ScraperName.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                if (IsValidMetafieldValue(sdata?.ConditionGrade))
+                {
+                    var condiGrade = Map_Condition_Grade(sdata.ConditionGrade.Trim());
+                    if (!string.IsNullOrEmpty(condiGrade))
+                    {
+                        metafields.Add(new
+                        {
+                            key = "product_condition_grade_preloved",
+                            @namespace = "custom",
+                            value = condiGrade.Trim(),
+                            type = "single_line_text_field"
+                        });
+                    }
+                }
+
+                if (IsValidMetafieldValue(sdata.Condition))
+                {
+                    string condition = sdata.Condition == "Pre-Owned" ? "Preloved" : "New";
+                    metafields.Add(new
+                    {
+                        key = "product_condition",
+                        @namespace = "custom",
+                        value = condition.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                metafields.Add(new
+                {
+                    key = "age_group",
+                    @namespace = "custom",
+                    value = "Adult",
+                    type = "single_line_text_field"
+                });
+
+                if (IsValidMetafieldValue(sdata.Category))
+                {
+                    metafields.Add(new
+                    {
+                        key = "category",
+                        @namespace = "custom",
+                        value = sdata.Category.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                if (IsValidMetafieldValue(sdata.ProductType))
+                {
+                    metafields.Add(new
+                    {
+                        key = "product_type",
+                        @namespace = "custom",
+                        value = sdata.ProductType.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                var gender = GetGender(sdata.Gender);
+                if (IsValidMetafieldValue(gender))
+                {
+                    metafields.Add(new
+                    {
+                        key = "gender",
+                        @namespace = "custom",
+                        value = gender,
+                        type = "single_line_text_field"
+                    });
+                }
+
+                // Build tags
+                var tags = new List<string>
+                {
+                    "ALL PRODUCTS",
+                    sdata.Brand,
+                    sdata.Gender,
+                    sdata.ProductType,
+                    sdata.Category,
+                    sdata.Condition,
+                    "Not in HQ"
+                };
+
+                if (sdata.Condition == "Pre-Owned")
+                {
+                    tags.Add("PRELOVED");
+                }
+                shopifydata.Add(
+                        new
+                        {
+                            title = sdata.Title,
+                            descriptionHtml = sdata.Description,
+                            vendor = sdata.Brand,
+                            category = sdata.Category,
+                            productType = sdata.ProductType,
+                            tags = tags.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
+                            status = "ACTIVE",
+                            metafields = metafields,
+                            variants = sdata.Variants.Select(v => new
+                            {
+                                price = Addmarkup(v.Price).ToString("F2"),
+                                sku = v.SKU,
+                                inventoryQuantities = 1,
+                                inventoryPolicy = "DENY",
+                                requiresShipping = true,
+                                options = new[] { v.Size }
+                            }).ToArray(),
+                            images = sdata.Image.OrderBy(i => i.Priority).Select(img => new
+                            {
+                                src = img.Url
+                            }).ToArray()
+                        }
+                    );
+            }
+
+            return shopifydata;
+        } 
     }
 
 }

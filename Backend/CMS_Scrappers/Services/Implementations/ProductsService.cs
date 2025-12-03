@@ -251,8 +251,17 @@ namespace CMS_Scrappers.Services.Implementations
         public async Task<bool> PushAllScraperProductsLive(Guid sid,int? limit)
         {
             //step 1 to check if any scrapper is running or syncing. can do later have to do . make scrapper running if product is syncing.
-            
-            //step 2 to get the count of categorized product for each scraper.
+            //then call to preprocess data later parallize them.
+            //var prepro = await this.Pre_process_Sync_products(sid, limit);
+            //if (!prepro) return false;
+            var sdata = await _repository.GetPendingSyncproducts(sid);
+            await push_bulk_shopify_sync_data(sdata);
+            return true;
+        }
+
+        private async Task<bool> Pre_process_Sync_products(Guid sid, int? limit)
+        {
+             //step 2 to get the count of categorized product for each scraper.
             int batch_size = 1;
             int total_d = limit ?? (await _repository.GiveProducts_Count(sid));
 
@@ -263,6 +272,10 @@ namespace CMS_Scrappers.Services.Implementations
                 try 
                 {
                     var sdata = await _repository.GiveInstockProducts(sid, i+1, batch_size);
+                    if (sdata.Count < 1)
+                    {
+                        return false;
+                    }
                     _logger.LogInformation($"Successfully retrieved {sdata.Count} products");
                     foreach (var data in sdata)
                     {
@@ -303,7 +316,6 @@ namespace CMS_Scrappers.Services.Implementations
                         }
                         await this.RemovingBackgroundimages(data.Id, images);
                         await _repository.UpdateStatus(data.Id, "Sync_ready");
-                        
                     }
 
                 }
@@ -311,12 +323,12 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     _logger.LogError(ex, "Failed to get products. SID: {ScraperId}", sid);
                     throw;
+                   
                 }
          
             }
-            
-            return true;
-            
+
+            return false;
         }
 
         private string Gen_Sku(string brand)
@@ -324,13 +336,18 @@ namespace CMS_Scrappers.Services.Implementations
             string prefix = brand?.Substring(0, Math.Min(2, brand.Length)); // safe 2-letter slice
 
             var random = new Random();
-            int number = random.Next(99999, 9999999); // same as JS range
+            int number = random.Next(99999, 9999999); 
 
             string full = prefix + number.ToString();
 
             return full ?? "";
         }
 
+        private async Task<bool> push_bulk_shopify_sync_data(List<Sdata> sdata)
+        {
+            _shopifyService.Bulk_mutation_shopify_product_creation(sdata);
+            return true;
+        }
 
 
     }
