@@ -132,7 +132,7 @@ builder.Services.AddScoped<IProducts,ProductsService>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<IAi, AI>();
 builder.Services.AddScoped<IShopifyService, ShopifyService>();
-
+builder.Services.AddTransient<IFileReadWrite, ReadWriteFiles>();
 
 builder.Services.AddControllers();
 var app = builder.Build();

@@ -22,4 +22,8 @@
     <PackageReference Include="System.Net.Http.Json" Version="9.0.8" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="JSONL_files\" />
+  </ItemGroup>
+
 </Project>

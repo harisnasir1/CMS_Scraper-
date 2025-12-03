@@ -666,6 +666,17 @@ namespace CMS_Scrappers.Services.Implementations
             {
                 // Prepare metafields
                 var metafields = new List<object>();
+                if (IsValidMetafieldValue(sdata.Id.ToString()))
+                {
+                    metafields.Add(new
+                    {
+                        key = "crm_id",
+                        @namespace = "custom",
+                        value = sdata.Id.ToString().Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+              
 
                 if (IsValidMetafieldValue(sdata.ScraperName))
                 {
@@ -766,7 +777,8 @@ namespace CMS_Scrappers.Services.Implementations
                 shopifydata.Add(
                         new
                         {
-                            title = sdata.Title,
+                           input = new {
+                               title = sdata.Title,
                             descriptionHtml = sdata.Description,
                             vendor = sdata.Brand,
                             category = sdata.Category,
@@ -788,11 +800,19 @@ namespace CMS_Scrappers.Services.Implementations
                                 src = img.Url
                             }).ToArray()
                         }
+                        }
                     );
             }
 
             return shopifydata;
-        } 
+        }
+
+        private string Prepare_Bulk_Creation_Mutation(string path)
+        {
+            var product_creation =
+                "mutation {\n  bulkOperationRunMutation(\n    mutation: \"\"\"\n    mutation call($input: ProductInput!) {\n  productCreate(input: $input) {\n    product {\n      id\n      title\n      metafields(first: 20) {\n        edges {\n          node {\n            namespace\n            key\n            value\n            type\n          }\n        }\n      }\n      variants(first: 10) {\n        edges {\n          node {\n            id\n            title\n            inventoryQuantity\n          }\n        }\n      }\n    }\n    userErrors {\n      message\n      field\n    }\n  }\n}\n\n    \"\"\",\n    stagedUploadPath: \"mypath\"\n  ) {\n    bulkOperation {\n      id\n      url\n      status\n    }\n    userErrors {\n      message\n      field\n    }\n  }\n}\n";
+            return product_creation;
+        }
     }
 
 }
