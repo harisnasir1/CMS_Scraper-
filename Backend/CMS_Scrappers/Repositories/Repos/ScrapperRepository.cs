@@ -91,6 +91,27 @@ public class ScrapperRepository : IScrapperRepository
             return Guid.Empty; 
         }
     }
+    
+    public async Task <string> Givenamebyid(Guid id)
+    {
+        try
+        {
+            var src = await _context.Scrappers
+                .FirstOrDefaultAsync(u => u.ID == id);
+
+            if (src != null)
+            {
+                return src.Name;
+            }
+
+            return "" ;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in Storerrors: {ex.Message}");
+            return ""; 
+        }
+    }
 
     public async Task<List<Scrapper>> Getallscrapers()
     {

@@ -251,11 +251,12 @@ namespace CMS_Scrappers.Services.Implementations
         public async Task<bool> PushAllScraperProductsLive(Guid sid,int? limit)
         {
             //step 1 to check if any scrapper is running or syncing. can do later have to do . make scrapper running if product is syncing.
+            var name = await _scrapperRepository.Givenamebyid(sid);
             //then call to preprocess data later parallize them.
             //var prepro = await this.Pre_process_Sync_products(sid, limit);
             //if (!prepro) return false;
             var sdata = await _repository.GetPendingSyncproducts(sid);
-            await push_bulk_shopify_sync_data(sdata);
+            await push_bulk_shopify_sync_data(sdata,name);
             return true;
         }
 
@@ -343,9 +344,9 @@ namespace CMS_Scrappers.Services.Implementations
             return full ?? "";
         }
 
-        private async Task<bool> push_bulk_shopify_sync_data(List<Sdata> sdata)
+        private async Task<bool> push_bulk_shopify_sync_data(List<Sdata> sdata,string name)
         {
-            _shopifyService.Bulk_mutation_shopify_product_creation(sdata);
+           await _shopifyService.Bulk_mutation_shopify_product_creation(sdata,name);
             return true;
         }
 

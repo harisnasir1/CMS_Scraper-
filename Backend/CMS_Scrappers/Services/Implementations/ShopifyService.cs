@@ -13,12 +13,14 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly HttpClient _httpClient;
         private readonly ILogger<ShopifyService> _logger;
         private string _locationId;
-        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger) {
+        private IFileReadWrite _readWrite;
+        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger,IFileReadWrite readWrite) {
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
             _locationId = "";
+            _readWrite = readWrite;
         }
        
         
@@ -478,7 +480,7 @@ namespace CMS_Scrappers.Services.Implementations
             var jsonContent = JsonSerializer.Serialize(payload);
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-            
+
             var request = new HttpRequestMessage(HttpMethod.Post, $"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2024-07/graphql.json");
             request.Headers.Add("X-Shopify-Access-Token", _shopifySettings.SHOPIFY_ACCESS_TOKEN);
             request.Content = content;
@@ -652,11 +654,28 @@ namespace CMS_Scrappers.Services.Implementations
         ///
         /// we are gonna take from below onwards
         
-        public bool Bulk_mutation_shopify_product_creation(List<Sdata> data)
+        public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
         {
-            var jonldata = PrepareProductInputForGraphQL(data);
-            
-            return true;
+            //var jonldata = PrepareProductInputForGraphQL(data);
+            //await this._readWrite.Wrtie_data(jonldata, name);
+           
+            try
+            {
+               var stagedurl= await Stage_uploads_Create(name);
+                //string path = $"/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files/{name}";
+                //var mutation = Prepare_Bulk_Creation_Mutation(path);
+                //var payload = new { query=mutation };
+                //var re=await ExecuteGraphQLAsync(payload);
+                //var url = await bulk_query_pulling();
+                //var subdata = await Retrieve_bulkResults_data(url);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return false;
+            }
+          
         }
         
         private List<object> PrepareProductInputForGraphQL(List<Sdata> data)
@@ -809,10 +828,165 @@ namespace CMS_Scrappers.Services.Implementations
 
         private string Prepare_Bulk_Creation_Mutation(string path)
         {
-            var product_creation =
-                "mutation {\n  bulkOperationRunMutation(\n    mutation: \"\"\"\n    mutation call($input: ProductInput!) {\n  productCreate(input: $input) {\n    product {\n      id\n      title\n      metafields(first: 20) {\n        edges {\n          node {\n            namespace\n            key\n            value\n            type\n          }\n        }\n      }\n      variants(first: 10) {\n        edges {\n          node {\n            id\n            title\n            inventoryQuantity\n          }\n        }\n      }\n    }\n    userErrors {\n      message\n      field\n    }\n  }\n}\n\n    \"\"\",\n    stagedUploadPath: \"mypath\"\n  ) {\n    bulkOperation {\n      id\n      url\n      status\n    }\n    userErrors {\n      message\n      field\n    }\n  }\n}\n";
-            return product_creation;
+           return $@"
+        mutation {{
+          bulkOperationRunMutation(
+            mutation: """""" 
+            mutation call($input: ProductInput!) {{
+              productCreate(input: $input) {{
+                product {{
+                  id
+                  title
+                  metafields(first: 20) {{
+                    edges {{
+                      node {{
+                        namespace
+                        key
+                        value
+                        type
+                      }}
+                    }}
+                  }}
+                  variants(first: 10) {{
+                    edges {{
+                      node {{
+                        id
+                        title
+                        inventoryQuantity
+                      }}
+                    }}
+                  }}
+                }}
+                userErrors {{
+                  message
+                  field
+                }}
+              }}
+            }}
+            """""",
+            stagedUploadPath: ""{path}""
+          ) {{
+            bulkOperation {{
+              id
+              url
+              status
+            }}
+            userErrors {{
+              message
+              field
+            }}
+          }}
+        }}
+    ";
         }
+        
+        private async Task<string>  bulk_query_pulling()
+        {
+            try
+            {
+                var query = @"query {
+             currentBulkOperation(type: MUTATION) {
+                id
+                status
+                errorCode
+                createdAt
+                completedAt
+                objectCount
+                fileSize
+                url
+                partialDataUrl
+             }
+            }";
+                var payload = new { query= query };
+                var status = "";
+                var url = "";
+                while (status != "COMPLETED")
+                {
+                    var d = await this.ExecuteGraphQLAsync(payload);
+                    status = d.GetProperty("currentBulkOperation").GetProperty("status").GetString();
+                    if (status == "COMPLETED")
+                    {
+                        url=d.GetProperty("currentBulkOperation").GetProperty("url").GetString();
+                        break;
+                    }
+                    Thread.Sleep(180000);
+                }
+                return url;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
+          
+        }
+
+        private async Task<object> Retrieve_bulkResults_data(string url)
+        {
+            if(url==null)
+                return new { };
+            try
+            {
+                var result = await _httpClient.GetAsync(url);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return new { };
+            }
+          
+        }
+
+        private async Task<string> Upload_file_shopify(string path)
+        {
+            return "";
+        }
+
+        private async Task<string> Stage_uploads_Create(string name)
+        {
+            var query = this.Get_Staged_Uploads_Create_Mutation();
+            var variables = new
+            {
+                input = new[]
+                {
+                    new
+                    {
+                        filename  = $"{name}.jsonl",
+                        mimeType  ="text/plain",
+                        httpMethod= "POST",
+                        resource  = "BULK_MUTATION_VARIABLES"
+                    }
+                }
+            };
+            var payload = new { query=query, variables  };
+         var k=   await this.ExecuteGraphQLAsync(payload);
+         var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
+         return "";
+        }
+        private string Get_Staged_Uploads_Create_Mutation()
+        {
+            return @"
+        mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              url
+              resourceUrl
+              parameters {
+                name
+                value
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+    ";
+        }
+
+        
     }
 
 }
