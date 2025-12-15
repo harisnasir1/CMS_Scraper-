@@ -960,9 +960,9 @@ namespace CMS_Scrappers.Services.Implementations
                 }
             };
             var payload = new { query=query, variables  };
-         var k=   await this.ExecuteGraphQLAsync(payload);
-         var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
-         return "";
+            var k=   await this.ExecuteGraphQLAsync(payload);
+            var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
+            return "";
         }
         private string Get_Staged_Uploads_Create_Mutation()
         {
