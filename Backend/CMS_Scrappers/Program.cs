@@ -119,6 +119,7 @@ builder.Services.AddHostedService<UpdateShopifyWorkerService>();
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IProductStoreMappingRepository, ProductStoreMappingRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();

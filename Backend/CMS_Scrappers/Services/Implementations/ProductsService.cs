@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks.Dataflow;
 using CMS_Scrappers.Ai;
 using CMS_Scrappers.Data.Responses.Api_responses;
+using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -18,12 +19,14 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly S3Interface _S3service;
         private readonly IAi _Ai;
         private readonly IShopifyService _shopifyService;
+        private readonly IProductStoreMappingRepository _productStoreMappingRepository;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
             IGoogleImageService googleservice,
             BackgroundRemover backgroundRemover, HttpClient httpClient, S3Interface s3service,
             IAi Ai,
-            IShopifyService shopifyService
+            IShopifyService shopifyService,
+            IProductStoreMappingRepository productStoreMappingRepository
             )
         {
             _repository = repository;
@@ -35,6 +38,7 @@ namespace CMS_Scrappers.Services.Implementations
             _S3service = s3service;
             _Ai = Ai;
             _shopifyService = shopifyService;
+            _productStoreMappingRepository = productStoreMappingRepository;
         }
 
         public async Task<List<Sdata>> Get_Ready_to_review_products(Guid id, int PageNumber, int PageSize)
@@ -317,6 +321,57 @@ namespace CMS_Scrappers.Services.Implementations
             
             return true;
             
+        }
+
+        public async Task<bool> shiftallshopifyidstonew()
+        {
+            var livedata = await this.Livefeedproducts(1,6000);
+            Guid originalStoreId;
+            bool isValid = Guid.TryParse("0ddc7087-6180-4cb4-8bec-c13fdfe44df3", out originalStoreId);
+
+            if (!isValid)
+            {
+               return false;
+            }
+            int migratedCount = 0;
+            int skippedCount = 0;
+
+            foreach (var product in livedata)
+            {
+                // Skip if no Shopifyid
+                if (string.IsNullOrEmpty(product.Shopifyid))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                // Create mapping
+                var mapping = new ProductStoreMapping
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = product.Id,
+                    ShopifyStoreId = originalStoreId,
+                    ExternalProductId = product.Shopifyid,
+                    SyncStatus = "Live",
+                    LastSyncedAt = product.UpdatedAt,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _productStoreMappingRepository.InsertProductmapping(mapping);
+                migratedCount++;
+
+                // Log progress every 50 products
+                if (migratedCount % 50 == 0)
+                {
+                    _logger.LogInformation($"Migrated {migratedCount} products so far...");
+                }
+            }
+
+            _logger.LogInformation($"Migration complete! Migrated: {migratedCount}, Skipped: {skippedCount}");
+            return true;
+            
+           
         }
 
         private string Gen_Sku(string brand)

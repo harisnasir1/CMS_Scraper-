@@ -127,12 +127,12 @@ namespace CMS_Scrappers.Controller
         [HttpPost("GetStatus")]
         public async Task <IActionResult> GetStatus([FromBody] SubmitRequest request)
         {
-            
             var id = new Guid(request.productid);
             var data = await _ProductSerivce.GetProductStatus(id);
             if(data==null || data== "Unknown") return BadRequest();
             return Ok(data);
         }
+      
         [HttpPost("Sync_inventory")]
         public async Task <IActionResult> Sync_inventory([FromBody] ReviewProductRequest request)
         {
@@ -156,6 +156,13 @@ namespace CMS_Scrappers.Controller
 
             await _ProductSerivce.PushAllScraperProductsLive(id, limit);
 
+            return Ok("ok");
+        }
+
+        [HttpGet("Sync_inventory")]
+        public async Task <IActionResult>   migrateshopifyids()
+        {
+            await _ProductSerivce.shiftallshopifyidstonew();
             return Ok("ok");
         }
 
