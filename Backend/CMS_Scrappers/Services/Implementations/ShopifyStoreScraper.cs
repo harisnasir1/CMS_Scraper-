@@ -111,26 +111,26 @@ public class ShopifyStoreScraper : IScrappers
             return; 
         }
 
-        _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
-            try
-            {
-                _logger.LogInformation($"Shopify update queue is processing {existingProducts.Count} products");
-                using var scope = serviceProvider.CreateScope();
-                var shclient = scope.ServiceProvider.GetService<IShopifyService>();
-                
-                if (shclient == null)
-                {
-                    _logger.LogError("IShopifyService not found in service provider");
-                    return;
-                }
-                
-                await shclient.UpdateProduct(existingProducts, dbexistingproducts);
-                _logger.LogInformation("Shopify update completed successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while updating Shopify products");
-            }
-        });
+       //_updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
+       //    try
+       //    {
+       //        _logger.LogInformation($"Shopify update queue is processing {existingProducts.Count} products");
+       //        using var scope = serviceProvider.CreateScope();
+       //        var shclient = scope.ServiceProvider.GetService<IShopifyService>();
+       //        
+       //        if (shclient == null)
+       //        {
+       //            _logger.LogError("IShopifyService not found in service provider");
+       //            return;
+       //        }
+       //        
+       //        await shclient.UpdateProduct(existingProducts, dbexistingproducts);
+       //        _logger.LogInformation("Shopify update completed successfully");
+       //    }
+       //    catch (Exception ex)
+       //    {
+       //        _logger.LogError(ex, "Error occurred while updating Shopify products");
+       //    }
+       //});
     }
 }

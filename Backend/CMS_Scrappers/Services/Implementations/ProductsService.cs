@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks.Dataflow;
 using CMS_Scrappers.Ai;
+using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Data.Responses.Api_responses;
 using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Interfaces;
@@ -18,15 +19,15 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly HttpClient _httpClient;
         private readonly S3Interface _S3service;
         private readonly IAi _Ai;
-        private readonly IShopifyService _shopifyService;
+        private readonly IProductSyncCoordinator _productSyncCoordinator;
         private readonly IProductStoreMappingRepository _productStoreMappingRepository;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
             IGoogleImageService googleservice,
             BackgroundRemover backgroundRemover, HttpClient httpClient, S3Interface s3service,
             IAi Ai,
-            IShopifyService shopifyService,
-            IProductStoreMappingRepository productStoreMappingRepository
+            IProductStoreMappingRepository productStoreMappingRepository,
+            IProductSyncCoordinator productsyncCoordinator
             )
         {
             _repository = repository;
@@ -37,7 +38,7 @@ namespace CMS_Scrappers.Services.Implementations
             _httpClient = httpClient;
             _S3service = s3service;
             _Ai = Ai;
-            _shopifyService = shopifyService;
+            _productSyncCoordinator = productsyncCoordinator;
             _productStoreMappingRepository = productStoreMappingRepository;
         }
 
@@ -222,9 +223,11 @@ namespace CMS_Scrappers.Services.Implementations
         {
             var data=await _repository.Getproductbyid(id);
             if (data == null) return false;
-            string response=await _shopifyService.PushProductAsync(data);
-            if(response == null) return false;
-            var updated = await _repository.AddShopifyproductid(data, response);
+
+            var status = await _productSyncCoordinator.pushProductslive(data);
+          //  string response=await _shopifyService.PushProductAsync(data);
+          //  if(response == null) return false;
+          //  var updated = await _repository.AddShopifyproductid(data, response);
           
             return true;
         }
@@ -372,7 +375,7 @@ namespace CMS_Scrappers.Services.Implementations
             return true;
             
            
-        }
+        } //migration script 
 
         private string Gen_Sku(string brand)
         {

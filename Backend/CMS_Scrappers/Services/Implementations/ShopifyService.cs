@@ -14,6 +14,7 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly ILogger<ShopifyService> _logger;
         private string _locationId;
         public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger) {
+            
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
@@ -54,7 +55,7 @@ namespace CMS_Scrappers.Services.Implementations
                     images = sdata.Image.Select(i => new { src = i.Url })
                 }
             };
-            var json = JsonSerializer.Serialize(product);
+            var json = JsonSerializer.Serialize(product);   
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync($"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2023-07/products.json", content).ConfigureAwait(false);
 
@@ -69,7 +70,10 @@ namespace CMS_Scrappers.Services.Implementations
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
             var shopifyProductId = root.GetProperty("product").GetProperty("id").GetInt64();
-            await pushmetafields(sdata, shopifyProductId.ToString());
+            if(_shopifySettings.SHOPIFY_STORE_NAME=="Morely Trends UK")
+            {
+                await pushmetafields(sdata, shopifyProductId.ToString());
+            }
             return shopifyProductId.ToString();
         }
 
