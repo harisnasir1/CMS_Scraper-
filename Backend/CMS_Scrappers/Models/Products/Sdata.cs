@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Net.Http.Headers;
+using CMS_Scrappers.Models;
 using Microsoft.EntityFrameworkCore;
 
 [Index (nameof(Id))]
@@ -28,7 +29,8 @@ public class Sdata
     public string ScraperName { get; set; } = "";
     public string? Status { get; set; } = "";
     public string? Sku { get; set; } = "";
-
+    
+    public List<ProductStoreMapping> ProductStoreMapping { get; set; }
     public string Shopifyid { get; set; } = "";
     public string? StatusDulicateId { get; set; } = "";
     public string? DuplicateSource { get; set; } = "";

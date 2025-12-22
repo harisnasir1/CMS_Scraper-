@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+
 using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 using System.Collections.Generic;
 using System.Linq;
@@ -129,6 +130,20 @@ namespace CMS_Scrappers.Repositories.Repos
             .Include(s => s.Variants)
             .Where(s => productUrls.Contains(s.ProductUrl) && s.Status=="Live")
             .ToDictionaryAsync(s => s.ProductUrl);
+
+            return dbProductsDict;
+        }
+        public async Task<Dictionary<string, Sdata>> Giveliveproductperstore(List<ShopifyFlatProduct> existingProducts,Guid storeid)
+        {
+            var productUrls = existingProducts.Select(p => p.ProductUrl).ToList();
+            var dbProductsDict = await _context.Sdata
+                .AsNoTracking()
+                .Include(s => s.Variants)
+                .Include(s => s.ProductStoreMapping.Where(m => m.ShopifyStore.Id == storeid))  // Filter mappings
+                .Where(s => productUrls.Contains(s.ProductUrl) 
+                            && s.Status == "Live"
+                            && s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid))  // Has mapping for this store
+                .ToDictionaryAsync(s => s.ProductUrl);
 
             return dbProductsDict;
         }
