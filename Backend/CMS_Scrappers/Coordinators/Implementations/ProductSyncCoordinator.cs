@@ -34,7 +34,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
             
             var _shopifyservice = this.GetShopifyService(store);
             var valid=await Isthisproductlive(data.Id,store.Id);
-            if (valid) return false;  //product is already live wtf its doing in review stage
+            if (!valid) return false;  //product is already live wtf its doing in review stage
             
            var res=await _shopifyservice.PushProductAsync(data);
            if(res == null) return false;
