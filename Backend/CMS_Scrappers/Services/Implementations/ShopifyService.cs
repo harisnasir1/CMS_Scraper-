@@ -39,7 +39,7 @@ namespace CMS_Scrappers.Services.Implementations
                     vendor = sdata.Brand,
                     product_type = sdata.ProductType,
                     template_suffix = sdata.ProductType== "Accessories" ? "single-size":"Default product",
-                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ,{(sdata.Condition == "Pre-Owned" ? "PRELOVED":"")}",
+                    tags = $" ALL PRODUCTS,{sdata.Brand}, {sdata.Gender},{sdata.ProductType},{sdata.Category},{sdata.Condition},Not in HQ, RRSYNC ,{(sdata.Condition == "Pre-Owned" ? "PRELOVED":"")}",
                     options = new[]
                     {
                         new { name = "Size" }
