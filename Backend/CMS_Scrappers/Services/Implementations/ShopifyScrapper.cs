@@ -45,10 +45,7 @@ public class ShoipfyScrapper:Scrap_shopify{
             response.Pages.Add(productsResponse);
 
             pageNumber++;
-            if(pageNumber>1)
-            {
-                break;
-            }
+           
 
             await Task.Delay(3000);
         }

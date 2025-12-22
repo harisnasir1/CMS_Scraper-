@@ -16,7 +16,7 @@ namespace CMS_Scrappers.Controller
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
         private readonly IScrapperRepository _scrapperRepository;
-        private readonly ISdataRepository _sdataRepository;
+        
         public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger,ISdataRepository sdataRepository)
         {
             _ProductSerivce=service;
@@ -24,7 +24,6 @@ namespace CMS_Scrappers.Controller
             _logger = logger;
             _taskQueue = taskQueue;
             _scrapperRepository = scrapperRepository;
-            _sdataRepository = sdataRepository;
         }
         
         [HttpPost("Readytoreview")]

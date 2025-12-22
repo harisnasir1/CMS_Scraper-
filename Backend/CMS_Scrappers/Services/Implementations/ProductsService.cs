@@ -225,9 +225,7 @@ namespace CMS_Scrappers.Services.Implementations
             if (data == null) return false;
             
             var status = await _productSyncCoordinator.pushProductslive(data);
-          //  string response=await _shopifyService.PushProductAsync(data);
-          //  if(response == null) return false;
-          //  var updated = await _repository.AddShopifyproductid(data, response);
+        
           
             return true;
         }
@@ -330,10 +328,11 @@ namespace CMS_Scrappers.Services.Implementations
         {
             var livedata = await this.Livefeedproducts(1,6000);
             Guid originalStoreId;
-            bool isValid = Guid.TryParse("0ddc7087-6180-4cb4-8bec-c13fdfe44df3", out originalStoreId);
+            bool isValid = Guid.TryParse("", out originalStoreId);
 
             if (!isValid)
             {
+                _logger.LogInformation("No valid store id please add store id!");
                return false;
             }
             int migratedCount = 0;
