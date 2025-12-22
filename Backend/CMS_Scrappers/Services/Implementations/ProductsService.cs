@@ -1,5 +1,8 @@
-﻿using CMS_Scrappers.Ai;
+﻿using System.Threading.Tasks.Dataflow;
+using CMS_Scrappers.Ai;
+using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Data.Responses.Api_responses;
+using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -16,13 +19,15 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly HttpClient _httpClient;
         private readonly S3Interface _S3service;
         private readonly IAi _Ai;
-        private readonly IShopifyService _shopifyService;
+        private readonly IProductSyncCoordinator _productSyncCoordinator;
+        private readonly IProductStoreMappingRepository _productStoreMappingRepository;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
             IGoogleImageService googleservice,
             BackgroundRemover backgroundRemover, HttpClient httpClient, S3Interface s3service,
             IAi Ai,
-            IShopifyService shopifyService
+            IProductStoreMappingRepository productStoreMappingRepository,
+            IProductSyncCoordinator productsyncCoordinator
             )
         {
             _repository = repository;
@@ -33,7 +38,8 @@ namespace CMS_Scrappers.Services.Implementations
             _httpClient = httpClient;
             _S3service = s3service;
             _Ai = Ai;
-            _shopifyService = shopifyService;
+            _productSyncCoordinator = productsyncCoordinator;
+            _productStoreMappingRepository = productStoreMappingRepository;
         }
 
         public async Task<List<Sdata>> Get_Ready_to_review_products(Guid id, int PageNumber, int PageSize)
@@ -217,9 +223,9 @@ namespace CMS_Scrappers.Services.Implementations
         {
             var data=await _repository.Getproductbyid(id);
             if (data == null) return false;
-            string response=await _shopifyService.PushProductAsync(data);
-            if(response == null) return false;
-            var updated = await _repository.AddShopifyproductid(data, response);
+            
+            var status = await _productSyncCoordinator.pushProductslive(data);
+        
           
             return true;
         }
@@ -242,7 +248,145 @@ namespace CMS_Scrappers.Services.Implementations
             var product = await _repository.Getproductbyid(id);
             return product?.Status ?? "Unknown";
         }
+        public async Task<int> product_Count_per_Scarpper(Guid id)
+        {
+            return await _repository.GiveProducts_Count(id);
+        }
 
+        public async Task<bool> PushAllScraperProductsLive(Guid sid,int? limit)
+        {
+            //step 1 to check if any scrapper is running or syncing. can do later have to do . make scrapper running if product is syncing.
+            
+            //step 2 to get the count of categorized product for each scraper.
+            int batch_size = 1;
+            int total_d = limit ?? (await _repository.GiveProducts_Count(sid));
+
+            int Spcount = (int)Math.Ceiling(total_d / (double)batch_size);
+         
+            for (int i = 0; i < Spcount; i++)
+            {
+                try 
+                {
+                    var sdata = await _repository.GiveInstockProducts(sid, i+1, batch_size);
+                    _logger.LogInformation($"Successfully retrieved {sdata.Count} products");
+                    foreach (var data in sdata)
+                    {
+                        var ai_des=await _Ai.GenerateDescription(data.Id);
+                        await _repository.UpdateProductDetailsAsync(data.Id,  Gen_Sku(data.Brand), data.Title, ai_des, data.Price);
+                    
+                        var images = new List<Requestimages>();
+                        var allImages = data.Image.ToList();
+                        int total = allImages.Count;
+
+                        int removeCount = 0;
+                    
+                        if (total > 6)
+                        {
+                            removeCount = 3;
+                        }
+                        else if (total > 5)  
+                        {
+                            removeCount = 2;
+                        }
+                        else if (total > 1)  
+                        {
+                            removeCount = 1;
+                        }
+                       
+
+                        for (int k = 0; k < total; k++)
+                        {
+                            bool bgRemoveValue = k < removeCount;   
+
+                            images.Add(new Requestimages
+                            {
+                                Id = unchecked((int)allImages[k].Id),
+                                Url = allImages[k].Url,
+                                Priority=k,
+                                Bgremove = bgRemoveValue,
+                            });
+                        }
+                        await this.RemovingBackgroundimages(data.Id, images);
+                        await _repository.UpdateStatus(data.Id, "Sync_ready");
+                        
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get products. SID: {ScraperId}", sid);
+                    throw;
+                }
+         
+            }
+            
+            return true;
+            
+        }
+
+        public async Task<bool> shiftallshopifyidstonew()
+        {
+            var livedata = await this.Livefeedproducts(1,6000);
+            Guid originalStoreId;
+            bool isValid = Guid.TryParse("", out originalStoreId);
+
+            if (!isValid)
+            {
+                _logger.LogInformation("No valid store id please add store id!");
+               return false;
+            }
+            int migratedCount = 0;
+            int skippedCount = 0;
+
+            foreach (var product in livedata)
+            {
+                // Skip if no Shopifyid
+                if (string.IsNullOrEmpty(product.Shopifyid))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                // Create mapping
+                var mapping = new ProductStoreMapping
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = product.Id,
+                    ShopifyStoreId = originalStoreId,
+                    ExternalProductId = product.Shopifyid,
+                    SyncStatus = "Live",
+                    LastSyncedAt = product.UpdatedAt,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _productStoreMappingRepository.InsertProductmapping(mapping);
+                migratedCount++;
+
+                // Log progress every 50 products
+                if (migratedCount % 50 == 0)
+                {
+                    _logger.LogInformation($"Migrated {migratedCount} products so far...");
+                }
+            }
+
+            _logger.LogInformation($"Migration complete! Migrated: {migratedCount}, Skipped: {skippedCount}");
+            return true;
+            
+           
+        } //migration script 
+
+        private string Gen_Sku(string brand)
+        {
+            string prefix = brand?.Substring(0, Math.Min(2, brand.Length)); // safe 2-letter slice
+
+            var random = new Random();
+            int number = random.Next(99999, 9999999); // same as JS range
+
+            string full = prefix + number.ToString();
+
+            return full ?? "";
+        }
 
 
 

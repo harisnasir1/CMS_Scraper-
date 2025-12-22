@@ -15,13 +15,15 @@ namespace CMS_Scrappers.Controller
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
-
-        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider, ILogger<ProductController> logger)
+        private readonly IScrapperRepository _scrapperRepository;
+        
+        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger,ISdataRepository sdataRepository)
         {
             _ProductSerivce=service;
             _serviceProvider = serviceProvider;
             _logger = logger;
             _taskQueue = taskQueue;
+            _scrapperRepository = scrapperRepository;
         }
         
         [HttpPost("Readytoreview")]
@@ -81,7 +83,7 @@ namespace CMS_Scrappers.Controller
                         throw new Exception("Error in updating status");
                         }
                     await pservice.RemovingBackgroundimages(guid,Images);
-                   var k2= await pservice.PushProductShopify(guid);
+                    var k2= await pservice.PushProductShopify(guid);
                     if (!k2)
                     {
                         throw new Exception("Error in pusing shopify order");
@@ -126,13 +128,53 @@ namespace CMS_Scrappers.Controller
         [HttpPost("GetStatus")]
         public async Task <IActionResult> GetStatus([FromBody] SubmitRequest request)
         {
-            
             var id = new Guid(request.productid);
             var data = await _ProductSerivce.GetProductStatus(id);
             if(data==null || data== "Unknown") return BadRequest();
             return Ok(data);
         }
+      
+        [HttpPost("Sync_inventory")]
+        public async Task <IActionResult> Sync_inventory([FromBody] ReviewProductRequest request)
+        {
+            // Validate request object
+            if (request == null || string.IsNullOrEmpty(request.ScraperId))
+                return BadRequest("Invalid request body.");
 
+            Guid id;
+
+            // Validate GUID
+            if (!Guid.TryParse(request.ScraperId, out id))
+                return BadRequest("Invalid ScraperId format.");
+
+            int? limit = request.PageSize;
+
+            var status = await _scrapperRepository.Get_Status_by_id(id);
+
+            // Check scraper status
+            if (string.IsNullOrEmpty(status) || status != "active")
+                return BadRequest("Scraper is not active.");
+
+            await _ProductSerivce.PushAllScraperProductsLive(id, limit);
+
+            return Ok("ok");
+        }
+
+        [HttpGet("Sync_inventory")]
+        public async Task <IActionResult>   migrateshopifyids()
+        {
+            await _ProductSerivce.shiftallshopifyidstonew();
+            return Ok("ok");
+        }
+
+      //  [HttpGet("live_product_store")]                           -> have to make it for frontend to show all the products a sotre has synced.
+      //  public async Task <IActionResult>   getlivestoredata()
+      //  {
+      //      var id = new Guid();
+      //      var data = await _sdataRepository.Giveliveproductperstore(id);
+      //      return Ok(data);
+      //  }
+        
     }
 
 }

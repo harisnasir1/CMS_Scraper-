@@ -14,7 +14,13 @@ namespace CMS_Scrappers.Services.Interfaces
         Task<bool> UpdateStatus(Guid id, string status);
         Task<bool> UpdateProductDetails(Guid id, string sku, string title, string description, int price);
         Task<int> ProductCountStatus(string status);
-
+        Task<int> product_Count_per_Scarpper(Guid id);
         Task<string> GetProductStatus(Guid id);
-    }
+
+        Task<bool> PushAllScraperProductsLive(Guid sid,int?limit);
+
+        Task<bool> shiftallshopifyidstonew();
+        
+      
+    } 
 }

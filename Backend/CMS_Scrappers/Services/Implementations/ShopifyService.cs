@@ -4,6 +4,7 @@ using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
 using System.Xml.Linq;
 using Amazon.S3.Model;
+using CMS_Scrappers.Repositories.Interfaces;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -12,8 +13,12 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly ShopifySettings _shopifySettings;
         private readonly HttpClient _httpClient;
         private readonly ILogger<ShopifyService> _logger;
+        private readonly IProductStoreMappingRepository _ProductMappingRepository;
         private string _locationId;
-        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger) {
+        
+        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository) {
+            
+            _ProductMappingRepository = ProductMappingRepository;
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
@@ -24,10 +29,7 @@ namespace CMS_Scrappers.Services.Implementations
         
         public async Task<string> PushProductAsync(Sdata sdata)
         {
-            if (!string.IsNullOrEmpty(sdata.Shopifyid))
-            {
-                return null;
-            }
+          
             var product = new
             {
                 product = new
@@ -54,7 +56,7 @@ namespace CMS_Scrappers.Services.Implementations
                     images = sdata.Image.Select(i => new { src = i.Url })
                 }
             };
-            var json = JsonSerializer.Serialize(product);
+            var json = JsonSerializer.Serialize(product);   
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync($"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2023-07/products.json", content).ConfigureAwait(false);
 
@@ -69,7 +71,10 @@ namespace CMS_Scrappers.Services.Implementations
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
             var shopifyProductId = root.GetProperty("product").GetProperty("id").GetInt64();
-            await pushmetafields(sdata, shopifyProductId.ToString());
+            if(_shopifySettings.SHOPIFY_STORE_NAME=="Morely Trends UK")
+            {
+                await pushmetafields(sdata, shopifyProductId.ToString());
+            }
             return shopifyProductId.ToString();
         }
 
@@ -352,9 +357,13 @@ namespace CMS_Scrappers.Services.Implementations
                 var currentBatch = existingproduct.GetRange(startIndex, endIndex - startIndex);
                 foreach (var incomingProduct in currentBatch)
                 {
-                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))
+                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
                     {
-                        string gid = $"gid://shopify/Product/{dbProduct.Shopifyid}";
+
+                        string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
+                        //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
+                        // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
+                                                                                                                                                                            
                         Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
                         List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
@@ -647,6 +656,22 @@ namespace CMS_Scrappers.Services.Implementations
                 ? mappedValue 
                 : ""; 
         }
+
+        private async Task<string> GetShopifyId(Guid sid)
+        {
+            try
+            {
+                var id = this._shopifySettings.SHOPIFY_STORE_ID;
+                return await _ProductMappingRepository.GetSyncIdBySidAndStoreId(sid,id);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }
+
+        
     }
 
 }

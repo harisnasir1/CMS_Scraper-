@@ -4,4 +4,5 @@ public interface IScrapperRepository{
     Task Storerrors(string name,string e);
     Task<Guid> Giveidbyname(string name);
     Task<List<Scrapper>> Getallscrapers();
+    Task<string> Get_Status_by_id(Guid id);
 }

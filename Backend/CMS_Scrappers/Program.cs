@@ -15,6 +15,8 @@ using CMS_Scrappers.Ai;
 using CMS_Scrappers.Ai.Implementation;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
 using CMS_Scrappers.BackgroundJobs.Implementations;
+using CMS_Scrappers.Coordinators.Implementations;
+using CMS_Scrappers.Coordinators.Interfaces;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,8 +35,8 @@ builder.Services.AddSingleton(AWSsettings);
 var AiSettings = builder.Configuration.GetSection("GroqApiKey").Get<AISettings>();
 builder.Services.AddSingleton(AiSettings);
 
-var ShopifySettings=builder.Configuration.GetSection("ShopifyApi").Get<ShopifySettings>();
-builder.Services.AddSingleton(ShopifySettings);
+//var ShopifySettings=builder.Configuration.GetSection("ShopifyApi").Get<ShopifySettings>();
+//builder.Services.AddSingleton(ShopifySettings);
 
 builder.Services.AddHttpClient();
 
@@ -119,6 +121,8 @@ builder.Services.AddHostedService<UpdateShopifyWorkerService>();
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IShopifyRepository, ShopifyRepository>();
+builder.Services.AddScoped<IProductStoreMappingRepository, ProductStoreMappingRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
@@ -131,8 +135,9 @@ builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<IAi, AI>();
-builder.Services.AddScoped<IShopifyService, ShopifyService>();
-
+//builder.Services.AddScoped<IShopifyService, ShopifyService>();
+//Coordinators
+builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
 
 builder.Services.AddControllers();
 var app = builder.Build();

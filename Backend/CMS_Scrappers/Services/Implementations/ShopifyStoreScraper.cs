@@ -2,6 +2,7 @@
 using System.Text;
 using System.Net.Http.Headers;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
+using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 public class ShopifyStoreScraper : IScrappers
@@ -14,6 +15,7 @@ public class ShopifyStoreScraper : IScrappers
     private readonly ISdataRepository _sdataRepository;
     private readonly string _scraperName;
     private readonly string _storeBaseUrl;
+    private readonly IProductSyncCoordinator _productSyncCoordinator;
     private readonly IUpdateShopifyTaskQueue _updateShopifyTaskQueue;
 
     private DateTime TimeStart { get; set; }
@@ -102,35 +104,34 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
 
-        var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
- 
-        // Check if we have database products to update
-        if (dbexistingproducts.Count <= 0)
-        { 
-            _logger.LogWarning("No live products found in database for updates");
-            return; 
-        }
+     //  var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
+       //// Check if we have database products to update
+       //if (dbexistingproducts.Count <= 0)
+       //{ 
+       //    _logger.LogWarning("No live products found in database for updates");
+       //    return; 
+       //}
 
-        _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
-            try
-            {
-                _logger.LogInformation($"Shopify update queue is processing {existingProducts.Count} products");
-                using var scope = serviceProvider.CreateScope();
-                var shclient = scope.ServiceProvider.GetService<IShopifyService>();
-                
-                if (shclient == null)
-                {
-                    _logger.LogError("IShopifyService not found in service provider");
-                    return;
-                }
-                
-                await shclient.UpdateProduct(existingProducts, dbexistingproducts);
-                _logger.LogInformation("Shopify update completed successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while updating Shopify products");
-            }
-        });
+       _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
+           try
+           {
+               _logger.LogInformation($"Shopify update queue is processing {existingProducts.Count} products");
+               using var scope = serviceProvider.CreateScope();
+               var shclient = scope.ServiceProvider.GetService<IProductSyncCoordinator>();
+               
+               if (shclient == null)
+               {
+                   _logger.LogError("IShopifyService not found in service provider");
+                   return;
+               }
+               
+               await shclient.UpdateProduct_Coordinator(existingProducts);
+               _logger.LogInformation("Shopify update completed successfully");
+           }
+           catch (Exception ex)
+           {
+               _logger.LogError(ex, "Error occurred while updating Shopify products");
+           }
+       });
     }
 }
