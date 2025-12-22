@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
 namespace CMS_Scrappers.Controller
-{   //[Authorize]
+{   [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class ProductController : ControllerBase
