@@ -16,12 +16,12 @@ public class ShoipfyScrapper:Scrap_shopify{
   public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
 {
         var response = new ShopifyGetAllProductsResponse();
-        var pageNumber = 9;
+        var pageNumber = 1;
 
         while (true)
         {
             var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=1&page={pageNumber}");
+                await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
 
             try
             {
