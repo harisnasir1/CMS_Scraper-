@@ -61,6 +61,15 @@ namespace CMS_Scrappers.Repositories.Repos
                    .Take(PageSize)
                   .ToListAsync();
         }
+        public async Task<List<Sdata>> GetPendingSyncproducts(Guid sid)
+        {
+            return await _context.Sdata
+                .Where(s => (s.Status == "Sync_ready")&&s.Sid==sid&& s.Brand != "Goyard" && (s.ProductType != "" || s.Category!= ""))
+                .Include(s => s.Image)
+                .Include(s => s.Variants)
+                .Where(s => s.Variants.Any(v => v.InStock))
+                .ToListAsync();
+        }
         public async Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize)
         {
             return await _context.Sdata

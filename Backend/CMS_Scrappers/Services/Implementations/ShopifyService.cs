@@ -24,6 +24,7 @@ namespace CMS_Scrappers.Services.Implementations
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
             _locationId = "";
+            _readWrite = readWrite;
         }
        
         
@@ -487,7 +488,7 @@ namespace CMS_Scrappers.Services.Implementations
             var jsonContent = JsonSerializer.Serialize(payload);
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-            
+
             var request = new HttpRequestMessage(HttpMethod.Post, $"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2024-07/graphql.json");
             request.Headers.Add("X-Shopify-Access-Token", _shopifySettings.SHOPIFY_ACCESS_TOKEN);
             request.Content = content;
@@ -669,6 +670,341 @@ namespace CMS_Scrappers.Services.Implementations
                 Console.WriteLine(e);
                 throw;
             }
+        
+        ///for bulk operations
+        ///
+        /// we are gonna take from below onwards
+        
+        public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
+        {
+            //var jonldata = PrepareProductInputForGraphQL(data);
+            //await this._readWrite.Wrtie_data(jonldata, name);
+           
+            try
+            {
+               var stagedurl= await Stage_uploads_Create(name);
+                //string path = $"/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files/{name}";
+                //var mutation = Prepare_Bulk_Creation_Mutation(path);
+                //var payload = new { query=mutation };
+                //var re=await ExecuteGraphQLAsync(payload);
+                //var url = await bulk_query_pulling();
+                //var subdata = await Retrieve_bulkResults_data(url);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return false;
+            }
+          
+        }
+        
+        private List<object> PrepareProductInputForGraphQL(List<Sdata> data)
+        {
+            List<object> shopifydata = new List<object>();
+            foreach (var sdata in data)
+            {
+                // Prepare metafields
+                var metafields = new List<object>();
+                if (IsValidMetafieldValue(sdata.Id.ToString()))
+                {
+                    metafields.Add(new
+                    {
+                        key = "crm_id",
+                        @namespace = "custom",
+                        value = sdata.Id.ToString().Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+              
+
+                if (IsValidMetafieldValue(sdata.ScraperName))
+                {
+                    metafields.Add(new
+                    {
+                        key = "scraper_origin",
+                        @namespace = "custom",
+                        value = sdata.ScraperName.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                if (IsValidMetafieldValue(sdata?.ConditionGrade))
+                {
+                    var condiGrade = Map_Condition_Grade(sdata.ConditionGrade.Trim());
+                    if (!string.IsNullOrEmpty(condiGrade))
+                    {
+                        metafields.Add(new
+                        {
+                            key = "product_condition_grade_preloved",
+                            @namespace = "custom",
+                            value = condiGrade.Trim(),
+                            type = "single_line_text_field"
+                        });
+                    }
+                }
+
+                if (IsValidMetafieldValue(sdata.Condition))
+                {
+                    string condition = sdata.Condition == "Pre-Owned" ? "Preloved" : "New";
+                    metafields.Add(new
+                    {
+                        key = "product_condition",
+                        @namespace = "custom",
+                        value = condition.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                metafields.Add(new
+                {
+                    key = "age_group",
+                    @namespace = "custom",
+                    value = "Adult",
+                    type = "single_line_text_field"
+                });
+
+                if (IsValidMetafieldValue(sdata.Category))
+                {
+                    metafields.Add(new
+                    {
+                        key = "category",
+                        @namespace = "custom",
+                        value = sdata.Category.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                if (IsValidMetafieldValue(sdata.ProductType))
+                {
+                    metafields.Add(new
+                    {
+                        key = "product_type",
+                        @namespace = "custom",
+                        value = sdata.ProductType.Trim(),
+                        type = "single_line_text_field"
+                    });
+                }
+
+                var gender = GetGender(sdata.Gender);
+                if (IsValidMetafieldValue(gender))
+                {
+                    metafields.Add(new
+                    {
+                        key = "gender",
+                        @namespace = "custom",
+                        value = gender,
+                        type = "single_line_text_field"
+                    });
+                }
+
+                // Build tags
+                var tags = new List<string>
+                {
+                    "ALL PRODUCTS",
+                    sdata.Brand,
+                    sdata.Gender,
+                    sdata.ProductType,
+                    sdata.Category,
+                    sdata.Condition,
+                    "Not in HQ"
+                };
+
+                if (sdata.Condition == "Pre-Owned")
+                {
+                    tags.Add("PRELOVED");
+                }
+                shopifydata.Add(
+                        new
+                        {
+                           input = new {
+                               title = sdata.Title,
+                            descriptionHtml = sdata.Description,
+                            vendor = sdata.Brand,
+                            category = sdata.Category,
+                            productType = sdata.ProductType,
+                            tags = tags.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
+                            status = "ACTIVE",
+                            metafields = metafields,
+                            variants = sdata.Variants.Select(v => new
+                            {
+                                price = Addmarkup(v.Price).ToString("F2"),
+                                sku = v.SKU,
+                                inventoryQuantities = 1,
+                                inventoryPolicy = "DENY",
+                                requiresShipping = true,
+                                options = new[] { v.Size }
+                            }).ToArray(),
+                            images = sdata.Image.OrderBy(i => i.Priority).Select(img => new
+                            {
+                                src = img.Url
+                            }).ToArray()
+                        }
+                        }
+                    );
+            }
+
+            return shopifydata;
+        }
+
+        private string Prepare_Bulk_Creation_Mutation(string path)
+        {
+           return $@"
+        mutation {{
+          bulkOperationRunMutation(
+            mutation: """""" 
+            mutation call($input: ProductInput!) {{
+              productCreate(input: $input) {{
+                product {{
+                  id
+                  title
+                  metafields(first: 20) {{
+                    edges {{
+                      node {{
+                        namespace
+                        key
+                        value
+                        type
+                      }}
+                    }}
+                  }}
+                  variants(first: 10) {{
+                    edges {{
+                      node {{
+                        id
+                        title
+                        inventoryQuantity
+                      }}
+                    }}
+                  }}
+                }}
+                userErrors {{
+                  message
+                  field
+                }}
+              }}
+            }}
+            """""",
+            stagedUploadPath: ""{path}""
+          ) {{
+            bulkOperation {{
+              id
+              url
+              status
+            }}
+            userErrors {{
+              message
+              field
+            }}
+          }}
+        }}
+    ";
+        }
+        
+        private async Task<string>  bulk_query_pulling()
+        {
+            try
+            {
+                var query = @"query {
+             currentBulkOperation(type: MUTATION) {
+                id
+                status
+                errorCode
+                createdAt
+                completedAt
+                objectCount
+                fileSize
+                url
+                partialDataUrl
+             }
+            }";
+                var payload = new { query= query };
+                var status = "";
+                var url = "";
+                while (status != "COMPLETED")
+                {
+                    var d = await this.ExecuteGraphQLAsync(payload);
+                    status = d.GetProperty("currentBulkOperation").GetProperty("status").GetString();
+                    if (status == "COMPLETED")
+                    {
+                        url=d.GetProperty("currentBulkOperation").GetProperty("url").GetString();
+                        break;
+                    }
+                    Thread.Sleep(180000);
+                }
+                return url;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
+          
+        }
+
+        private async Task<object> Retrieve_bulkResults_data(string url)
+        {
+            if(url==null)
+                return new { };
+            try
+            {
+                var result = await _httpClient.GetAsync(url);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return new { };
+            }
+          
+        }
+
+        private async Task<string> Upload_file_shopify(string path)
+        {
+            return "";
+        }
+
+        private async Task<string> Stage_uploads_Create(string name)
+        {
+            var query = this.Get_Staged_Uploads_Create_Mutation();
+            var variables = new
+            {
+                input = new[]
+                {
+                    new
+                    {
+                        filename  = $"{name}.jsonl",
+                        mimeType  ="text/plain",
+                        httpMethod= "POST",
+                        resource  = "BULK_MUTATION_VARIABLES"
+                    }
+                }
+            };
+            var payload = new { query=query, variables  };
+            var k=   await this.ExecuteGraphQLAsync(payload);
+            var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
+            return "";
+        }
+        private string Get_Staged_Uploads_Create_Mutation()
+        {
+            return @"
+        mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              url
+              resourceUrl
+              parameters {
+                name
+                value
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+    ";
         }
 
         
