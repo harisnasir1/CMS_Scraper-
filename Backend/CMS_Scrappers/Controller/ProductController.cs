@@ -16,13 +16,15 @@ namespace CMS_Scrappers.Controller
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
         private readonly IScrapperRepository _scrapperRepository;
-        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger)
+        private readonly ISdataRepository _sdataRepository;
+        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger,ISdataRepository sdataRepository)
         {
             _ProductSerivce=service;
             _serviceProvider = serviceProvider;
             _logger = logger;
             _taskQueue = taskQueue;
             _scrapperRepository = scrapperRepository;
+            _sdataRepository = sdataRepository;
         }
         
         [HttpPost("Readytoreview")]
@@ -82,7 +84,7 @@ namespace CMS_Scrappers.Controller
                         throw new Exception("Error in updating status");
                         }
                     await pservice.RemovingBackgroundimages(guid,Images);
-                   var k2= await pservice.PushProductShopify(guid);
+                    var k2= await pservice.PushProductShopify(guid);
                     if (!k2)
                     {
                         throw new Exception("Error in pusing shopify order");
@@ -166,6 +168,13 @@ namespace CMS_Scrappers.Controller
             return Ok("ok");
         }
 
+      //  [HttpGet("live_product_store")]                           -> have to make it for frontend to show all the products a sotre has synced.
+      //  public async Task <IActionResult>   getlivestoredata()
+      //  {
+      //      var id = new Guid();
+      //      var data = await _sdataRepository.Giveliveproductperstore(id);
+      //      return Ok(data);
+      //  }
         
     }
 

@@ -20,5 +20,7 @@ namespace CMS_Scrappers.Services.Interfaces
         Task<bool> PushAllScraperProductsLive(Guid sid,int?limit);
 
         Task<bool> shiftallshopifyidstonew();
+        
+      
     } 
 }

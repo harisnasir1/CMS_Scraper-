@@ -223,7 +223,7 @@ namespace CMS_Scrappers.Services.Implementations
         {
             var data=await _repository.Getproductbyid(id);
             if (data == null) return false;
-
+            
             var status = await _productSyncCoordinator.pushProductslive(data);
           //  string response=await _shopifyService.PushProductAsync(data);
           //  if(response == null) return false;

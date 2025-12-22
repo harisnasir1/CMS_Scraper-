@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
+using System.Text.Json.Serialization;
 namespace CMS_Scrappers.Models
 {
     public class ProductStoreMapping
@@ -8,11 +8,12 @@ namespace CMS_Scrappers.Models
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
-        public Guid ProductId { get; set; }      // sdataid
+        public Guid ProductId { get; set; }  
         [ForeignKey("ProductId")]
         public Sdata Product { get; set; }
 
-        public Guid ShopifyStoreId { get; set; }   //store id
+        public Guid ShopifyStoreId { get; set; }  
+        [JsonIgnore]//store id
         [ForeignKey("ShopifyStoreId")]
         public Shopify ShopifyStore { get; set; }
 

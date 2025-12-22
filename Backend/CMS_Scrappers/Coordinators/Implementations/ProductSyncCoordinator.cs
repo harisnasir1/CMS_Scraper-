@@ -11,14 +11,16 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly IProductStoreMappingRepository _productStoreMappingRepository;
     private readonly IShopifyRepository _shopifyRepository;
     private readonly ILogger<ShopifyService> _logger;
-
+    private readonly ISdataRepository _sdataRepository;
 
     public ProductSyncCoordinator(
         IProductStoreMappingRepository storemaprepository,
         IShopifyRepository shopifyrepository,
-        ILogger<ShopifyService> logger
+        ILogger<ShopifyService> logger,
+        ISdataRepository sdataRepository
         )
     {
+        _sdataRepository = sdataRepository;
         _logger=logger;
         _shopifyRepository = shopifyrepository;
         _productStoreMappingRepository = storemaprepository;
@@ -29,8 +31,11 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         var stores = await this.GetallStoresconfigs();
         foreach (var store in stores)
         {
+            
             var _shopifyservice = this.GetShopifyService(store);
-
+            var valid=await Isthisproductlive(data.Id,store.Id);
+            if (valid) return false;  //product is already live wtf its doing in review stage
+            
            var res=await _shopifyservice.PushProductAsync(data);
            if(res == null) return false;
            var mapping = new ProductStoreMapping
@@ -57,10 +62,43 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         return false;
     }
 
+    public async Task UpdateProduct_Coordinator(List<ShopifyFlatProduct> existingproduct)
+    {
+        try
+        {
+            
+            var stores = await this.GetallStoresconfigs();
+            foreach (var store in stores)
+            {
+                try
+                {
+                    var sdata = await _sdataRepository.Giveliveproductperstore(existingproduct, store.Id);
+                    var _shopifyservice = this.GetShopifyService(store);
+                    //we need to get live product per store not all the stores have all the same 
+                
+                    await _shopifyservice.UpdateProduct(existingproduct, sdata);
+                    //for now but it's good to have this as this var is reusing there should be no problem regarding memory issue.
+                
+                    _logger.LogInformation($"Shopify update completed successfully for {store.ShopName}" ); 
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"✗ Update FAILED for {store.ShopName}: {ex.Message}");
+                }
+              
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+
     private ShopifyService GetShopifyService(Shopify store)
     {
         var storesettings = this.Configtosettings(store);
-        var shopifyservice=new ShopifyService(storesettings,_logger);
+        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository);
         return shopifyservice;
     }
 
@@ -68,6 +106,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     {
         return new ShopifySettings
         {
+            SHOPIFY_STORE_ID = store.Id,
             SHOPIFY_STORE_NAME = store.ShopName,
             SHOPIFY_ACCESS_TOKEN = store.AdminApiAccessToken,
             SHOPIFY_API_KEY = store.ApiKey,
@@ -89,4 +128,10 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         }
     }
     
+    private async Task<bool> Isthisproductlive(Guid id, Guid storeid)
+    {
+       var k= await _productStoreMappingRepository.GetSyncIdBySidAndStoreId(id, storeid);
+
+       return String.IsNullOrEmpty(k);
+    }
 }

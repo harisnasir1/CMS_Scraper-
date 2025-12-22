@@ -1,6 +1,7 @@
 using CMS_Scrappers.Repositories.Interfaces;
 using  CMS_Scrappers.Data.DTO;
 using CMS_Scrappers.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace CMS_Scrappers.Repositories.Repos;
 
@@ -27,5 +28,22 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
            return false;      
        }
    
+   }
+
+   public async Task<string> GetSyncIdBySidAndStoreId(Guid sid, Guid storeId)
+   {
+       try
+       {
+           return await _context.ProductStoreMapping.Where(s => s.ProductId == sid && s.ShopifyStoreId == storeId)
+               .Select(s=>s.ExternalProductId)
+               .SingleOrDefaultAsync();
+          
+       }
+       catch (Exception e)
+       {
+           Console.WriteLine(e);
+           throw;
+           
+       }
    }
 }
