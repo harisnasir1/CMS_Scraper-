@@ -3,6 +3,7 @@ using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Implementations;
 using CMS_Scrappers.Utils;
 using CMS_Scrappers.Models;
+using CMS_Scrappers.Services.Interfaces;
 
 namespace CMS_Scrappers.Coordinators.Implementations;
 
@@ -12,18 +13,20 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly IShopifyRepository _shopifyRepository;
     private readonly ILogger<ShopifyService> _logger;
     private readonly ISdataRepository _sdataRepository;
-
+    private readonly IFileReadWrite _readWrite;
     public ProductSyncCoordinator(
         IProductStoreMappingRepository storemaprepository,
         IShopifyRepository shopifyrepository,
         ILogger<ShopifyService> logger,
-        ISdataRepository sdataRepository
+        ISdataRepository sdataRepository,
+        IFileReadWrite readWrite
         )
     {
         _sdataRepository = sdataRepository;
         _logger=logger;
         _shopifyRepository = shopifyrepository;
         _productStoreMappingRepository = storemaprepository;
+        _readWrite = readWrite;
     }
 
     public async Task<bool> pushProductslive(Sdata data)
@@ -95,10 +98,28 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         }
     }
 
+    public async Task<bool> BulkSyncLiveProduct(Guid store)
+    {
+        try
+        {
+            var shop = await _shopifyRepository.GiveStoreById(store);
+            if(shop == null) return false;
+            var data = await _sdataRepository.GiveBulkliveproductperstore(shop.Id);
+            var _shopifyservice = GetShopifyService(shop);
+            await _shopifyservice.Bulk_mutation_shopify_product_creation(data, shop.ShopName);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("error getting all stores to sync",e);
+            return false;
+        }
+    }
+
     private ShopifyService GetShopifyService(Shopify store)
     {
         var storesettings = this.Configtosettings(store);
-        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository);
+        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_readWrite);
         return shopifyservice;
     }
 

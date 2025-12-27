@@ -147,5 +147,20 @@ namespace CMS_Scrappers.Repositories.Repos
 
             return dbProductsDict;
         }
+        public async Task<List<Sdata>> GiveBulkliveproductperstore(Guid storeid)
+        {
+
+            var dbProductsDict = await _context.Sdata
+                .AsNoTracking()
+                .Include(s => s.Variants)
+                .Include(s=>s.Image)
+                .Include(s => s.ProductStoreMapping.Where(m => m.ShopifyStore.Id == storeid)) // Filter mappings
+                .Where(s => s.Status == "Live" 
+                            && s.ProductStoreMapping.Any(m => m.ShopifyStore.Id != storeid)&&(s.Variants.Any(v=>v.InStock)))
+                .Take(2)
+                .ToListAsync();
+
+            return dbProductsDict;
+        }
     }
 }

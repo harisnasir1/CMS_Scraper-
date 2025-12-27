@@ -5,6 +5,8 @@ using CMS_Scrappers.Data.Responses.Api_responses;
 using Microsoft.AspNetCore.Authorization;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
+using CMS_Scrappers.Coordinators.Interfaces;
+
 namespace CMS_Scrappers.Controller
 {   [Authorize]
     [Route("api/[controller]")]
@@ -12,18 +14,20 @@ namespace CMS_Scrappers.Controller
     public class ProductController : ControllerBase
     {
         private readonly IHighPriorityTaskQueue _taskQueue;
+        private readonly ILowPriorityTaskQueue _LowtaskQueue;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
         private readonly IScrapperRepository _scrapperRepository;
         
-        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger,ISdataRepository sdataRepository)
+        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger,ISdataRepository sdataRepository,ILowPriorityTaskQueue lowtaskQueue)
         {
             _ProductSerivce=service;
             _serviceProvider = serviceProvider;
             _logger = logger;
             _taskQueue = taskQueue;
             _scrapperRepository = scrapperRepository;
+            _LowtaskQueue=lowtaskQueue;
         }
         
         [HttpPost("Readytoreview")]
@@ -111,6 +115,7 @@ namespace CMS_Scrappers.Controller
             string d=await _ProductSerivce.AIGeneratedDescription(guid);
             return Ok(d);
         }
+       
         [HttpPost("SaveDetails")]
         public async Task<IActionResult> UpdateDetails([FromBody] UpdateDetails request)
         {
@@ -119,12 +124,14 @@ namespace CMS_Scrappers.Controller
             if (!k) return Ok(false);
             return Ok(true);
         }
+     
         [HttpPost("GetCount")]
         public async Task<IActionResult> GetProductCount([FromBody] CountRequest request)
         {
             int re=await _ProductSerivce.ProductCountStatus(request.status);
             return Ok(re);
         }
+      
         [HttpPost("GetStatus")]
         public async Task <IActionResult> GetStatus([FromBody] SubmitRequest request)
         {
@@ -134,7 +141,7 @@ namespace CMS_Scrappers.Controller
             return Ok(data);
         }
       
-        [HttpPost("Sync_inventory")]
+        [HttpPost("Sync_non_live_inventory")]
         public async Task <IActionResult> Sync_inventory([FromBody] ReviewProductRequest request)
         {
             // Validate request object
@@ -166,6 +173,26 @@ namespace CMS_Scrappers.Controller
             await _ProductSerivce.shiftallshopifyidstonew();
             return Ok("ok");
         }
+        
+        [HttpPost("Sync_inventory")]
+        public async Task <IActionResult> Bulk_live_sync([FromBody] StroeSync request)
+        {
+            try
+            { 
+                var id = new Guid(request.storeid);
+                _LowtaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>{
+                    using var scope = serviceProvider.CreateScope();
+                    var syncCoordinator=scope.ServiceProvider.GetRequiredService<IProductSyncCoordinator>();
+                   await syncCoordinator.BulkSyncLiveProduct(id);
+                });
+                return Ok("Scraping started - check console for results");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = "Scraping failed", message = ex.Message });
+            }
+        }
+        
 
       //  [HttpGet("live_product_store")]                           -> have to make it for frontend to show all the products a sotre has synced.
       //  public async Task <IActionResult>   getlivestoredata()

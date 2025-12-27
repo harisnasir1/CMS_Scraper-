@@ -128,6 +128,7 @@ builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IGoogleImageService,GoogleImageService>();
+builder.Services.AddScoped<IFileReadWrite,ReadWriteFiles>();
 builder.Services.AddScoped<SavonchesStrategy>();
 builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
