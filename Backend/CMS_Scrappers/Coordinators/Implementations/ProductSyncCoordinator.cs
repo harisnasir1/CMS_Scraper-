@@ -108,6 +108,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
             var _shopifyservice = GetShopifyService(shop);
             var lookup_id_line_map=
             await _shopifyservice.Bulk_mutation_shopify_product_creation(data, shop.ShopName);
+            _logger.LogInformation($"Synced {data.Count} to {shop.ShopName}");
             return true;
         }
         catch (Exception e)
