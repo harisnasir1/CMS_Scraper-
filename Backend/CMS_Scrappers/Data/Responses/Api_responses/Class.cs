@@ -18,7 +18,11 @@
     {
         public string productid { get; set; }
 
+    }
 
+    public class StroeSync
+    {
+        public string storeid { get; set; }
     }
 
     public class PushRequest

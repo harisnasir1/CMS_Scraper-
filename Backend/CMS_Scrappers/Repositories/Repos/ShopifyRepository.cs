@@ -24,4 +24,12 @@ public class ShopifyRepository:IShopifyRepository
         }
     }
 
+    public async Task<Shopify?> GiveStoreById(Guid Storeid)
+    {
+        
+            return await _context.Shopify.Where(s=>s.Id==Storeid).FirstOrDefaultAsync();
+        
+
+    }
+
 }

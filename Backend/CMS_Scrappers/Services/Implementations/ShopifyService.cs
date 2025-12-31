@@ -1,10 +1,13 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
 using System.Text;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
-using System.Xml.Linq;
-using Amazon.S3.Model;
+using  CMS_Scrappers.Data.DTO;
 using CMS_Scrappers.Repositories.Interfaces;
+using System.Net.Http.Headers;
+using CMS_Scrappers.Models;
+using Amazon.Runtime.Internal.Auth;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -14,9 +17,10 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly HttpClient _httpClient;
         private readonly ILogger<ShopifyService> _logger;
         private readonly IProductStoreMappingRepository _ProductMappingRepository;
+        private IFileReadWrite _readWrite;
         private string _locationId;
         
-        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository) {
+        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository,IFileReadWrite readWrite) {
             
             _ProductMappingRepository = ProductMappingRepository;
             _shopifySettings = shopifysettings;
@@ -24,6 +28,7 @@ namespace CMS_Scrappers.Services.Implementations
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
             _locationId = "";
+            _readWrite = readWrite;
         }
        
         
@@ -100,8 +105,145 @@ namespace CMS_Scrappers.Services.Implementations
             
             return result;
         }
-
         
+        public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
+        {
+            var locationId = await GetFirstLocationIdAsync();
+           
+            if (string.IsNullOrEmpty(locationId))
+            {                
+                _logger.LogError("Could not find a Shopify location to update inventory.");
+                return;
+            }
+            decimal Batchsizes = 500;
+            decimal totalproduct=existingproduct.Count();
+            decimal Batchcount = Math.Ceiling(totalproduct/Batchsizes);
+
+            for (int i = 0; i < Batchcount; i++)
+            {
+                _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...");
+                var inventoryQuantities = new List<object>();
+                var priceUpdate = new List<object>();
+                int startIndex = i * (int)Batchsizes;
+                int endIndex = Math.Min(startIndex + (int)Batchsizes, existingproduct.Count);
+                var currentBatch = existingproduct.GetRange(startIndex, endIndex - startIndex);
+                foreach (var incomingProduct in currentBatch)
+                {
+                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
+                    {
+                        string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
+                        //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
+                        // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
+                                                                                                                                                     
+                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+                        List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
+                        foreach(var incomingvariant in incomingProduct.Variants)
+                        {
+                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
+                            {
+                                int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
+                                inventoryQuantities.Add(new
+                                {
+                                    inventoryItemId = details.inventoryId,
+                                    locationId = locationId,
+                                    quantity = newQuantity
+                                });
+                                //get the db current variant first.
+                                 var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
+                                //check if db price is changed from comming variant price then update the price.
+                                //well we can not check if price get change because we updated price beofre this step.
+                                //at it is very long to go back so just check fi they are in stock then update the price.
+                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
+                                {
+                                    priceUpdate.Add(new
+                                    {
+                                        productId = gid,
+                                        id = details.variantId,
+                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                if(inventoryQuantities.Count > 0)
+                {
+                   await Update_Variant_Quantites_batch(inventoryQuantities, i);
+                }
+                if(priceUpdate.Count > 0)
+                {
+                    await UpdatePricesBatch(priceUpdate, i);
+                }
+
+            }
+        }
+           
+        public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
+        {
+            var jonldata = await PrepareProductInputForGraphQL(data,name);
+            var lmap = jonldata.Item2;
+            string path = GetJsonlPath(name);
+            await _readWrite.Wrtie_data(jonldata.Item1, path);
+            try
+            {
+                var stageres= await Stage_uploads_Create(name);
+                var key = Getkeystageparm(stageres);
+                await Stage_upload_file(stageres, path);
+                var bulkOp =  await StartBulkProductCreateAsync(key);
+                var sTdata = await Pull_Bulk_results();
+                using var reader = new StreamReader(sTdata, Encoding.UTF8);
+                string? line;
+                while ((line = await reader.ReadLineAsync()) != null)
+                {
+                    Console.WriteLine($"the raw dta comming from shopify{line}");
+                    using var doc = JsonDocument.Parse(line);
+                    var ShopifyproductId = doc
+                        .RootElement
+                        .GetProperty("data")
+                        .GetProperty("productSet")
+                        .GetProperty("product")
+                        .GetProperty("id")
+                        .GetString();
+                    int lineNumber = doc.RootElement
+                        .GetProperty("__lineNumber")
+                        .GetInt32();
+                    if (string.IsNullOrEmpty(ShopifyproductId) || lineNumber == null) return false;
+                    var productid=lmap[lineNumber];
+                    Console.WriteLine($"Created product: {productid}");
+                    Console.WriteLine($"Created product: {ShopifyproductId}");
+                    string externalid = ShopifyproductId.Split('/')[4];
+                    
+                    var mapping = new ProductStoreMapping
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = productid,
+                        ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
+                        ExternalProductId = externalid, 
+                        SyncStatus = "Live",
+                        LastSyncedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    try
+                    {
+                        await _ProductMappingRepository.InsertProductmapping(mapping);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
+                    }
+                }
+                _readWrite.Delete_file(path);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return false;
+            }
+        }
+
         private async Task<bool> PushMetafieldsInternal(Sdata sdata, string productId)
         {
             try
@@ -239,7 +381,6 @@ namespace CMS_Scrappers.Services.Implementations
                 return false;
             }
         }
-
         
         private bool IsValidMetafieldValue(string value)
         {
@@ -305,7 +446,6 @@ namespace CMS_Scrappers.Services.Implementations
             return false;
         }
         
-        
         private string GetGender(string s)
         {
             if (string.IsNullOrWhiteSpace(s))
@@ -330,80 +470,6 @@ namespace CMS_Scrappers.Services.Implementations
                 default:
                     _logger.LogWarning($"Unknown gender value: '{s}', skipping gender metafield");
                     return string.Empty;
-            }
-        }
-     
-        
-        public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
-        {
-            var locationId = await GetFirstLocationIdAsync();
-           
-            if (string.IsNullOrEmpty(locationId))
-            {                
-                _logger.LogError("Could not find a Shopify location to update inventory.");
-                return;
-            }
-            decimal Batchsizes = 500;
-            decimal totalproduct=existingproduct.Count();
-            decimal Batchcount = Math.Ceiling(totalproduct/Batchsizes);
-
-            for (int i = 0; i < Batchcount; i++)
-            {
-                _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...");
-                var inventoryQuantities = new List<object>();
-                var priceUpdate = new List<object>();
-                int startIndex = i * (int)Batchsizes;
-                int endIndex = Math.Min(startIndex + (int)Batchsizes, existingproduct.Count);
-                var currentBatch = existingproduct.GetRange(startIndex, endIndex - startIndex);
-                foreach (var incomingProduct in currentBatch)
-                {
-                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
-                    {
-
-                        string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
-                        //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
-                        // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
-                                                                                                                                                                            
-                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
-                        List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
-                        foreach(var incomingvariant in incomingProduct.Variants)
-                        {
-                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
-                            {
-                                int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
-                                inventoryQuantities.Add(new
-                                {
-                                    inventoryItemId = details.inventoryId,
-                                    locationId = locationId,
-                                    quantity = newQuantity
-                                });
-                                //get the db current variant first.
-                                 var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
-                                //check if db price is changed from comming variant price then update the price.
-                                //well we can not check if price get change because we updated price beofre this step.
-                                //at it is very long to go back so just check fi they are in stock then update the price.
-                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
-                                {
-                                    priceUpdate.Add(new
-                                    {
-                                        productId = gid,
-                                        id = details.variantId,
-                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-                if(inventoryQuantities.Count > 0)
-                {
-                   await Update_Variant_Quantites_batch(inventoryQuantities, i);
-                }
-                if(priceUpdate.Count > 0)
-                {
-                    await UpdatePricesBatch(priceUpdate, i);
-                }
-
             }
         }
         
@@ -468,7 +534,6 @@ namespace CMS_Scrappers.Services.Implementations
 
             return variants;
         }
-
         
         private async Task<string> GetFirstLocationIdAsync()
         {
@@ -480,7 +545,6 @@ namespace CMS_Scrappers.Services.Implementations
             _locationId = data.GetProperty("locations").GetProperty("edges")[0].GetProperty("node").GetProperty("id").GetString();
             return _locationId;
         }
-        
         
         private async Task<JsonElement> ExecuteGraphQLAsync(object payload)
         {
@@ -573,7 +637,6 @@ namespace CMS_Scrappers.Services.Implementations
             
         }
         
-        
         private async Task  Update_Variant_Quantites_batch(List<object>inventoryQuantities,int i)
         {
             var mutation = @"
@@ -610,8 +673,7 @@ namespace CMS_Scrappers.Services.Implementations
                 throw; 
             }
         }
-
-       
+        
         private double Addmarkup(decimal price)
         {
             double p = (float)price;
@@ -637,7 +699,6 @@ namespace CMS_Scrappers.Services.Implementations
             
             return dbVariants.Find(v => v.Size == size);
         }
-
 
         private string Map_Condition_Grade(string condition)
         {
@@ -671,7 +732,493 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
 
+        private async Task<JsonElement> Stage_uploads_Create(string name)
+        {
+            var query =  @"
+        mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              url
+              resourceUrl
+              parameters {
+                name
+                value
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+    ";;
+            var variables = new
+            {
+                input = new[]
+                {
+                    new
+                    {
+                        filename  = $"{name}.jsonl",
+                        mimeType  ="text/plain",
+                        httpMethod= "POST",
+                        resource  = "BULK_MUTATION_VARIABLES"
+                    }
+                }
+            };
+            var payload = new { query=query, variables  };
+            var k=   await this.ExecuteGraphQLAsync(payload);
+            var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
+            return url;
+        }
+ 
         
+        private async Task Stage_upload_file(JsonElement stageRes, string path)
+        {
+
+            try
+            {
+                var target = stageRes;
+                var uploadUrl = target.GetProperty("url").GetString();
+                var parameters = target.GetProperty("parameters");
+                using var form = new MultipartFormDataContent();
+                foreach (var p in parameters.EnumerateArray())
+                {
+                    var name = p.GetProperty("name").GetString();
+                    var value = p.GetProperty("value").GetString();
+                    form.Add(new StringContent(value), name);
+                }
+                await using var jsonlStream = await _readWrite.ReadJsonlFileAsStreamAsync(path);
+                var fileContent = new StreamContent(jsonlStream);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+                form.Add(fileContent, "file");
+                var response = await _httpClient.PostAsync(uploadUrl, form);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }
+        private async Task<BulkOperationStartResult> StartBulkProductCreateAsync(string stagedUploadPath)
+        {
+            var payload = new
+            {
+                query = @"
+                mutation bulkProductCreate($path: String!) {
+                  bulkOperationRunMutation(
+                    mutation: ""
+                      mutation productCreate($input: ProductSetInput!) {
+                        productSet(input: $input) {
+                          product { id }
+                          userErrors {
+                            field
+                            message
+                          }
+                        }
+                      }
+                    ""
+                    stagedUploadPath: $path
+                  ) {
+                    bulkOperation {
+                      id
+                      status
+                    }
+                    userErrors {
+                      field
+                      message
+                    }
+                  }
+                }",
+                variables = new
+                {
+                    path = stagedUploadPath
+                }
+            };
+
+            var data = await ExecuteGraphQLAsync(payload);
+
+            var root = data.GetProperty("bulkOperationRunMutation");
+
+            
+            if (root.TryGetProperty("userErrors", out var errors) &&
+                errors.GetArrayLength() > 0)
+            {
+                throw new Exception($"Bulk start error: {errors}");
+            }
+
+            var bulk = root.GetProperty("bulkOperation");
+
+            return new BulkOperationStartResult
+            {
+                Id = bulk.GetProperty("id").GetString(),
+                Status = bulk.GetProperty("status").GetString()
+            };
+        }
+        
+        private async Task<Stream?> Pull_Bulk_results()
+        {
+            try
+            {
+                var payload = new
+                {
+                    query = @"{
+                  currentBulkOperation(type: MUTATION) 
+                  {
+                    id
+                    status
+                    errorCode
+                    objectCount
+                    fileSize
+                    url
+                    partialDataUrl
+                  }}"
+                };
+                var bres  = await ExecuteGraphQLAsync(payload);
+                var status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+                while (status!="COMPLETED")
+                { 
+                    //240000 in production 4 mins
+                    await Task.Delay(2400);
+                    bres=await ExecuteGraphQLAsync(payload);
+                    status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+                    
+                    if (status == "FAILED" || status == "CANCELED")
+                    {
+                        var error = bres.GetProperty("currentBulkOperation").GetProperty("errorCode").GetString();
+                        throw new Exception($"Bulk operation failed: {error}");
+                    }
+                }
+
+                var url = bres.GetProperty("currentBulkOperation").GetProperty("url").ToString();
+                
+                var s = await _httpClient.GetAsync(url,HttpCompletionOption.ResponseContentRead);
+                if (s.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+                
+                s.EnsureSuccessStatusCode();    
+                
+                var sd= await s.Content.ReadAsStreamAsync();
+               return sd;
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return null;
+            }
+        }
+        
+        private string? Getkeystageparm(JsonElement t)
+        {
+            var k=t.GetProperty("parameters");
+            foreach (var parms in k.EnumerateArray())
+            {
+                var name = parms.GetProperty("name").GetString();
+                var value = parms.GetProperty("value").GetString();
+                if (name == "key" && !string.IsNullOrEmpty(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private async Task<(List<object>,Dictionary<long,Guid>)> PrepareProductInputForGraphQL(List<Sdata> data, string name)
+        {
+            var lineIndex = new Dictionary<long, Guid>();
+            int linenumber = 0;
+            var shopifydata = new List<object>();
+            var locid = await GetFirstLocationIdAsync();
+
+            foreach (var sdata in data)
+            {
+                var metafields = await BuildMetafields(sdata, name);
+
+                var tags = new List<string>
+                {
+                    "ALL PRODUCTS",
+                    sdata.Brand,
+                    sdata.Gender,
+                    sdata.ProductType,
+                    sdata.Category,
+                    sdata.Condition,
+                    "Not in HQ",
+                    "RRSync",
+                    "RRSyncBulk"
+                };
+
+                if (sdata.Condition == "Pre-Owned")
+                {
+                    tags.Add("PRELOVED");
+                }
+
+                shopifydata.Add(new
+                {
+                    input = new
+                    {
+                        title = sdata.Title,
+                        descriptionHtml = sdata.Description,
+                        vendor = sdata.Brand,
+                        productType = sdata.ProductType,
+                        tags = tags.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
+                        status = "ACTIVE",
+                        metafields = metafields,
+                        productOptions = new[]
+                        {
+                            new
+                            {
+                                name = "Size",
+                                values = sdata.Variants
+                                    .Select(v => v.Size)
+                                    .Distinct()
+                                    .Select(size => new { name = size })
+                                    .ToArray()
+                            }
+                        },
+                        variants = sdata.Variants.Select(v => new
+                        {
+                            price = Addmarkup(v.Price).ToString("F2"),
+                            sku = v.SKU!=""?v.SKU:sdata.Sku+"-"+v.Size,
+                            optionValues = new[]
+                            {
+                                new { optionName = "Size", name = v.Size }
+                            },
+                            inventoryQuantities = new[]
+                            {
+                                new
+                                {
+                                    locationId = locid,
+                                    name= "available",
+                                    quantity = v.InStock ? 1 : 0
+                                }
+                            }
+                        }).ToArray(),
+                        files = sdata.Image
+                            .OrderBy(i => i.Priority)
+                            .Select(img => new
+                            {
+                                originalSource = img.Url,
+                                alt= "Product image",  
+                                filename=sdata.Title+"-"+img.Priority+".png",
+                                contentType = "IMAGE"
+                                
+                            })
+                            .ToArray()
+                    }
+                });
+                
+                lineIndex[linenumber]=sdata.Id;
+                linenumber++;
+            }
+
+            return (shopifydata, lineIndex);
+        }
+
+        private  async Task<List<object>> BuildMetafields(Sdata sdata, string store)
+           {
+               var metafields = new List<object>();
+               await EnsureSyncIdMetafieldDefinitionExistsAsync();
+               if (IsValidMetafieldValue(sdata.Id.ToString()))
+               {
+                   metafields.Add(new
+                   {
+                       key = "syncid",
+                       @namespace = "custom",
+                       value = sdata.Id.ToString().Trim(),
+                       type = "single_line_text_field"
+                   });
+               }
+               if (!string.Equals(store, "Morely Trends UK", StringComparison.OrdinalIgnoreCase))
+               {
+                   return metafields;
+               }
+           
+               if (IsValidMetafieldValue(sdata.Id.ToString()))
+               {
+                   metafields.Add(new
+                   {
+                       key = "crm_id",
+                       @namespace = "custom",
+                       value = sdata.Id.ToString().Trim(),
+                       type = "single_line_text_field"
+                   });
+               }
+           
+               if (IsValidMetafieldValue(sdata.ScraperName))
+               {
+                   metafields.Add(new
+                   {
+                       key = "scraper_origin",
+                       @namespace = "custom",
+                       value = sdata.ScraperName.Trim(),
+                       type = "single_line_text_field"
+                   });
+               }
+           
+               if (IsValidMetafieldValue(sdata?.ConditionGrade))
+               {
+                   var conditionGrade = Map_Condition_Grade(sdata.ConditionGrade.Trim());
+                   if (!string.IsNullOrWhiteSpace(conditionGrade))
+                   {
+                       metafields.Add(new
+                       {
+                           key = "product_condition_grade_preloved",
+                           @namespace = "custom",
+                           value = conditionGrade.Trim(),
+                           type = "single_line_text_field"
+                       });
+                   }
+               }
+           
+               if (IsValidMetafieldValue(sdata.Condition))
+               {
+                   var condition = sdata.Condition == "Pre-Owned" ? "Preloved" : "New";
+           
+                   metafields.Add(new
+                   {
+                       key = "product_condition",
+                       @namespace = "custom",
+                       value = condition,
+                       type = "single_line_text_field"
+                   });
+               }
+           
+               // Always add age_group (only for this store)
+               metafields.Add(new
+               {
+                   key = "age_group",
+                   @namespace = "custom",
+                   value = "Adult",
+                   type = "single_line_text_field"
+               });
+           
+               if (IsValidMetafieldValue(sdata.Category))
+               {
+                   metafields.Add(new
+                   {
+                       key = "category",
+                       @namespace = "custom",
+                       value = sdata.Category.Trim(),
+                       type = "single_line_text_field"
+                   });
+               }
+           
+               if (IsValidMetafieldValue(sdata.ProductType))
+               {
+                   metafields.Add(new
+                   {
+                       key = "product_type",
+                       @namespace = "custom",
+                       value = sdata.ProductType.Trim(),
+                       type = "single_line_text_field"
+                   });
+               }
+           
+               var gender = GetGender(sdata.Gender);
+               if (IsValidMetafieldValue(gender))
+               {
+                   metafields.Add(new
+                   {
+                       key = "gender",
+                       @namespace = "custom",
+                       value = gender,
+                       type = "single_line_text_field"
+                   });
+               }
+           
+               return metafields;
+           }
+        
+        private async Task EnsureSyncIdMetafieldDefinitionExistsAsync()
+            {
+                // 1️⃣ Check existing definitions
+                var checkPayload = new
+                {
+                    query = @"
+                        query {
+                          metafieldDefinitions(
+                            first: 100,
+                            namespace: ""custom"",
+                            ownerType: PRODUCT
+                          ) {
+                            edges {
+                              node {
+                                key
+                              }
+                            }
+                          }
+                        }
+                    "
+                };
+            
+                var data = await ExecuteGraphQLAsync(checkPayload);
+            
+                var definitions = data
+                    .GetProperty("metafieldDefinitions")
+                    .GetProperty("edges");
+            
+                var exists = definitions
+                    .EnumerateArray()
+                    .Any(d => d.GetProperty("node").GetProperty("key").GetString() == "syncid");
+            
+            
+                if (exists)
+                    return;
+            
+                // 3️⃣ Create definition
+                var createPayload = new
+                {
+                    query = @"
+                        mutation CreateMetafieldDefinition($definition: MetafieldDefinitionInput!) {
+                          metafieldDefinitionCreate(definition: $definition) {
+                            userErrors {
+                              field
+                              message
+                            }
+                          }
+                        }
+                    ",
+                    variables = new
+                    {
+                        definition = new
+                        {
+                            name = "Sync ID",
+                            @namespace = "custom",
+                            key = "syncid",
+                            type = "single_line_text_field",
+                            ownerType = "PRODUCT",
+                            description = "External system sync identifier",
+                            pin = true
+                        }
+                    }
+                };
+            
+                var createData = await ExecuteGraphQLAsync(createPayload);
+            
+                var userErrors = createData
+                    .GetProperty("metafieldDefinitionCreate")
+                    .GetProperty("userErrors");
+            
+                if (userErrors.GetArrayLength() > 0)
+                {
+                    var message = userErrors[0].GetProperty("message").GetString();
+                    throw new Exception($"Metafield definition error: {message}");
+                }
+            }
+
+        private string GetJsonlPath(string name)
+        {
+            string baseDir = Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT") != null 
+                ? "/tmp/jsonl_files"  // Railway/production
+                : "/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files"; // Local
+    
+            Directory.CreateDirectory(baseDir);
+            return Path.Combine(baseDir, $"{name}.jsonl");
+        }
     }
 
 }
