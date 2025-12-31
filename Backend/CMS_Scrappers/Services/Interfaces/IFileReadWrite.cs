@@ -5,7 +5,7 @@ public interface IFileReadWrite
     public Task<Stream> ReadJsonlFileAsStreamAsync(string filePath);
     public Task<MemoryStream> Convert_Obj_to_stream(object data);
     
-    public Task<bool> Wrtie_data(List<object> stream, string name);
-    
-   
+    public Task<bool> Wrtie_data(List<object> stream, string path);
+
+    public bool Delete_file(string path);
 }

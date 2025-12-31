@@ -36,10 +36,8 @@ public class ReadWriteFiles:IFileReadWrite
     }
     
 
-    public async Task<bool> Wrtie_data(List<object> data, string name)
-    {
-        string path = $"/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files/{name}.jsonl";
-       
+    public async Task<bool> Wrtie_data(List<object> data, string path)
+    { 
         try
         {
             using (FileStream fs=File.Create(path))
@@ -62,5 +60,18 @@ public class ReadWriteFiles:IFileReadWrite
         return true;
     }
 
+    public bool Delete_file(string path)
+    {
+        if(File.Exists(path))
+        {
+            File.Delete(path);
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+
+    }
   
 }

@@ -131,11 +131,10 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
                     {
-
                         string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
                         //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
                         // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
-                                                                                                                                                                            
+                                                                                                                                                     
                         Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
                         List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
@@ -181,11 +180,10 @@ namespace CMS_Scrappers.Services.Implementations
            
         public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
         {
-            
             var jonldata = await PrepareProductInputForGraphQL(data,name);
             var lmap = jonldata.Item2;
-            await _readWrite.Wrtie_data(jonldata.Item1, name);
-            string path = $"/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files/{name}.jsonl";
+            string path = GetJsonlPath(name);
+            await _readWrite.Wrtie_data(jonldata.Item1, path);
             try
             {
                 var stageres= await Stage_uploads_Create(name);
@@ -193,17 +191,12 @@ namespace CMS_Scrappers.Services.Implementations
                 await Stage_upload_file(stageres, path);
                 var bulkOp =  await StartBulkProductCreateAsync(key);
                 var sTdata = await Pull_Bulk_results();
-                
                 using var reader = new StreamReader(sTdata, Encoding.UTF8);
                 string? line;
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
-                   
                     Console.WriteLine($"the raw dta comming from shopify{line}");
-
-                   
                     using var doc = JsonDocument.Parse(line);
-
                     var ShopifyproductId = doc
                         .RootElement
                         .GetProperty("data")
@@ -214,22 +207,23 @@ namespace CMS_Scrappers.Services.Implementations
                     int lineNumber = doc.RootElement
                         .GetProperty("__lineNumber")
                         .GetInt32();
-                    
+                    if (string.IsNullOrEmpty(ShopifyproductId) || lineNumber == null) return false;
                     var productid=lmap[lineNumber];
                     Console.WriteLine($"Created product: {productid}");
                     Console.WriteLine($"Created product: {ShopifyproductId}");
+                    string externalid = ShopifyproductId.Split('/')[4];
+                    
                     var mapping = new ProductStoreMapping
                     {
                         Id = Guid.NewGuid(),
                         ProductId = productid,
                         ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
-                        ExternalProductId = ShopifyproductId, 
+                        ExternalProductId = externalid, 
                         SyncStatus = "Live",
                         LastSyncedAt = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
-
                     try
                     {
                         await _ProductMappingRepository.InsertProductmapping(mapping);
@@ -239,10 +233,8 @@ namespace CMS_Scrappers.Services.Implementations
                         Console.WriteLine(e);
                         throw;
                     }
-                    
                 }
-
-
+                _readWrite.Delete_file(path);
                 return true;
             }
             catch (Exception ex)
@@ -954,7 +946,9 @@ namespace CMS_Scrappers.Services.Implementations
                     sdata.ProductType,
                     sdata.Category,
                     sdata.Condition,
-                    "Not in HQ"
+                    "Not in HQ",
+                    "RRSync",
+                    "RRSyncBulk"
                 };
 
                 if (sdata.Condition == "Pre-Owned")
@@ -1216,8 +1210,15 @@ namespace CMS_Scrappers.Services.Implementations
                 }
             }
 
-       
-        
+        private string GetJsonlPath(string name)
+        {
+            string baseDir = Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT") != null 
+                ? "/tmp/jsonl_files"  // Railway/production
+                : "/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files"; // Local
+    
+            Directory.CreateDirectory(baseDir);
+            return Path.Combine(baseDir, $"{name}.jsonl");
+        }
     }
 
 }
