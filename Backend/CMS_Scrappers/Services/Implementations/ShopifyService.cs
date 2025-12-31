@@ -6,6 +6,7 @@ using CMS_Scrappers.Utils;
 using  CMS_Scrappers.Data.DTO;
 using CMS_Scrappers.Repositories.Interfaces;
 using System.Net.Http.Headers;
+using CMS_Scrappers.Models;
 using Amazon.Runtime.Internal.Auth;
 
 namespace CMS_Scrappers.Services.Implementations
@@ -181,9 +182,9 @@ namespace CMS_Scrappers.Services.Implementations
         public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
         {
             
-            var jonldata = await PrepareProductInputForGraphQL(data,name); 
-            
-            await this._readWrite.Wrtie_data(jonldata, name);
+            var jonldata = await PrepareProductInputForGraphQL(data,name);
+            var lmap = jonldata.Item2;
+            await _readWrite.Wrtie_data(jonldata.Item1, name);
             string path = $"/home/haris/Projects/office/CMS/Backend/CMS_Scrappers/JSONL_files/{name}.jsonl";
             try
             {
@@ -193,27 +194,52 @@ namespace CMS_Scrappers.Services.Implementations
                 var bulkOp =  await StartBulkProductCreateAsync(key);
                 var sTdata = await Pull_Bulk_results();
                 
-                 
-
                 using var reader = new StreamReader(sTdata, Encoding.UTF8);
                 string? line;
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
                    
-                    Console.WriteLine(line);
+                    Console.WriteLine($"the raw dta comming from shopify{line}");
 
                    
                     using var doc = JsonDocument.Parse(line);
 
-                    var productId = doc
+                    var ShopifyproductId = doc
                         .RootElement
                         .GetProperty("data")
                         .GetProperty("productSet")
                         .GetProperty("product")
                         .GetProperty("id")
                         .GetString();
+                    int lineNumber = doc.RootElement
+                        .GetProperty("__lineNumber")
+                        .GetInt32();
+                    
+                    var productid=lmap[lineNumber];
+                    Console.WriteLine($"Created product: {productid}");
+                    Console.WriteLine($"Created product: {ShopifyproductId}");
+                    var mapping = new ProductStoreMapping
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = productid,
+                        ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
+                        ExternalProductId = ShopifyproductId, 
+                        SyncStatus = "Live",
+                        LastSyncedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
 
-                    Console.WriteLine($"Created product: {productId}");
+                    try
+                    {
+                        await _ProductMappingRepository.InsertProductmapping(mapping);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
+                    }
+                    
                 }
 
 
@@ -909,9 +935,10 @@ namespace CMS_Scrappers.Services.Implementations
             return null;
         }
 
-        private async Task<List<object>> PrepareProductInputForGraphQL(List<Sdata> data, string name)
+        private async Task<(List<object>,Dictionary<long,Guid>)> PrepareProductInputForGraphQL(List<Sdata> data, string name)
         {
-            
+            var lineIndex = new Dictionary<long, Guid>();
+            int linenumber = 0;
             var shopifydata = new List<object>();
             var locid = await GetFirstLocationIdAsync();
 
@@ -989,9 +1016,12 @@ namespace CMS_Scrappers.Services.Implementations
                             .ToArray()
                     }
                 });
+                
+                lineIndex[linenumber]=sdata.Id;
+                linenumber++;
             }
 
-            return shopifydata;
+            return (shopifydata, lineIndex);
         }
 
         private  async Task<List<object>> BuildMetafields(Sdata sdata, string store)

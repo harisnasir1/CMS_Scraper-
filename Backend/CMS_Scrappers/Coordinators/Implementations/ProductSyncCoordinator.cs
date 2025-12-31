@@ -106,6 +106,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
             if(shop == null) return false;
             var data = await _sdataRepository.GiveBulkliveproductperstore(shop.Id);
             var _shopifyservice = GetShopifyService(shop);
+            var lookup_id_line_map=
             await _shopifyservice.Bulk_mutation_shopify_product_creation(data, shop.ShopName);
             return true;
         }
@@ -115,6 +116,10 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
             return false;
         }
     }
+
+   
+    
+    
 
     private ShopifyService GetShopifyService(Shopify store)
     {

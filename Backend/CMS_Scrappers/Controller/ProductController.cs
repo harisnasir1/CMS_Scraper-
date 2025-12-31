@@ -8,7 +8,7 @@ using CMS_Scrappers.BackgroundJobs.Interfaces;
 using CMS_Scrappers.Coordinators.Interfaces;
 
 namespace CMS_Scrappers.Controller
-{   [Authorize]
+{   //[Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class ProductController : ControllerBase
