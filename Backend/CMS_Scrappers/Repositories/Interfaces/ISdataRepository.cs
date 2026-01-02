@@ -8,5 +8,6 @@
         Task<Dictionary<string, Sdata>> Giveliveproductperstore(List<ShopifyFlatProduct> existingProducts , Guid storeid);
 
         Task<List<Sdata>> GiveBulkliveproductperstore(Guid storeid);
+        Task<int> GiveBulkliveproductperstoreCount(Guid storeid);
     }
 

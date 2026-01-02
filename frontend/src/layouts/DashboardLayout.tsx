@@ -12,7 +12,8 @@ import {
   LogOut,
   CreditCard,
   ChevronRight,
-  CloudCog
+  CloudCog,
+  RefreshCw
 } from 'lucide-react';
 
 
@@ -51,6 +52,7 @@ const menuSections = [
     items: [
       { text: 'Scrapers', icon: <CloudCog className="w-4 h-4" />, path: 'Scrapers' },
       { text: 'Users', icon: <Users className="w-4 h-4" />, path: 'users' },
+      { text: 'Stores', icon: <RefreshCw className="w-4 h-4" />, path: 'shops' },
       { text: 'Settings', icon: <Settings className="w-4 h-4" />, path: 'settings' },
     ]
   }
