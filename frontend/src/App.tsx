@@ -4,6 +4,7 @@ import { useResizeObserver } from '@/hooks/use-resize-observer';
 import DashboardLayout from './layouts/DashboardLayout';
 import { LoginPage } from './pages/auth/login';
 import { AuthProvider } from '@/contexts/auth-context';
+import {ShopProvider} from '@/contexts/Shop-context'
 import {ScrapperProvider} from '@/contexts/Scrapper-context'
 import {ProductProvider} from '@/contexts/products-context'
 import { ProtectedRoute } from '@/components/protected-route';
@@ -20,6 +21,7 @@ import Scraperspage from './pages/Scrapers';
 import ScrapedProducts from './pages/Scrapers/Product'
 import LiveFeed from './pages/LiveFeed';
 import SettingsPage from './pages/settings';
+import Shops from './pages/Shops/Shops';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,7 +50,8 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <ScrapperProvider>
-           <ProductProvider>
+            <ShopProvider>
+         <ProductProvider>
           <RootLayout>
             <Routes>
               <Route path="login" element={<LoginPage />} />
@@ -71,12 +74,15 @@ function App() {
                 <Route path="Scrapers/products" element={<ScrapedProducts />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="LiveFeed" element={<LiveFeed/>}/>
+                <Route path="Shops" element={<Shops/>}/>
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Route>
             </Routes>
             <Toaster />
           </RootLayout>
           </ProductProvider>
+          </ShopProvider>
+
           </ScrapperProvider>
         </AuthProvider>
       </BrowserRouter>

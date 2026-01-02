@@ -26,3 +26,11 @@ public class BulkOperationStartResult
     public string Id { get; set; }
     public string Status { get; set; }
 }
+
+public class Get_all_store_response
+{
+  
+   public string store_id { get; set; }
+    public string store_name { get; set; }
+    public int store_out_of_sync { get; set; }
+}

@@ -77,7 +77,7 @@ namespace CMS_Scrappers.Controller
             
             _taskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>
             {
-                _logger.LogInformation($"shopify product pushing in process for product {guid}");
+                _logger.LogInformation($" product pushing in process for product {guid}");
                 using var scope = serviceProvider.CreateScope();
                 var pservice = scope.ServiceProvider.GetService<IProducts>();               
                 try
@@ -87,11 +87,11 @@ namespace CMS_Scrappers.Controller
                         throw new Exception("Error in updating status");
                         }
                     await pservice.RemovingBackgroundimages(guid,Images);
-                    var k2= await pservice.PushProductShopify(guid);
-                    if (!k2)
-                    {
-                        throw new Exception("Error in pusing shopify order");
-                    }
+                   // var k2= await pservice.PushProductShopify(guid);
+                    //if (!k2)
+                    //{
+                     //   throw new Exception("Error in pusing shopify order");
+                    //}
                   var k3=  await pservice.UpdateStatus(guid, "Live");
                     if (!k3)
                     {
