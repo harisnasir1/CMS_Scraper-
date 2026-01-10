@@ -115,7 +115,7 @@ namespace CMS_Scrappers.Services.Implementations
                 _logger.LogError("Could not find a Shopify location to update inventory.");
                 return;
             }
-            decimal Batchsizes = 500;
+            decimal Batchsizes = 250;
             decimal totalproduct=existingproduct.Count();
             decimal Batchcount = Math.Ceiling(totalproduct/Batchsizes);
 
