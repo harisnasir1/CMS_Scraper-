@@ -173,6 +173,13 @@ namespace CMS_Scrappers.Controller
             await _ProductSerivce.shiftallshopifyidstonew();
             return Ok("ok");
         }
+
+        [HttpGet("Clean_Orphaned_products")]
+        public async Task<IActionResult> CleanOrphanedProducts()
+        {
+            await _ProductSerivce.OrphanedProductCleanup();
+            return Ok("ok");
+        }
         
         [HttpPost("Sync_inventory")]
         public async Task <IActionResult> Bulk_live_sync([FromBody] StroeSync request)
@@ -192,6 +199,8 @@ namespace CMS_Scrappers.Controller
                 return StatusCode(500, new { error = "Scraping failed", message = ex.Message });
             }
         }
+        
+        
         
 
       //  [HttpGet("live_product_store")]                           -> have to make it for frontend to show all the products a sotre has synced.

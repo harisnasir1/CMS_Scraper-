@@ -14,12 +14,14 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly ILogger<ShopifyService> _logger;
     private readonly ISdataRepository _sdataRepository;
     private readonly IFileReadWrite _readWrite;
+    private readonly IProductRepository _productRepository;
     public ProductSyncCoordinator(
         IProductStoreMappingRepository storemaprepository,
         IShopifyRepository shopifyrepository,
         ILogger<ShopifyService> logger,
         ISdataRepository sdataRepository,
-        IFileReadWrite readWrite
+        IFileReadWrite readWrite,
+        IProductRepository  productRepository
         )
     {
         _sdataRepository = sdataRepository;
@@ -27,6 +29,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         _shopifyRepository = shopifyrepository;
         _productStoreMappingRepository = storemaprepository;
         _readWrite = readWrite;
+        _productRepository=productRepository;
     }
 
     public async Task<bool> pushProductslive(Sdata data)
@@ -118,9 +121,98 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         }
     }
 
-   
-    
-    
+    public async Task<bool> OrphanedProductCleanupAsync()
+  {
+    var stores = await GetallStoresconfigs();
+
+    _logger.LogInformation(
+        "Starting orphaned product cleanup. Stores found: {StoreCount}",
+        stores.Count
+    );
+
+    foreach (var store in stores)
+    {
+        _logger.LogInformation(
+            "Processing store {StoreName} ({StoreId})",
+            store.ShopName,
+            store.Id
+        );
+
+        try
+        {
+            var orphanedProducts =
+                await _sdataRepository.GiveOrphanedproductperstore(store.Id);
+
+            _logger.LogInformation(
+                "Found {ProductCount} orphaned products for store {StoreName}",
+                orphanedProducts.Count,
+                store.ShopName
+            );
+
+            if (!orphanedProducts.Any())
+                continue;
+
+            var shopifyService = GetShopifyService(store);
+
+            foreach (var product in orphanedProducts)
+            {
+                var mapping = product.ProductStoreMapping.FirstOrDefault();
+
+                if (mapping == null || string.IsNullOrWhiteSpace(mapping.ExternalProductId))
+                {
+                    _logger.LogWarning(
+                        "Skipping product {ProductId} – missing Shopify mapping for store {StoreName}",
+                        product.Id,
+                        store.ShopName
+                    );
+                    continue;
+                }
+                _logger.LogInformation(
+                    "Deleting Shopify product {ShopifyProductId} (ProductId: {ProductId}) from store {StoreName}",
+                    mapping.ExternalProductId,
+                    product.Id,
+                    store.ShopName
+                );
+                var deleted = await shopifyService.DeleteProduct(mapping.ExternalProductId);
+                if (!deleted)
+                {
+                    _logger.LogError(
+                        "Failed to delete Shopify product {ShopifyProductId} for store {StoreName}",
+                        mapping.ExternalProductId,
+                        store.ShopName
+                    );
+                    // Continue with next product
+                    continue;
+                }
+
+                var re = await _productStoreMappingRepository.Update_Status(mapping.Id,"Deleted");
+                _logger.LogInformation(
+                    "Successfully deleted Shopify product {ShopifyProductId} for store {StoreName}",
+                    mapping.ExternalProductId,
+                    store.ShopName
+                );
+
+               
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Cleanup failed for store {StoreName} ({StoreId})",
+                store.ShopName,
+                store.Id
+            );
+
+            // Continue with next store
+            continue;
+        }
+     }
+
+    _logger.LogInformation("Orphaned product cleanup completed successfully.");
+
+    return true;
+}
 
     private ShopifyService GetShopifyService(Shopify store)
     {

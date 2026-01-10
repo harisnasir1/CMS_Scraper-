@@ -4,6 +4,11 @@
     {
         Task<string> PushProductAsync(Sdata sdata);
         Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata);
+        
+        Task<bool> DeleteProduct(string shopifyid);
+        
         Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data, string name);
+        
+       
     }
 }

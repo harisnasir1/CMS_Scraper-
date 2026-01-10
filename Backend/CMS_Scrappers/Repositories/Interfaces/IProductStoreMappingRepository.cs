@@ -7,4 +7,6 @@ public interface IProductStoreMappingRepository
     Task<bool> InsertProductmapping(ProductStoreMapping data);
     
     Task<string> GetSyncIdBySidAndStoreId(Guid sid,Guid storeId);
+
+    Task<bool> Update_Status(Guid id, string status);
 }

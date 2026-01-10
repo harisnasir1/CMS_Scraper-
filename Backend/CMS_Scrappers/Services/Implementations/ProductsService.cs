@@ -324,6 +324,20 @@ namespace CMS_Scrappers.Services.Implementations
             
         }
 
+        public async Task<bool> OrphanedProductCleanup()
+        {
+            try
+            {
+                return await _productSyncCoordinator.OrphanedProductCleanupAsync();
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update orphaned cleanup");
+                throw;
+            }
+        }
+
         public async Task<bool> shiftallshopifyidstonew()
         {
             var livedata = await this.Livefeedproducts(1,6000);

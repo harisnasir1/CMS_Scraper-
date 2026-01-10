@@ -19,7 +19,9 @@ namespace CMS_Scrappers.Services.Interfaces
 
         Task<bool> PushAllScraperProductsLive(Guid sid,int?limit);
 
-        Task<bool> shiftallshopifyidstonew();
+        Task<bool> OrphanedProductCleanup();
+
+        Task<bool> shiftallshopifyidstonew(); //<-used for migration not needed in normal cases
         
       
     } 

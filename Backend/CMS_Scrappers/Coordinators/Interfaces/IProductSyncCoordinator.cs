@@ -7,4 +7,6 @@ public interface IProductSyncCoordinator
     Task UpdateProduct_Coordinator(List<ShopifyFlatProduct> existingproduct);
 
     Task<bool> BulkSyncLiveProduct(Guid store);
+
+    Task<bool> OrphanedProductCleanupAsync();
 }
