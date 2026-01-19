@@ -25,6 +25,7 @@ namespace CMS_Scrappers.Services.Implementations
             _ProductMappingRepository = ProductMappingRepository;
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
+            _httpClient.Timeout = TimeSpan.FromMinutes(15);
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
             _locationId = "";
@@ -979,7 +980,8 @@ namespace CMS_Scrappers.Services.Implementations
                     sdata.Condition,
                     "Not in HQ",
                     "RRSync",
-                    "RRSyncBulk"
+                    "RRSyncBulk",
+                    "US"
                 };
 
                 if (sdata.Condition == "Pre-Owned")

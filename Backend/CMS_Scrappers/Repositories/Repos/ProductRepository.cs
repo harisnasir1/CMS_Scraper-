@@ -172,7 +172,7 @@ namespace CMS_Scrappers.Repositories.Repos
 
          try{
                 var strategy = _context.Database.CreateExecutionStrategy();
-
+               
                 return await strategy.ExecuteAsync(async () =>
                 {
                     await using var transaction = await _context.Database.BeginTransactionAsync();

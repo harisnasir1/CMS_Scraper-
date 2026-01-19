@@ -158,7 +158,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 .Where(s => s.Status == "Live" 
                             && !s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid)  // NOT on this store
                             && s.Variants.Any(v => v.InStock))  // Has in-stock variantscle
-                .Take(200)
+                .Take(300)
                 .ToListAsync();
 
             return dbProductsDict;
