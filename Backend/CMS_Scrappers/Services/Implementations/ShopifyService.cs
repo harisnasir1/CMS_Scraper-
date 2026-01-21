@@ -21,7 +21,6 @@ namespace CMS_Scrappers.Services.Implementations
         private string _locationId;
         
         public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository,IFileReadWrite readWrite) {
-            
             _ProductMappingRepository = ProductMappingRepository;
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
@@ -929,6 +928,7 @@ namespace CMS_Scrappers.Services.Implementations
 
         private async Task<(List<object>,Dictionary<long,Guid>)> PrepareProductInputForGraphQL(List<Sdata> data, string name)
         {
+            var publications=await    fillteredpublications();
             var lineIndex = new Dictionary<long, Guid>();
             int linenumber = 0;
             var shopifydata = new List<object>();
@@ -966,6 +966,7 @@ namespace CMS_Scrappers.Services.Implementations
                         productType = sdata.ProductType,
                         tags = tags.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
                         status = "ACTIVE",
+                        published=true,
                         metafields = metafields,
                         productOptions = new[]
                         {
@@ -1019,7 +1020,8 @@ namespace CMS_Scrappers.Services.Implementations
         }
 
         private  async Task<List<object>> BuildMetafields(Sdata sdata, string store)
-           {
+        {
+           
                var metafields = new List<object>();
                await EnsureSyncIdMetafieldDefinitionExistsAsync();
                if (IsValidMetafieldValue(sdata.Id.ToString()))
@@ -1198,7 +1200,6 @@ namespace CMS_Scrappers.Services.Implementations
                 };
             
                 var createData = await ExecuteGraphQLAsync(createPayload);
-            
                 var userErrors = createData
                     .GetProperty("metafieldDefinitionCreate")
                     .GetProperty("userErrors");
@@ -1218,6 +1219,68 @@ namespace CMS_Scrappers.Services.Implementations
     
             Directory.CreateDirectory(baseDir);
             return Path.Combine(baseDir, $"{name}.jsonl");
+        }
+
+        private async Task<List<PublicationInfo>> fillteredpublications()
+        {
+            try
+            {
+                var allpublications = await GetStorePublications();
+                var importantChannels = new[]
+                {
+                    "Online Store",
+                    "Facebook",
+                    "Instagram", 
+                    "TikTok",
+                    "Google",
+                };
+                var filltered = allpublications.Where(p => importantChannels.Any(c =>
+                    p.Name.Contains(c, StringComparison.OrdinalIgnoreCase)
+                )).ToList();
+                _logger.LogInformation($"Publishing to {filltered.Count} channels:");
+                return filltered;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return null;
+            }
+        }
+
+        private async Task<List<PublicationInfo>> GetStorePublications()
+        {
+            var query = @"
+            query{
+            publications(first:20){
+              edges{
+            node{
+             id
+             name
+             supportsFuturePublishing
+            }}}}";
+            var payload = new { query };
+            var data = await ExecuteGraphQLAsync(payload);
+            var publications = new List<PublicationInfo>();
+            var edges = data.GetProperty("publications").GetProperty("edges");
+
+            foreach (var edge in edges.EnumerateArray())
+            {
+                var node = edge.GetProperty("node");
+                var id = node.GetProperty("id").GetString();
+                var name = node.GetProperty("name").GetString();
+                if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(name))
+                {
+                    _logger.LogError("Publications is returing null node", node);
+                    continue;
+                }
+                publications.Add(new PublicationInfo
+                {
+                    Id = id,
+                    Name = name
+                });
+            }
+
+            return publications;
         }
     }
 
