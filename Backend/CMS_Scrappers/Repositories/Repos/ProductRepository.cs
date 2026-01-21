@@ -172,7 +172,7 @@ namespace CMS_Scrappers.Repositories.Repos
 
          try{
                 var strategy = _context.Database.CreateExecutionStrategy();
-
+               
                 return await strategy.ExecuteAsync(async () =>
                 {
                     await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -186,10 +186,11 @@ namespace CMS_Scrappers.Repositories.Repos
                         ("Categorized", "Shopify Queued") => true,
                         ("Categorized", "Sync_ready") => true,
                         ("Shopify Queued", "Processing") => true,
-                        ("Processing", "Live") => true,
+                        ("Processing", "Live")=> true,
                         ("Processing", "Failed") => true,
                         ("Sync_ready", "Live") => true,
                         ("Sync_ready", "Failed") => true,
+                        ("Live", "Deleted")=> true,
                         _ => false
                     };
 

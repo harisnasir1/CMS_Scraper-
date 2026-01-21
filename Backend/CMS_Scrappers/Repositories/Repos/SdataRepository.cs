@@ -157,22 +157,39 @@ namespace CMS_Scrappers.Repositories.Repos
                 // Don't include ProductStoreMapping - we don't need it for products NOT on this store
                 .Where(s => s.Status == "Live" 
                             && !s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid)  // NOT on this store
-                            && s.Variants.Any(v => v.InStock))  // Has in-stock variants
-                .Take(1)
+                            && s.Variants.Any(v => v.InStock))  // Has in-stock variantscle
+                .Take(300)
                 .ToListAsync();
 
+            return dbProductsDict;
+        }
+
+       public async Task<List<Sdata>> GiveOrphanedproductperstore(Guid storeid)
+        {
+            var dbProductsDict =  await _context.Sdata
+                .Include(s => s.Scr)
+                .Include(s => s.ProductStoreMapping
+                    .Where(m =>
+                        m.ShopifyStoreId == storeid &&
+                        m.SyncStatus == "Live"
+                    )
+                )
+                .Where(s=>s.Status == "Live" && s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid) && s.UpdatedAt < s.Scr.Lastrun )
+                .ToListAsync();
+                 
+            
             return dbProductsDict;
         }
         public async Task<int> GiveBulkliveproductperstoreCount(Guid storeid)
         {
 
-            var dbProductsDict =  await _context.Sdata
+            var dbProductsDict =  await _context.Sdata 
                 .AsNoTracking()
                 .Include(s => s.Variants)
                 .Include(s => s.Image)
                 // Don't include ProductStoreMapping - we don't need it for products NOT on this store
                 .Where(s => s.Status == "Live" 
-                            && !s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid)  // NOT on this store
+                            && !s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid && m.SyncStatus == "Live")  // NOT on this store
                             && s.Variants.Any(v => v.InStock))  // Has in-stock variants
                 .CountAsync();
 

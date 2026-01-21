@@ -24,6 +24,7 @@ namespace CMS_Scrappers.Services.Implementations
             _ProductMappingRepository = ProductMappingRepository;
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
+            _httpClient.Timeout = TimeSpan.FromMinutes(15);
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
             _logger = logger;
             _locationId = "";
@@ -176,7 +177,38 @@ namespace CMS_Scrappers.Services.Implementations
 
             }
         }
-           
+
+        public async Task<bool> DeleteProduct(string shopifyid)
+        {
+            if (string.IsNullOrWhiteSpace(shopifyid))
+                return false;
+            
+            try
+            {   
+                var response = await _httpClient.DeleteAsync($"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2023-07/products/{shopifyid}.json").ConfigureAwait(false);
+                if (response.IsSuccessStatusCode) return true;
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _logger.LogWarning(
+                        $"Shopify product {shopifyid} already deleted for store {_shopifySettings.SHOPIFY_STORE_NAME}"
+                    );
+                    return true;
+                }
+                var body = await response.Content.ReadAsStringAsync();
+
+                _logger.LogError(
+                    $"Failed to delete Shopify product {shopifyid}. Status: {response.StatusCode}. Response: {body}"
+                );
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Exception while deleting Shopify product  {shopifyid} for {_shopifySettings.SHOPIFY_STORE_NAME}",ex);
+                return false;
+            }
+        }
+        
         public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
         {
             var jonldata = await PrepareProductInputForGraphQL(data,name);
@@ -948,7 +980,8 @@ namespace CMS_Scrappers.Services.Implementations
                     sdata.Condition,
                     "Not in HQ",
                     "RRSync",
-                    "RRSyncBulk"
+                    "RRSyncBulk",
+                    "US"
                 };
 
                 if (sdata.Condition == "Pre-Owned")
@@ -1134,6 +1167,7 @@ namespace CMS_Scrappers.Services.Implementations
            
                return metafields;
            }
+
         
         private async Task EnsureSyncIdMetafieldDefinitionExistsAsync()
             {

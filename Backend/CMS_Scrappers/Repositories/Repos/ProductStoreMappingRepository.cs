@@ -46,4 +46,29 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
            
        }
    }
+
+   public async Task<bool> Update_Status(Guid id, string status)
+   {
+       try
+       {
+           var mapping= await _context.ProductStoreMapping.FirstOrDefaultAsync(s => s.ProductId == id);
+           if (mapping == null) return false;
+           var current = mapping.SyncStatus;
+           bool allowed = (current, status) switch
+           {
+               ("Live", "Deleted") => true,
+               _ => false
+           };
+           if (!allowed) return false;
+           mapping.SyncStatus = status;
+           await _context.SaveChangesAsync();
+           return true;
+       }
+       catch (Exception e){
+           Console.WriteLine(e);
+           throw;
+       }
+   }
+   
+   
 }
