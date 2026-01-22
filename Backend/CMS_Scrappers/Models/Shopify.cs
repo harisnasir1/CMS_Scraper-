@@ -14,4 +14,10 @@ public class Shopify{
     public string  AdminApiAccessToken {get;set;}="";
     
     public string HostName{get;set;}="";
+    
+    public int VariantsCreatedToday { get; set; } = 0;
+
+    public DateTime? LastSyncedOn { get; set; }= DateTime.UtcNow.Date;
+    
+    public DateTime LastVariantResetDate { get; set; } = DateTime.UtcNow.Date;
 }

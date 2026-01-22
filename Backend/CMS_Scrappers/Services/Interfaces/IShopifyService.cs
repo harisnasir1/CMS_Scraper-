@@ -2,6 +2,7 @@
 {
     public interface IShopifyService
     {
+        Task<int> Total_variant_per_store();
         Task<string> PushProductAsync(Sdata sdata);
         Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata);
         Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data, string name);

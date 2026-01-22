@@ -149,7 +149,6 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<List<Sdata>> GiveBulkliveproductperstore(Guid storeid)
         {
-
             var dbProductsDict =  await _context.Sdata
                 .AsNoTracking()
                 .Include(s => s.Variants)

@@ -30,6 +30,29 @@ namespace CMS_Scrappers.Services.Implementations
             _locationId = "";
             _readWrite = readWrite;
         }
+        
+        public async Task<int> Total_variant_per_store()
+        {
+            try
+            {
+                var query = @"
+query ProductVariantsCount {
+  productVariantsCount {
+    count
+  }
+}";;
+                var payload = new { query = query };
+                var data = await ExecuteGraphQLAsync(payload);
+                var count =  data.GetProperty("productVariantsCount").GetProperty("count").GetInt32();
+                return count;
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error fetching total variants exists on store:{_shopifySettings.SHOPIFY_STORE_NAME} ",ex);
+                return -1;
+            }
+        }
        
         
         public async Task<string> PushProductAsync(Sdata sdata)
@@ -190,50 +213,8 @@ namespace CMS_Scrappers.Services.Implementations
                 var key = Getkeystageparm(stageres);
                 await Stage_upload_file(stageres, path);
                 var bulkOp =  await StartBulkProductCreateAsync(key);
-                var sTdata = await Pull_Bulk_results();
-                using var reader = new StreamReader(sTdata, Encoding.UTF8);
-                string? line;
-                while ((line = await reader.ReadLineAsync()) != null)
-                {
-                    Console.WriteLine($"the raw dta comming from shopify{line}");
-                    using var doc = JsonDocument.Parse(line);
-                    var ShopifyproductId = doc
-                        .RootElement
-                        .GetProperty("data")
-                        .GetProperty("productSet")
-                        .GetProperty("product")
-                        .GetProperty("id")
-                        .GetString();
-                    int lineNumber = doc.RootElement
-                        .GetProperty("__lineNumber")
-                        .GetInt32();
-                    if (string.IsNullOrEmpty(ShopifyproductId) || lineNumber == null) return false;
-                    var productid=lmap[lineNumber];
-                    Console.WriteLine($"Created product: {productid}");
-                    Console.WriteLine($"Created product: {ShopifyproductId}");
-                    string externalid = ShopifyproductId.Split('/')[4];
-                    
-                    var mapping = new ProductStoreMapping
-                    {
-                        Id = Guid.NewGuid(),
-                        ProductId = productid,
-                        ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
-                        ExternalProductId = externalid, 
-                        SyncStatus = "Live",
-                        LastSyncedAt = DateTime.UtcNow,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    try
-                    {
-                        await _ProductMappingRepository.InsertProductmapping(mapping);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                        throw;
-                    }
-                }
+                await Pull_Bulk_results(lmap);
+                
                 _readWrite.Delete_file(path);
                 return true;
             }
@@ -680,7 +661,7 @@ namespace CMS_Scrappers.Services.Implementations
             if(price<=0)return 0;
             double markup = 0.1 * p;
             double ourprice = p + markup;
-            double pound = (int)Math.Round(ourprice * 0.74);
+            double pound = (int)Math.Round(ourprice * 0.8);
             double k = (int)pound / 5;
             double converted = k * 5;            
             return converted;
@@ -770,36 +751,66 @@ namespace CMS_Scrappers.Services.Implementations
             var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
             return url;
         }
- 
+
+
+      
         
         private async Task Stage_upload_file(JsonElement stageRes, string path)
-        {
+    {
+    var uploadUrl = stageRes.GetProperty("url").GetString();
+    var parameters = stageRes.GetProperty("parameters");
 
-            try
+    
+    using var form = new MultipartFormDataContent("UploadBoundary" + DateTime.Now.Ticks.ToString("x"));
+
+ 
+    foreach (var p in parameters.EnumerateArray())
+    {
+        var name = p.GetProperty("name").GetString();
+        var value = p.GetProperty("value").GetString();
+        
+        var content = new StringContent(value);
+        // Remove default headers that can confuse Google on simple string parts
+        content.Headers.Remove("Content-Type");
+        form.Add(content, name);
+    }
+    
+    byte[] fileBytes = await File.ReadAllBytesAsync(path);
+    var fileContent = new ByteArrayContent(fileBytes);
+    fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+
+    form.Add(fileContent, "file", "bulk_upload.jsonl");
+
+
+    foreach (var part in form)
+    {
+        if (part.Headers.ContentDisposition != null)
+        {
+         
+            part.Headers.ContentDisposition.FileNameStar = null;
+            
+         
+            part.Headers.ContentDisposition.Name = $"\"{part.Headers.ContentDisposition.Name.Trim('"')}\"";
+            if (part.Headers.ContentDisposition.FileName != null)
             {
-                var target = stageRes;
-                var uploadUrl = target.GetProperty("url").GetString();
-                var parameters = target.GetProperty("parameters");
-                using var form = new MultipartFormDataContent();
-                foreach (var p in parameters.EnumerateArray())
-                {
-                    var name = p.GetProperty("name").GetString();
-                    var value = p.GetProperty("value").GetString();
-                    form.Add(new StringContent(value), name);
-                }
-                await using var jsonlStream = await _readWrite.ReadJsonlFileAsStreamAsync(path);
-                var fileContent = new StreamContent(jsonlStream);
-                fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
-                form.Add(fileContent, "file");
-                var response = await _httpClient.PostAsync(uploadUrl, form);
-                response.EnsureSuccessStatusCode();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
+                part.Headers.ContentDisposition.FileName = $"\"{part.Headers.ContentDisposition.FileName.Trim('"')}\"";
             }
         }
+    }
+
+
+    _httpClient.DefaultRequestHeaders.TransferEncodingChunked = false;
+
+    var response = await _httpClient.PostAsync(uploadUrl, form);
+
+    if (!response.IsSuccessStatusCode)
+    {
+        var errorBody = await response.Content.ReadAsStringAsync();
+        // This will print the XML error from Google if it still fails
+        Console.WriteLine($"Google Response: {errorBody}");
+        response.EnsureSuccessStatusCode();
+    }
+}
         private async Task<BulkOperationStartResult> StartBulkProductCreateAsync(string stagedUploadPath)
         {
             var payload = new
@@ -855,16 +866,15 @@ namespace CMS_Scrappers.Services.Implementations
                 Status = bulk.GetProperty("status").GetString()
             };
         }
-        
-        private async Task<Stream?> Pull_Bulk_results()
+        private async Task<Boolean> Pull_Bulk_results(Dictionary<long, Guid> lmap)
+{
+    try
+    {
+        var payload = new
         {
-            try
-            {
-                var payload = new
+            query = @"{
+                currentBulkOperation(type: MUTATION) 
                 {
-                    query = @"{
-                  currentBulkOperation(type: MUTATION) 
-                  {
                     id
                     status
                     errorCode
@@ -872,44 +882,122 @@ namespace CMS_Scrappers.Services.Implementations
                     fileSize
                     url
                     partialDataUrl
-                  }}"
-                };
-                var bres  = await ExecuteGraphQLAsync(payload);
-                var status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
-                while (status!="COMPLETED")
-                { 
-                    //240000 in production 4 mins
-                    await Task.Delay(2400);
-                    bres=await ExecuteGraphQLAsync(payload);
-                    status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+                }}"
+        };
+
+     
+        _logger.LogInformation("Starting polling for Bulk Operation completion...");
+        var bres = await ExecuteGraphQLAsync(payload);
+        var status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+
+        while (status != "COMPLETED")
+        {
+            if (status == "FAILED" || status == "CANCELED")
+            {
+                var error = bres.GetProperty("currentBulkOperation").GetProperty("errorCode").GetString();
+                _logger.LogError($"Bulk operation stopped. Status: {status}, Error: {error}");
+                return false;
+            }
+
+            
+            await Task.Delay(220000); 
+            bres = await ExecuteGraphQLAsync(payload);
+            status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+            _logger.LogInformation($"Current Status: {status}");
+        }
+
+       
+        _logger.LogInformation("Operation COMPLETED. Waiting 20s for file stabilization...");
+        await Task.Delay(20000);
+
+        var url = bres.GetProperty("currentBulkOperation").GetProperty("url").ToString();
+        if (string.IsNullOrEmpty(url))
+        {
+            _logger.LogError("Bulk operation completed but URL is null.");
+            return false;
+        }
+
+ 
+        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogError("Shopify result file not found (404).");
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        using (var sTdata = await response.Content.ReadAsStreamAsync())
+        using (var reader = new StreamReader(sTdata, Encoding.UTF8))
+        {
+            string? line;
+            int successCount = 0;
+            int errorCount = 0;
+
+            _logger.LogInformation("Starting to parse results...");
+
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(line);
+                    var productSet = doc.RootElement.GetProperty("data").GetProperty("productSet");
                     
-                    if (status == "FAILED" || status == "CANCELED")
+                    if (productSet.TryGetProperty("product", out var product) && product.ValueKind != JsonValueKind.Null)
                     {
-                        var error = bres.GetProperty("currentBulkOperation").GetProperty("errorCode").GetString();
-                        throw new Exception($"Bulk operation failed: {error}");
+                        var shopifyId = product.GetProperty("id").GetString();
+                        int lineNumber = doc.RootElement.GetProperty("__lineNumber").GetInt32();
+
+                        
+                        if (lmap.TryGetValue((long)lineNumber, out Guid productid))
+                        {
+                            string externalid = shopifyId.Split('/').Last(); 
+
+                            var mapping = new ProductStoreMapping
+                            {
+                                Id = Guid.NewGuid(),
+                                ProductId = productid,
+                                ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
+                                ExternalProductId = externalid,
+                                SyncStatus = "Live",
+                                LastSyncedAt = DateTime.UtcNow,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow
+                            };
+                            await _ProductMappingRepository.InsertProductmapping(mapping);
+                            successCount++;
+                        }
+                        else
+                        {
+                            _logger.LogWarning($"Line {lineNumber} in Shopify file had no matching entry in lmap.");
+                            errorCount++;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"Shopify skipped line creation. Raw: {line}");
+                        errorCount++;
                     }
                 }
-
-                var url = bres.GetProperty("currentBulkOperation").GetProperty("url").ToString();
-                
-                var s = await _httpClient.GetAsync(url,HttpCompletionOption.ResponseContentRead);
-                if (s.StatusCode == HttpStatusCode.NotFound)
+                catch (Exception ex)
                 {
-                    return null;
+                    _logger.LogError($"Error processing a single result line: {ex.Message}");
+                    errorCount++;
                 }
-                
-                s.EnsureSuccessStatusCode();    
-                
-                var sd= await s.Content.ReadAsStreamAsync();
-               return sd;
+            }
 
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return null;
-            }
+            _logger.LogInformation($"Bulk Processing Finished. Success: {successCount}, Errors/Skipped: {errorCount}");
         }
+
+        return true;
+    }
+    catch (Exception e)
+    {
+        _logger.LogCritical($"Critical failure in Pull_Bulk_results: {e.Message}");
+        return false;
+    }
+}
         
         private string? Getkeystageparm(JsonElement t)
         {
@@ -923,7 +1011,6 @@ namespace CMS_Scrappers.Services.Implementations
                     return value;
                 }
             }
-
             return null;
         }
 
@@ -933,11 +1020,11 @@ namespace CMS_Scrappers.Services.Implementations
             int linenumber = 0;
             var shopifydata = new List<object>();
             var locid = await GetFirstLocationIdAsync();
-
+            string batchTimestamp = $"Batch-{DateTime.Now:dd-MM-yy-HHmm}";
             foreach (var sdata in data)
             {
                 var metafields = await BuildMetafields(sdata, name);
-
+         
                 var tags = new List<string>
                 {
                     "ALL PRODUCTS",
@@ -948,7 +1035,8 @@ namespace CMS_Scrappers.Services.Implementations
                     sdata.Condition,
                     "Not in HQ",
                     "RRSync",
-                    "RRSyncBulk"
+                    "RRSyncBulk",
+                    "test1"
                 };
 
                 if (sdata.Condition == "Pre-Owned")
