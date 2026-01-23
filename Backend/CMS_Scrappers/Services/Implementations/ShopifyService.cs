@@ -1114,6 +1114,7 @@ namespace CMS_Scrappers.Services.Implementations
                     "Not in HQ",
                     "RRSync",
                     "RRSyncBulk",
+                    "US",
                     batchTimestamp
                 };
 
