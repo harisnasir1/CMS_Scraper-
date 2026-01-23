@@ -35,11 +35,11 @@ namespace CMS_Scrappers.Services.Implementations
             try
             {
                 var query = @"
-query ProductVariantsCount {
-  productVariantsCount {
-    count
-  }
-}";;
+                 query ProductVariantsCount {
+                   productVariantsCount {
+                     count
+                   }
+                 }";;
                 var payload = new { query = query };
                 var data = await ExecuteGraphQLAsync(payload);
                 var count =  data.GetProperty("productVariantsCount").GetProperty("count").GetInt32();
@@ -52,7 +52,6 @@ query ProductVariantsCount {
                 return -1;
             }
         }
-       
         
         public async Task<string> PushProductAsync(Sdata sdata)
         {
@@ -104,8 +103,7 @@ query ProductVariantsCount {
             }
             return shopifyProductId.ToString();
         }
-
-
+        
         public async Task<bool> pushmetafields(Sdata sdata, string productId)
         {
             _logger.LogInformation($"Starting metafield update for product {productId}");
@@ -205,14 +203,12 @@ query ProductVariantsCount {
             var jonldata = await PrepareProductInputForGraphQL(data,name);
             var lmap = jonldata.Item2;
             string path = GetJsonlPath(name);
-            await _readWrite.Wrtie_data(jonldata.Item1, path);
             try
             {
-                var stageres= await Stage_uploads_Create(name);
-                var key = Getkeystageparm(stageres);
-                await Stage_upload_file(stageres, path);
+                var key=await Initial_prep_for_Bulk(name,jonldata.Item1);
+                if (string.IsNullOrEmpty(key)) return false;
                 var bulkOp =  await StartBulkProductCreateAsync(key);
-                var shopifyCmsIds=   await Pull_Bulk_results(lmap);
+                var shopifyCmsIds=   await Insert_Get_BulkInsert_Data(lmap);
                 if (shopifyCmsIds.Count==0)
                 {
                     _logger.LogError("No Shopify IDs were returned from the pulling function. Stopping bulk insert.");   
@@ -297,18 +293,18 @@ query ProductVariantsCount {
                 }
 
                 var mutation = @"
-        mutation setMetafields($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields {
-              id
-              key
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }";
+                        mutation setMetafields($metafields: [MetafieldsSetInput!]!) {
+                          metafieldsSet(metafields: $metafields) {
+                            metafields {
+                              id
+                              key
+                            }
+                            userErrors {
+                              field
+                              message
+                            }
+                          }
+                        }";
 
                 var payload = new
                 {
@@ -460,28 +456,27 @@ query ProductVariantsCount {
             }
         }
         
-        
         private async Task<Dictionary<string, (string variantId, string inventoryId)>> GetVariantInventoryIdsAsync(string productGid)
         {
             var query = @"
-        query getProductVariants($id: ID!) {
-            product(id: $id) {
-                variants(first: 50) {
-                    edges {
-                        node {
-                            id
-                            selectedOptions {
-                                name
-                                value
-                            }
-                            inventoryItem {
-                                id
-                            }
-                        }
-                    }
-                }
-            }
-        }";
+                   query getProductVariants($id: ID!) {
+                       product(id: $id) {
+                           variants(first: 50) {
+                               edges {
+                                   node {
+                                       id
+                                       selectedOptions {
+                                           name
+                                           value
+                                       }
+                                       inventoryItem {
+                                           id
+                                       }
+                                   }
+                               }
+                           }
+                       }
+                   }";
 
             var variables = new { id = productGid };
             var payload = new { query, variables };
@@ -568,21 +563,21 @@ query ProductVariantsCount {
             foreach (var productGroup in groupedByProduct)
             {
                 var mutation = @"
-            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-                productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                    product {
-                        id
-                    }
-                    productVariants {
-                        id
-                        price
-                    }
-                    userErrors {
-                        field
-                        message
-                    }
-                }
-            }";
+                       mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                           productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                               product {
+                                   id
+                               }
+                               productVariants {
+                                   id
+                                   price
+                               }
+                               userErrors {
+                                   field
+                                   message
+                               }
+                           }
+                       }";
 
                 // Transform to only include id and price (remove productId)
                 var variantsForMutation = productGroup.Select(v => new 
@@ -722,23 +717,22 @@ query ProductVariantsCount {
         private async Task<JsonElement> Stage_uploads_Create(string name)
         {
             var query =  @"
-        mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
-          stagedUploadsCreate(input: $input) {
-            stagedTargets {
-              url
-              resourceUrl
-              parameters {
-                name
-                value
-              }
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }
-    ";;
+                    mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+                      stagedUploadsCreate(input: $input) {
+                        stagedTargets {
+                          url
+                          resourceUrl
+                          parameters {
+                            name
+                            value
+                          }
+                        }
+                        userErrors {
+                          field
+                          message
+                        }
+                      }
+                    } ";;
             var variables = new
             {
                 input = new[]
@@ -757,66 +751,67 @@ query ProductVariantsCount {
             var url = k.GetProperty("stagedUploadsCreate").GetProperty("stagedTargets")[0];
             return url;
         }
-
-
-      
         
-        private async Task Stage_upload_file(JsonElement stageRes, string path)
+        private async Task <Boolean> Stage_upload_file(JsonElement stageRes, string path)
     {
-    var uploadUrl = stageRes.GetProperty("url").GetString();
-    var parameters = stageRes.GetProperty("parameters");
+                  var uploadUrl = stageRes.GetProperty("url").GetString();
+                  var parameters = stageRes.GetProperty("parameters");
+              
+                  
+                  using var form = new MultipartFormDataContent("UploadBoundary" + DateTime.Now.Ticks.ToString("x"));
+              
+               
+                  foreach (var p in parameters.EnumerateArray())
+                  {
+                      var name = p.GetProperty("name").GetString();
+                      var value = p.GetProperty("value").GetString();
+                      
+                      var content = new StringContent(value);
+                      // Remove default headers that can confuse Google on simple string parts
+                      content.Headers.Remove("Content-Type");
+                      form.Add(content, name);
+                  }
+                  
+                  byte[] fileBytes = await File.ReadAllBytesAsync(path);
+                  var fileContent = new ByteArrayContent(fileBytes);
+                  fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+              
+                  form.Add(fileContent, "file", "bulk_upload.jsonl");
+              
+              
+                  foreach (var part in form)
+                  {
+                      if (part.Headers.ContentDisposition != null)
+                      {
+                       
+                          part.Headers.ContentDisposition.FileNameStar = null;
+                          
+                       
+                          part.Headers.ContentDisposition.Name = $"\"{part.Headers.ContentDisposition.Name.Trim('"')}\"";
+                          if (part.Headers.ContentDisposition.FileName != null)
+                          {
+                              part.Headers.ContentDisposition.FileName = $"\"{part.Headers.ContentDisposition.FileName.Trim('"')}\"";
+                          }
+                      }
+                  }
+              
+              
+                  _httpClient.DefaultRequestHeaders.TransferEncodingChunked = false;
+              
+                  var response = await _httpClient.PostAsync(uploadUrl, form);
+                   
+                  if (!response.IsSuccessStatusCode)
+                  {
+                      var errorBody = await response.Content.ReadAsStringAsync();
+                      // This will print the XML error from Google if it still fails
+                      Console.WriteLine($"Google Response: {errorBody}");
+                      response.EnsureSuccessStatusCode();
+                      return false;
+                  }
 
-    
-    using var form = new MultipartFormDataContent("UploadBoundary" + DateTime.Now.Ticks.ToString("x"));
-
- 
-    foreach (var p in parameters.EnumerateArray())
-    {
-        var name = p.GetProperty("name").GetString();
-        var value = p.GetProperty("value").GetString();
+                  return true;
+    }
         
-        var content = new StringContent(value);
-        // Remove default headers that can confuse Google on simple string parts
-        content.Headers.Remove("Content-Type");
-        form.Add(content, name);
-    }
-    
-    byte[] fileBytes = await File.ReadAllBytesAsync(path);
-    var fileContent = new ByteArrayContent(fileBytes);
-    fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
-
-    form.Add(fileContent, "file", "bulk_upload.jsonl");
-
-
-    foreach (var part in form)
-    {
-        if (part.Headers.ContentDisposition != null)
-        {
-         
-            part.Headers.ContentDisposition.FileNameStar = null;
-            
-         
-            part.Headers.ContentDisposition.Name = $"\"{part.Headers.ContentDisposition.Name.Trim('"')}\"";
-            if (part.Headers.ContentDisposition.FileName != null)
-            {
-                part.Headers.ContentDisposition.FileName = $"\"{part.Headers.ContentDisposition.FileName.Trim('"')}\"";
-            }
-        }
-    }
-
-
-    _httpClient.DefaultRequestHeaders.TransferEncodingChunked = false;
-
-    var response = await _httpClient.PostAsync(uploadUrl, form);
-
-    if (!response.IsSuccessStatusCode)
-    {
-        var errorBody = await response.Content.ReadAsStringAsync();
-        // This will print the XML error from Google if it still fails
-        Console.WriteLine($"Google Response: {errorBody}");
-        response.EnsureSuccessStatusCode();
-    }
-}
         private async Task<BulkOperationStartResult> StartBulkProductCreateAsync(string stagedUploadPath)
         {
             var payload = new
@@ -871,137 +866,216 @@ query ProductVariantsCount {
                 Id = bulk.GetProperty("id").GetString(),
                 Status = bulk.GetProperty("status").GetString()
             };
-        } 
-        private async Task<Dictionary<Guid, string>> Pull_Bulk_results(Dictionary<long, Guid> lmap)
-{
-    try
-    {
-        var payload = new
-        {
-            query = @"{
-                currentBulkOperation(type: MUTATION) 
-                {
-                    id
-                    status
-                    errorCode
-                    objectCount
-                    fileSize
-                    url
-                    partialDataUrl
-                }}"
-        };
-        Dictionary<Guid, string> Shopify_cmsids = new Dictionary<Guid, string>();
-        _logger.LogInformation("Starting polling for Bulk Operation completion...");
-        var bres = await ExecuteGraphQLAsync(payload);
-        var status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+        }
 
-        while (status != "COMPLETED")
+        private async Task<BulkOperationStartResult> StartBulkProductPublishAsync(string stagedUploadPath)
         {
-            if (status == "FAILED" || status == "CANCELED")
+            var payload = new
             {
-                var error = bres.GetProperty("currentBulkOperation").GetProperty("errorCode").GetString();
-                _logger.LogError($"Bulk operation stopped. Status: {status}, Error: {error}");
+                query = @"
+                    mutation bulkPublish($path: String!) {
+                      bulkOperationRunMutation(
+                        mutation: ""
+                          mutation publishProduct($id: ID!, $input: [PublicationInput!]!) {
+                            publishablePublish(id: $id, input: $input) {
+                              publishable {
+                                ... on Product { id }
+                              }
+                              userErrors {
+                                field
+                                message
+                              }
+                            }
+                          }
+                        ""
+                        stagedUploadPath: $path
+                      ) {
+                        bulkOperation {
+                          id
+                          status
+                        }
+                        userErrors {
+                          field
+                          message
+                        }
+                      }
+                    }",
+                variables = new
+                {
+                    path = stagedUploadPath
+                }
+            };
+
+            var data = await ExecuteGraphQLAsync(payload);
+            var root = data.GetProperty("bulkOperationRunMutation");
+
+            if (root.TryGetProperty("userErrors", out var errors) && errors.GetArrayLength() > 0)
+            {
+                // Log specifically for debugging
+                _logger.LogError($"Bulk Publication Start Error: {errors}");
+                throw new Exception($"Bulk Publication start error: {errors}");
+            }
+
+            var bulk = root.GetProperty("bulkOperation");
+
+            return new BulkOperationStartResult
+            {
+                Id = bulk.GetProperty("id").GetString(),
+                Status = bulk.GetProperty("status").GetString()
+            };
+        }
+        
+        private async Task<string> Pull_Bulk_results()
+        {
+             try
+             {
+                 var payload = new
+                 {
+                     query = @"{
+                         currentBulkOperation(type: MUTATION) 
+                         {
+                             id
+                             status
+                             errorCode
+                             objectCount
+                             fileSize
+                             url
+                             partialDataUrl
+                         }}"
+                 };
+                 _logger.LogInformation("Starting polling for Bulk Operation completion...");
+                 var bres = await ExecuteGraphQLAsync(payload);
+                 var status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+        
+                 while (status != "COMPLETED")
+                 {
+                     if (status == "FAILED" || status == "CANCELED")
+                     {
+                         var error = bres.GetProperty("currentBulkOperation").GetProperty("errorCode").GetString();
+                         _logger.LogError($"Bulk operation stopped. Status: {status}, Error: {error}");
+                         return "";
+                     }
+        
+                     
+                     await Task.Delay(22000); 
+                     bres = await ExecuteGraphQLAsync(payload);
+                     status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
+                     _logger.LogInformation($"Current Status: {status}");
+                 }
+                 
+                 _logger.LogInformation("Operation COMPLETED. Waiting 20s for file stabilization...");
+                 await Task.Delay(2000);
+        
+                 var url = bres.GetProperty("currentBulkOperation").GetProperty("url").ToString();
+                 if (string.IsNullOrEmpty(url))
+                 {
+                     _logger.LogError("Bulk operation completed but URL is null.");
+                     return "";
+                 }
+
+                 return url;
+
+             }
+             catch (Exception e)
+             {
+                 _logger.LogCritical($"Critical failure in Pull_Bulk_results: {e.Message}");
+                 return "";
+             }
+             
+        }
+
+        private async Task<Dictionary<Guid, string>> Insert_Get_BulkInsert_Data(Dictionary<long, Guid> lmap)
+        {
+            try
+            {
+                Dictionary<Guid, string> Shopify_cmsids = new Dictionary<Guid, string>();
+                var url =await Pull_Bulk_results();
+                if (string.IsNullOrEmpty(url))
+                {
+                    return new Dictionary<Guid, string>();
+                }
+                 using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                 
+                 if (response.StatusCode == HttpStatusCode.NotFound)
+                 {
+                     _logger.LogError("Shopify result file not found (404).");
+                     return new Dictionary<Guid, string>();
+                 }
+        
+                 response.EnsureSuccessStatusCode();
+        
+                 using (var sTdata = await response.Content.ReadAsStreamAsync())
+                 using (var reader = new StreamReader(sTdata, Encoding.UTF8))
+                 {
+                     string? line;
+                     int successCount = 0;
+                     int errorCount = 0;
+        
+                     _logger.LogInformation("Starting to parse results...");
+        
+                     while ((line = await reader.ReadLineAsync()) != null)
+                     {
+                         try
+                         {
+                             using var doc = JsonDocument.Parse(line);
+                             var productSet = doc.RootElement.GetProperty("data").GetProperty("productSet");
+                             
+                             if (productSet.TryGetProperty("product", out var product) && product.ValueKind != JsonValueKind.Null)
+                             {
+                                 var shopifyId = product.GetProperty("id").GetString();
+                                 int lineNumber = doc.RootElement.GetProperty("__lineNumber").GetInt32();
+        
+                                 
+                                 if (lmap.TryGetValue((long)lineNumber, out Guid productid))
+                                 {
+                                     string externalid = shopifyId.Split('/').Last(); 
+        
+                                     var mapping = new ProductStoreMapping
+                                     {
+                                         Id = Guid.NewGuid(),
+                                         ProductId = productid,
+                                         ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
+                                         ExternalProductId = externalid,
+                                         SyncStatus = "Live",
+                                         LastSyncedAt = DateTime.UtcNow,
+                                         CreatedAt = DateTime.UtcNow,
+                                         UpdatedAt = DateTime.UtcNow
+                                     };
+                                     await _ProductMappingRepository.InsertProductmapping(mapping);
+                                     Shopify_cmsids.Add(productid, shopifyId);
+                                     successCount++;
+                                 }
+                                 else
+                                 {
+                                     _logger.LogWarning($"Line {lineNumber} in Shopify file had no matching entry in lmap.");
+                                     errorCount++;
+                                 }
+                             }
+                             else
+                             {
+                                 _logger.LogWarning($"Shopify skipped line creation. Raw: {line}");
+                                 errorCount++;
+                             }
+                         }
+                         catch (Exception ex)
+                         {
+                             _logger.LogError($"Error processing a single result line: {ex.Message}");
+                             errorCount++;
+                         }
+                     }
+        
+                     _logger.LogInformation($"Bulk Processing Finished. Success: {successCount}, Errors/Skipped: {errorCount}");
+                 }
+        
+                 return Shopify_cmsids;
+            }
+            catch (Exception e)
+            {
+                _logger.LogCritical($"Critical failure in Pull_Bulk_results: {e.Message}");
                 return new Dictionary<Guid, string>();
             }
-
-            
-            await Task.Delay(220000); 
-            bres = await ExecuteGraphQLAsync(payload);
-            status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
-            _logger.LogInformation($"Current Status: {status}");
+         
         }
-        
-        _logger.LogInformation("Operation COMPLETED. Waiting 20s for file stabilization...");
-        await Task.Delay(20000);
-
-        var url = bres.GetProperty("currentBulkOperation").GetProperty("url").ToString();
-        if (string.IsNullOrEmpty(url))
-        {
-            _logger.LogError("Bulk operation completed but URL is null.");
-            return new Dictionary<Guid, string>();
-        }
-        
-        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-        
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            _logger.LogError("Shopify result file not found (404).");
-            return new Dictionary<Guid, string>();
-        }
-
-        response.EnsureSuccessStatusCode();
-
-        using (var sTdata = await response.Content.ReadAsStreamAsync())
-        using (var reader = new StreamReader(sTdata, Encoding.UTF8))
-        {
-            string? line;
-            int successCount = 0;
-            int errorCount = 0;
-
-            _logger.LogInformation("Starting to parse results...");
-
-            while ((line = await reader.ReadLineAsync()) != null)
-            {
-                try
-                {
-                    using var doc = JsonDocument.Parse(line);
-                    var productSet = doc.RootElement.GetProperty("data").GetProperty("productSet");
-                    
-                    if (productSet.TryGetProperty("product", out var product) && product.ValueKind != JsonValueKind.Null)
-                    {
-                        var shopifyId = product.GetProperty("id").GetString();
-                        int lineNumber = doc.RootElement.GetProperty("__lineNumber").GetInt32();
-
-                        
-                        if (lmap.TryGetValue((long)lineNumber, out Guid productid))
-                        {
-                            string externalid = shopifyId.Split('/').Last(); 
-
-                            var mapping = new ProductStoreMapping
-                            {
-                                Id = Guid.NewGuid(),
-                                ProductId = productid,
-                                ShopifyStoreId = _shopifySettings.SHOPIFY_STORE_ID,
-                                ExternalProductId = externalid,
-                                SyncStatus = "Live",
-                                LastSyncedAt = DateTime.UtcNow,
-                                CreatedAt = DateTime.UtcNow,
-                                UpdatedAt = DateTime.UtcNow
-                            };
-                            await _ProductMappingRepository.InsertProductmapping(mapping);
-                            Shopify_cmsids.Add(productid, shopifyId);
-                            successCount++;
-                        }
-                        else
-                        {
-                            _logger.LogWarning($"Line {lineNumber} in Shopify file had no matching entry in lmap.");
-                            errorCount++;
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"Shopify skipped line creation. Raw: {line}");
-                        errorCount++;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Error processing a single result line: {ex.Message}");
-                    errorCount++;
-                }
-            }
-
-            _logger.LogInformation($"Bulk Processing Finished. Success: {successCount}, Errors/Skipped: {errorCount}");
-        }
-
-        return Shopify_cmsids;
-    }
-    catch (Exception e)
-    {
-        _logger.LogCritical($"Critical failure in Pull_Bulk_results: {e.Message}");
-        return new Dictionary<Guid, string>();
-    }
-}
         
         private string? Getkeystageparm(JsonElement t)
         {
@@ -1115,10 +1189,57 @@ query ProductVariantsCount {
             try
             {
                 var jsonldata = await prepareproductpublicationGraphql(cmsShopifyIds);
+                name = name + "_publish";
                 string path = GetJsonlPath(name);
-                var filename = path + "channels";
-                await _readWrite.Wrtie_data(jsonldata, path);
-                var stageres= await Stage_uploads_Create(name);
+                var key=  await Initial_prep_for_Bulk(name, jsonldata);
+                var pstatus=await StartBulkProductPublishAsync(key);
+                if (string.IsNullOrEmpty(pstatus.Id) || pstatus.Status == "FAILED")
+                {
+                    _logger.LogError($"Bulk Publication failed to queue. Status: {pstatus.Status}");
+                    return false; 
+                }
+                var url =await Pull_Bulk_results();
+              
+                if (string.IsNullOrEmpty(url))
+                {
+                    _logger.LogError($"Issue with pull Bulk operation : {url}");
+                    return  false;
+                }
+                using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                 
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _logger.LogError("Shopify result file not found (404).");
+                    return false;
+                }
+        
+                response.EnsureSuccessStatusCode();
+                using (var sTdata = await response.Content.ReadAsStreamAsync())
+                using (var reader = new StreamReader(sTdata, Encoding.UTF8))
+                {
+                    string? line;
+                    int successCount = 0;
+                    int errorCount = 0;
+
+                    _logger.LogInformation("Starting to parse results...");
+
+                    while ((line = await reader.ReadLineAsync()) != null)
+                    {
+                        using var doc = JsonDocument.Parse(line);
+                        var pubResult = doc.RootElement.GetProperty("data").GetProperty("publishablePublish");
+    
+                        if (pubResult.TryGetProperty("userErrors", out var errors) && errors.GetArrayLength() > 0)
+                        {
+                            _logger.LogError($"Line {doc.RootElement.GetProperty("__lineNumber")}: {errors.GetRawText()}");
+                        }
+                        else
+                        {
+                            successCount++;
+                        }
+                    }
+                    _logger.LogInformation($"Publishing finished. Success: {successCount}");
+                }
+                _readWrite.Delete_file(path);
                 return true;
             }
             catch (Exception e)
@@ -1128,8 +1249,27 @@ query ProductVariantsCount {
             }
         }
 
-        private async Task<List<object>> prepareproductpublicationGraphql(Dictionary<Guid, string> cmsShopifyIds)
+        private async Task<string> Initial_prep_for_Bulk(string name,List<object> jsonldata)
+        {
+            try
+            { 
+                string path = GetJsonlPath(name);
+                await _readWrite.Wrtie_data(jsonldata, path);
+                var stageres= await Stage_uploads_Create(name);
+                var key = Getkeystageparm(stageres);
+                if (key == null || string.IsNullOrEmpty(key)) return "";
+                var flag= await Stage_upload_file(stageres, path);
+                if (!flag) return "";
+                return key;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("eror on building publication mutation data.");
+                throw;
+            }
+        }
 
+        private async Task<List<object>> prepareproductpublicationGraphql(Dictionary<Guid, string> cmsShopifyIds)
         {
             try
             {
@@ -1144,12 +1284,9 @@ query ProductVariantsCount {
                 {    
                     publications.Add( new
                     {
-                        mutation = "mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { userErrors { message } } }",
-                        variables = new
-                        {
-                            id =entry.Value,
-                            input=publicationInputs,
-                        },
+                       
+                        id =entry.Value,
+                        input=publicationInputs,
  
                     }  );
                     
@@ -1159,7 +1296,7 @@ query ProductVariantsCount {
             }
             catch (Exception ex)
             {
-                _logger.LogError("eror on building publication mutation data.");
+                _logger.LogError(ex, "Error on building publication mutation data.");
                 return new List<object>();
             }
             
@@ -1366,9 +1503,8 @@ query ProductVariantsCount {
             Directory.CreateDirectory(baseDir);
             return Path.Combine(baseDir, $"{name}.jsonl");
         }
-        
-        
-          private async Task<List<PublicationInfo>> fillteredpublications()
+
+        private async Task<List<PublicationInfo>> fillteredpublications()
         {
             try
             {
@@ -1390,7 +1526,7 @@ query ProductVariantsCount {
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                return null;
+                return new List<PublicationInfo>();
             }
         }
 
@@ -1430,6 +1566,4 @@ query ProductVariantsCount {
             return publications;
         }
     }
-    
-
 }
