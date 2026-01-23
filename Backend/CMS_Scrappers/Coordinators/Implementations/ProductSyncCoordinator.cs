@@ -30,7 +30,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         _productStoreMappingRepository = storemaprepository;
         _readWrite = readWrite;
         STORE_VARIANT_LIMIT = 50000;
-        VARIANT_THRESHOLD = 900;
+        VARIANT_THRESHOLD = 400;
     }
 
     public async Task<bool> pushProductslive(Sdata data)
