@@ -149,7 +149,6 @@ namespace CMS_Scrappers.Repositories.Repos
         }
         public async Task<List<Sdata>> GiveBulkliveproductperstore(Guid storeid)
         {
-
             var dbProductsDict =  await _context.Sdata
                 .AsNoTracking()
                 .Include(s => s.Variants)
@@ -158,6 +157,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 .Where(s => s.Status == "Live" 
                             && !s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid)  // NOT on this store
                             && s.Variants.Any(v => v.InStock))  // Has in-stock variants
+                .Take(5)
                 .ToListAsync();
 
             return dbProductsDict;

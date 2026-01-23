@@ -34,3 +34,8 @@ public class Get_all_store_response
     public string store_name { get; set; }
     public int store_out_of_sync { get; set; }
 }
+public class PublicationInfo
+{
+    public string Id { get; set; }
+    public string Name { get; set; }
+}

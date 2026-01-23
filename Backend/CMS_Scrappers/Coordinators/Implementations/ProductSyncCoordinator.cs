@@ -14,6 +14,8 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly ILogger<ShopifyService> _logger;
     private readonly ISdataRepository _sdataRepository;
     private readonly IFileReadWrite _readWrite;
+    private  int STORE_VARIANT_LIMIT;
+    private readonly int VARIANT_THRESHOLD;
     public ProductSyncCoordinator(
         IProductStoreMappingRepository storemaprepository,
         IShopifyRepository shopifyrepository,
@@ -27,6 +29,8 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         _shopifyRepository = shopifyrepository;
         _productStoreMappingRepository = storemaprepository;
         _readWrite = readWrite;
+        STORE_VARIANT_LIMIT = 50000;
+        VARIANT_THRESHOLD = 900;
     }
 
     public async Task<bool> pushProductslive(Sdata data)
@@ -104,11 +108,59 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         {
             var shop = await _shopifyRepository.GiveStoreById(store);
             if(shop == null) return false;
-            var data = await _sdataRepository.GiveBulkliveproductperstore(shop.Id);
+            
             var _shopifyservice = GetShopifyService(shop);
-            var lookup_id_line_map=
-            await _shopifyservice.Bulk_mutation_shopify_product_creation(data, shop.ShopName);
-            _logger.LogInformation($"Synced {data.Count} to {shop.ShopName}");
+            
+            var total_varinats_online = await _shopifyservice.Total_variant_per_store();
+            if (total_varinats_online == -1)
+            {
+                return false;
+            }
+
+            List<Sdata> data = await _sdataRepository.GiveBulkliveproductperstore(shop.Id);
+            if (data.Count < 1)
+            {
+                return false;
+            }; 
+            
+            int allowedVariantBudget = int.MaxValue;
+
+            if (total_varinats_online >= this.STORE_VARIANT_LIMIT)
+            {
+                allowedVariantBudget = this.VARIANT_THRESHOLD - shop.VariantsCreatedToday; 
+            }
+            
+            var selectedProducts = new List<Sdata>();
+            int variantSum = 0;
+            
+            foreach (var product in data)
+            {
+                int CVariants = product.Variants.Count();
+
+                if (CVariants == 0)
+                    continue; // skip products with no in-stock variants
+
+                if (variantSum + CVariants > allowedVariantBudget)
+                    break; // stop before exceeding limit
+
+                selectedProducts.Add(product);
+                variantSum += CVariants;
+            }
+            
+            if (!selectedProducts.Any())
+                return false;
+            _logger.LogInformation($" {selectedProducts.Count} goitng to {shop.ShopName}");
+            
+            var lookup_id_line_map= await _shopifyservice.Bulk_mutation_shopify_product_creation(selectedProducts, shop.ShopName);
+            if (!lookup_id_line_map)
+            {
+                _logger.LogError("Something is wrong in Bulk Mutation");
+                return false;
+            }
+            
+            _logger.LogInformation($"Synced {selectedProducts.Count} to {shop.ShopName}");
+          
+            await  _shopifyRepository.LastSynced(shop.Id, variantSum);
             return true;
         }
         catch (Exception e)
