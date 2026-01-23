@@ -1114,7 +1114,7 @@ namespace CMS_Scrappers.Services.Implementations
                     "Not in HQ",
                     "RRSync",
                     "RRSyncBulk",
-                    "test1"
+                    batchTimestamp
                 };
 
                 if (sdata.Condition == "Pre-Owned")
