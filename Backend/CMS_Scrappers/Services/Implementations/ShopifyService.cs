@@ -7,7 +7,6 @@ using  CMS_Scrappers.Data.DTO;
 using CMS_Scrappers.Repositories.Interfaces;
 using System.Net.Http.Headers;
 using CMS_Scrappers.Models;
-using Amazon.Runtime.Internal.Auth;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -213,7 +212,14 @@ query ProductVariantsCount {
                 var key = Getkeystageparm(stageres);
                 await Stage_upload_file(stageres, path);
                 var bulkOp =  await StartBulkProductCreateAsync(key);
-                await Pull_Bulk_results(lmap);
+                var shopifyCmsIds=   await Pull_Bulk_results(lmap);
+                if (shopifyCmsIds.Count==0)
+                {
+                    _logger.LogError("No Shopify IDs were returned from the pulling function. Stopping bulk insert.");   
+                    return false;
+                }
+
+                await  PublishPtoductsToChannelsBulk(shopifyCmsIds,name);
                 
                 _readWrite.Delete_file(path);
                 return true;
@@ -865,8 +871,8 @@ query ProductVariantsCount {
                 Id = bulk.GetProperty("id").GetString(),
                 Status = bulk.GetProperty("status").GetString()
             };
-        }
-        private async Task<Boolean> Pull_Bulk_results(Dictionary<long, Guid> lmap)
+        } 
+        private async Task<Dictionary<Guid, string>> Pull_Bulk_results(Dictionary<long, Guid> lmap)
 {
     try
     {
@@ -884,8 +890,7 @@ query ProductVariantsCount {
                     partialDataUrl
                 }}"
         };
-
-     
+        Dictionary<Guid, string> Shopify_cmsids = new Dictionary<Guid, string>();
         _logger.LogInformation("Starting polling for Bulk Operation completion...");
         var bres = await ExecuteGraphQLAsync(payload);
         var status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
@@ -896,7 +901,7 @@ query ProductVariantsCount {
             {
                 var error = bres.GetProperty("currentBulkOperation").GetProperty("errorCode").GetString();
                 _logger.LogError($"Bulk operation stopped. Status: {status}, Error: {error}");
-                return false;
+                return new Dictionary<Guid, string>();
             }
 
             
@@ -905,8 +910,7 @@ query ProductVariantsCount {
             status = bres.GetProperty("currentBulkOperation").GetProperty("status").ToString();
             _logger.LogInformation($"Current Status: {status}");
         }
-
-       
+        
         _logger.LogInformation("Operation COMPLETED. Waiting 20s for file stabilization...");
         await Task.Delay(20000);
 
@@ -914,16 +918,15 @@ query ProductVariantsCount {
         if (string.IsNullOrEmpty(url))
         {
             _logger.LogError("Bulk operation completed but URL is null.");
-            return false;
+            return new Dictionary<Guid, string>();
         }
-
- 
+        
         using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             _logger.LogError("Shopify result file not found (404).");
-            return false;
+            return new Dictionary<Guid, string>();
         }
 
         response.EnsureSuccessStatusCode();
@@ -966,6 +969,7 @@ query ProductVariantsCount {
                                 UpdatedAt = DateTime.UtcNow
                             };
                             await _ProductMappingRepository.InsertProductmapping(mapping);
+                            Shopify_cmsids.Add(productid, shopifyId);
                             successCount++;
                         }
                         else
@@ -990,12 +994,12 @@ query ProductVariantsCount {
             _logger.LogInformation($"Bulk Processing Finished. Success: {successCount}, Errors/Skipped: {errorCount}");
         }
 
-        return true;
+        return Shopify_cmsids;
     }
     catch (Exception e)
     {
         _logger.LogCritical($"Critical failure in Pull_Bulk_results: {e.Message}");
-        return false;
+        return new Dictionary<Guid, string>();
     }
 }
         
@@ -1104,6 +1108,61 @@ query ProductVariantsCount {
             }
 
             return (shopifydata, lineIndex);
+        }
+
+        private async Task<Boolean> PublishPtoductsToChannelsBulk(Dictionary<Guid, string> cmsShopifyIds,string name)
+        {
+            try
+            {
+                var jsonldata = await prepareproductpublicationGraphql(cmsShopifyIds);
+                string path = GetJsonlPath(name);
+                var filename = path + "channels";
+                await _readWrite.Wrtie_data(jsonldata, path);
+                var stageres= await Stage_uploads_Create(name);
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("eror on building publication mutation data.");
+                throw;
+            }
+        }
+
+        private async Task<List<object>> prepareproductpublicationGraphql(Dictionary<Guid, string> cmsShopifyIds)
+
+        {
+            try
+            {
+                List<object> publications = new List<object>();
+                List<PublicationInfo>  fillterchannels=await fillteredpublications();
+
+                var publicationInputs = fillterchannels.Select(ch => new 
+                { 
+                    publicationId = ch.Id 
+                }).ToList();
+                foreach (KeyValuePair<Guid, string> entry in cmsShopifyIds)
+                {    
+                    publications.Add( new
+                    {
+                        mutation = "mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { userErrors { message } } }",
+                        variables = new
+                        {
+                            id =entry.Value,
+                            input=publicationInputs,
+                        },
+ 
+                    }  );
+                    
+                }
+
+                return publications;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("eror on building publication mutation data.");
+                return new List<object>();
+            }
+            
         }
 
         private  async Task<List<object>> BuildMetafields(Sdata sdata, string store)
@@ -1307,6 +1366,70 @@ query ProductVariantsCount {
             Directory.CreateDirectory(baseDir);
             return Path.Combine(baseDir, $"{name}.jsonl");
         }
+        
+        
+          private async Task<List<PublicationInfo>> fillteredpublications()
+        {
+            try
+            {
+                var allpublications = await GetStorePublications();
+                var importantChannels = new[]
+                {
+                    "Online Store",
+                    "Facebook",
+                    "Instagram", 
+                    "TikTok",
+                    "Google",
+                };
+                var filltered = allpublications.Where(p => importantChannels.Any(c =>
+                    p.Name.Contains(c, StringComparison.OrdinalIgnoreCase)
+                )).ToList();
+                _logger.LogInformation($"Publishing to {filltered.Count} channels:");
+                return filltered;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return null;
+            }
+        }
+
+        private async Task<List<PublicationInfo>> GetStorePublications()
+        {
+            var query = @"
+            query{
+            publications(first:20){
+              edges{
+            node{
+             id
+             name
+             supportsFuturePublishing
+            }}}}";
+            var payload = new { query };
+            var data = await ExecuteGraphQLAsync(payload);
+            var publications = new List<PublicationInfo>();
+            var edges = data.GetProperty("publications").GetProperty("edges");
+
+            foreach (var edge in edges.EnumerateArray())
+            {
+                var node = edge.GetProperty("node");
+                var id = node.GetProperty("id").GetString();
+                var name = node.GetProperty("name").GetString();
+                if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(name))
+                {
+                    _logger.LogError("Publications is returing null node", node);
+                    continue;
+                }
+                publications.Add(new PublicationInfo
+                {
+                    Id = id,
+                    Name = name
+                });
+            }
+
+            return publications;
+        }
     }
+    
 
 }
