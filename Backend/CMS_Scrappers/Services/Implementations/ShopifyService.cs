@@ -141,7 +141,7 @@ namespace CMS_Scrappers.Services.Implementations
 
             for (int i = 0; i < Batchcount; i++)
             {
-                _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...");
+                _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...for {_shopifySettings.SHOPIFY_STORE_NAME}");
                 var inventoryQuantities = new List<object>();
                 var priceUpdate = new List<object>();
                 int startIndex = i * (int)Batchsizes;
@@ -189,10 +189,12 @@ namespace CMS_Scrappers.Services.Implementations
                 if(inventoryQuantities.Count > 0)
                 {
                    await Update_Variant_Quantites_batch(inventoryQuantities, i);
+                   await Task.Delay(2000);
                 }
                 if(priceUpdate.Count > 0)
                 {
                     await UpdatePricesBatch(priceUpdate, i);
+                    await Task.Delay(2000);
                 }
 
             }
