@@ -48,7 +48,7 @@ public class ShopifyStoreScraper : IScrappers
         _logger.LogInformation($"Starting scraping for the {_scraperName}");
 
         Guid scrapperid = await Getscrapeid("Savonches");
-
+        List<ShopifyFlatProduct> FullflatBatch = new List<ShopifyFlatProduct>();
         var start = await _scrapperRepository.Startrun("Savonches");
 
         TimeStart = DateTime.UtcNow;
@@ -72,8 +72,7 @@ public class ShopifyStoreScraper : IScrappers
             List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
 
             await _sdataRepository.Add(trendBatch, scrapperid);
-
-            await Updateliveproducts(flatBatch);
+            FullflatBatch.AddRange(flatBatch);
             i++;
         }
 
@@ -81,6 +80,7 @@ public class ShopifyStoreScraper : IScrappers
         TimeEnd = DateTime.UtcNow;
 
         TimeSpan Diff = TimeEnd - TimeStart;
+        await Updateliveproducts(FullflatBatch);
 
         await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
 
@@ -103,35 +103,7 @@ public class ShopifyStoreScraper : IScrappers
             _logger.LogInformation("No existing products found to update");
             return;
         }
-
-     //  var dbexistingproducts = await _sdataRepository.Giveliveproduct(existingProducts);
-       //// Check if we have database products to update
-       //if (dbexistingproducts.Count <= 0)
-       //{ 
-       //    _logger.LogWarning("No live products found in database for updates");
-       //    return; 
-       //}
-
-       _updateShopifyTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) => {
-           try
-           {
-               _logger.LogInformation($"Shopify update queue is processing {existingProducts.Count} products");
-               using var scope = serviceProvider.CreateScope();
-               var shclient = scope.ServiceProvider.GetService<IProductSyncCoordinator>();
-               
-               if (shclient == null)
-               {
-                   _logger.LogError("IShopifyService not found in service provider");
-                   return;
-               }
-               
-               await shclient.UpdateProduct_Coordinator(existingProducts);
-               _logger.LogInformation("Shopify update completed successfully");
-           }
-           catch (Exception ex)
-           {
-               _logger.LogError(ex, "Error occurred while updating Shopify products");
-           }
-       });
+        await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
+       
     }
 }

@@ -128,75 +128,31 @@ namespace CMS_Scrappers.Services.Implementations
         
         public async Task UpdateProduct(List<ShopifyFlatProduct> existingproduct, Dictionary<string, Sdata> sdata)
         {
+            List<ShopifyFlatProduct> currentBatch = new List<ShopifyFlatProduct>();
+            int currentvariantcount = 0;
+            int currentbatchno = 0;
             var locationId = await GetFirstLocationIdAsync();
-           
-            if (string.IsNullOrEmpty(locationId))
-            {                
-                _logger.LogError("Could not find a Shopify location to update inventory.");
-                return;
-            }
-            decimal Batchsizes = 100;
-            decimal totalproduct=existingproduct.Count();
-            decimal Batchcount = Math.Ceiling(totalproduct/Batchsizes);
-
-            for (int i = 0; i < Batchcount; i++)
+            foreach (var product in existingproduct)
             {
-                _logger.LogInformation($"Processing batch {i + 1} of {Batchcount}...for {_shopifySettings.SHOPIFY_STORE_NAME}");
-                var inventoryQuantities = new List<object>();
-                var priceUpdate = new List<object>();
-                int startIndex = i * (int)Batchsizes;
-                int endIndex = Math.Min(startIndex + (int)Batchsizes, existingproduct.Count);
-                var currentBatch = existingproduct.GetRange(startIndex, endIndex - startIndex);
-                foreach (var incomingProduct in currentBatch)
-                {
-                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
-                    {
-                        string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
-                        //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
-                        // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
-                                                                                                                                                     
-                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
-                        List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
-                        foreach(var incomingvariant in incomingProduct.Variants)
-                        {
-                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
-                            {
-                                int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
-                                inventoryQuantities.Add(new
-                                {
-                                    inventoryItemId = details.inventoryId,
-                                    locationId = locationId,
-                                    quantity = newQuantity
-                                });
-                                //get the db current variant first.
-                                 var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
-                                //check if db price is changed from comming variant price then update the price.
-                                //well we can not check if price get change because we updated price beofre this step.
-                                //at it is very long to go back so just check fi they are in stock then update the price.
-                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
-                                {
-                                    priceUpdate.Add(new
-                                    {
-                                        productId = gid,
-                                        id = details.variantId,
-                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-                if(inventoryQuantities.Count > 0)
-                {
-                   await Update_Variant_Quantites_batch(inventoryQuantities, i);
-                   await Task.Delay(2000);
-                }
-                if(priceUpdate.Count > 0)
-                {
-                    await UpdatePricesBatch(priceUpdate, i);
-                    await Task.Delay(2000);
-                }
+                int productVariantsCount = product.Variants.Count;
 
+                if (currentvariantcount + productVariantsCount > 250)
+                {
+                    await Batchupdateproduct(currentBatch, sdata, currentbatchno,locationId);
+                    currentBatch = new List<ShopifyFlatProduct>{product};
+                    currentvariantcount = 0;
+                    currentbatchno++;
+                }
+                else
+                {
+                    currentBatch.Add(product);
+                    currentvariantcount += productVariantsCount;
+                }
+            }
+
+            if (currentBatch.Any())
+            {
+                await Batchupdateproduct(currentBatch, sdata, currentbatchno,locationId);
             }
         }
            
@@ -365,6 +321,71 @@ namespace CMS_Scrappers.Services.Implementations
                 _logger.LogError(ex, $"Exception occurred while setting metafields for product {productId}");
                 return false;
             }
+        }
+
+        private async Task Batchupdateproduct(List<ShopifyFlatProduct> currentBatch,Dictionary<string, Sdata> sdata,int i,string locationId)
+        {
+           
+           
+                if (string.IsNullOrEmpty(locationId))
+                {                
+                    _logger.LogError("Could not find a Shopify location to update inventory.");
+                    return;
+                }
+            
+                var inventoryQuantities = new List<object>();
+                var priceUpdate = new List<object>();
+                
+
+                foreach (var incomingProduct in currentBatch)
+                {
+                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
+                    {
+                        string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
+                        //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
+                        // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
+                                                                                                                                                     
+                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+                        List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
+                        foreach(var incomingvariant in incomingProduct.Variants)
+                        {
+                            if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
+                            {
+                                int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
+                                inventoryQuantities.Add(new
+                                {
+                                    inventoryItemId = details.inventoryId,
+                                    locationId = locationId,
+                                    quantity = newQuantity
+                                });
+                                //get the db current variant first.
+                                 var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
+                                //check if db price is changed from comming variant price then update the price.
+                                //well we can not check if price get change because we updated price beofre this step.
+                                //at it is very long to go back so just check fi they are in stock then update the price.
+                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
+                                {
+                                    priceUpdate.Add(new
+                                    {
+                                        productId = gid,
+                                        id = details.variantId,
+                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                if(inventoryQuantities.Count > 0)
+                {
+                   await Update_Variant_Quantites_batch(inventoryQuantities, i);
+                   await Task.Delay(2000);
+                }
+                if(priceUpdate.Count > 0)
+                {
+                    await UpdatePricesBatch(priceUpdate, i);
+                    await Task.Delay(2000);
+                }
         }
         
         private bool IsValidMetafieldValue(string value)
@@ -662,7 +683,7 @@ namespace CMS_Scrappers.Services.Implementations
         {
             double p = (float)price;
             if(price<=0)return 0;
-            double markup = 0.1 * p;
+            double markup = 0.2 * p; //20% right here
             double ourprice = p + markup;
             double pound = (int)Math.Round(ourprice * 0.8);
             double k = (int)pound / 5;
