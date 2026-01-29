@@ -80,6 +80,9 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
                 try
                 {
                     var sdata = await _sdataRepository.Giveliveproductperstore(existingproduct, store.Id);
+                    var relevantScrapedData = existingproduct
+                        .Where(p => sdata.ContainsKey(p.ProductUrl))
+                        .ToList();
                     var _shopifyservice = this.GetShopifyService(store);
                     //we need to get live product per store not all the stores have all the same 
                     if (sdata.Count == 0)
@@ -87,10 +90,10 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
                         _logger.LogInformation($"Skipping {store.ShopName}! no live Products" ); 
                         continue;
                     }
-                    await _shopifyservice.UpdateProduct(existingproduct, sdata);
+                    await _shopifyservice.UpdateProduct(relevantScrapedData, sdata);
                     //for now but it's good to have this as this var is reusing there should be no problem regarding memory issue.
                 
-                    _logger.LogInformation($"Shopify update completed successfully for {store.ShopName}" ); 
+                    _logger.LogInformation($"Shopify update {relevantScrapedData.Count} completed successfully for {store.ShopName}" ); 
                 }
                 catch (Exception ex)
                 {
