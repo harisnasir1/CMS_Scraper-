@@ -142,7 +142,7 @@ namespace CMS_Scrappers.Services.Implementations
                     _logger.LogInformation($"Product update for batch : {currentbatchno} for ${_shopifySettings.SHOPIFY_STORE_NAME}");
                     await Batchupdateproduct(currentBatch, sdata, currentbatchno,locationId);
                     currentBatch = new List<ShopifyFlatProduct>{product};
-                    currentvariantcount = 0;
+                    currentvariantcount = productVariantsCount;
                     currentbatchno++;
                     currentproductcount=1;
                 }
@@ -329,8 +329,7 @@ namespace CMS_Scrappers.Services.Implementations
 
         private async Task Batchupdateproduct(List<ShopifyFlatProduct> currentBatch,Dictionary<string, Sdata> sdata,int i,string locationId)
         {
-           
-           
+            
                 if (string.IsNullOrEmpty(locationId))
                 {                
                     _logger.LogError("Could not find a Shopify location to update inventory.");
@@ -340,7 +339,6 @@ namespace CMS_Scrappers.Services.Implementations
                 var inventoryQuantities = new List<object>();
                 var priceUpdate = new List<object>();
                 
-
                 foreach (var incomingProduct in currentBatch)
                 {
                     if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
@@ -635,7 +633,7 @@ namespace CMS_Scrappers.Services.Implementations
                             _logger.LogError($"Bulk error: {e.GetProperty("message").GetString()}");
                         }
                     }
-                    _logger.LogInformation($"Updated {variables.variants.Count} variants for product {variables.productId}");
+                    //_logger.LogInformation($"Updated {variables.variants.Count} variants for product {variables.productId}");
                 }
                 catch (Exception ex)
                 {
