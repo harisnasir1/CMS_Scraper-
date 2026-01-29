@@ -29,7 +29,8 @@ public class ShopifyStoreScraper : IScrappers
         IScrapperRepository scrapperRepository
         ,IServiceProvider serviceProvider
         , ISdataRepository sdataRepository
-        ,IUpdateShopifyTaskQueue updateShopifyTaskQueue
+        ,IUpdateShopifyTaskQueue updateShopifyTaskQueue,
+        IProductSyncCoordinator productSyncCoordinator
         )
         {
          _scraperName = scraperName;
@@ -41,6 +42,7 @@ public class ShopifyStoreScraper : IScrappers
          _serviceProvider=serviceProvider;
          _sdataRepository = sdataRepository;
          _updateShopifyTaskQueue = updateShopifyTaskQueue;
+         _productSyncCoordinator = productSyncCoordinator;
         }
 
     public async Task ScrapeAsync()

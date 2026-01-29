@@ -131,6 +131,7 @@ namespace CMS_Scrappers.Services.Implementations
             List<ShopifyFlatProduct> currentBatch = new List<ShopifyFlatProduct>();
             int currentvariantcount = 0;
             int currentbatchno = 0;
+            int currentproductcount = 0;
             var locationId = await GetFirstLocationIdAsync();
             foreach (var product in existingproduct)
             {
@@ -138,15 +139,18 @@ namespace CMS_Scrappers.Services.Implementations
 
                 if (currentvariantcount + productVariantsCount > 250)
                 {
+                    _logger.LogInformation($"Product update for batch : {currentbatchno} for ${_shopifySettings.SHOPIFY_STORE_NAME}");
                     await Batchupdateproduct(currentBatch, sdata, currentbatchno,locationId);
                     currentBatch = new List<ShopifyFlatProduct>{product};
                     currentvariantcount = 0;
                     currentbatchno++;
+                    currentproductcount=1;
                 }
                 else
                 {
                     currentBatch.Add(product);
                     currentvariantcount += productVariantsCount;
+                    currentproductcount++;
                 }
             }
 
@@ -621,7 +625,7 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                   
                     var response = await ExecuteGraphQLAsync(payload);
-
+                    await Task.Delay(300);
                     // handle errors
                     if (response.TryGetProperty("productVariantsBulkUpdate", out var result) &&
                         result.TryGetProperty("userErrors", out var errors))
@@ -631,7 +635,6 @@ namespace CMS_Scrappers.Services.Implementations
                             _logger.LogError($"Bulk error: {e.GetProperty("message").GetString()}");
                         }
                     }
-
                     _logger.LogInformation($"Updated {variables.variants.Count} variants for product {variables.productId}");
                 }
                 catch (Exception ex)
@@ -670,11 +673,11 @@ namespace CMS_Scrappers.Services.Implementations
             try
             {
                 var data = await ExecuteGraphQLAsync(payload);
-                Console.WriteLine($"Batch {i + 1} updated Quantity successfully.");
+                _logger.LogInformation($"Batch {i} updated Quantity successfully.");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error updating inventory batch {i + 1}: {ex.Message}");
+                _logger.LogError($"Error updating inventory batch {i}: {ex.Message}");
                 throw; 
             }
         }
