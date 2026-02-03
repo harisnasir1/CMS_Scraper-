@@ -347,7 +347,7 @@ namespace CMS_Scrappers.Services.Implementations
                         //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
                         // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
                                                                                                                                                      
-                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+                        Dictionary<string , (string variantId, string inventoryId,decimal sprice) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
                         List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
                         {
@@ -365,13 +365,14 @@ namespace CMS_Scrappers.Services.Implementations
                                 //check if db price is changed from comming variant price then update the price.
                                 //well we can not check if price get change because we updated price beofre this step.
                                 //at it is very long to go back so just check fi they are in stock then update the price.
-                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
+                                var inprice = Addmarkup(incomingvariant.Price);
+                                if (db_c_variant!=null&&inprice !=details.sprice&&db_c_variant.InStock)
                                 {
                                     priceUpdate.Add(new
                                     {
                                         productId = gid,
                                         id = details.variantId,
-                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
+                                        price = inprice.ToString("F2"),
                                     });
                                 }
                             }
@@ -481,7 +482,7 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
         
-        private async Task<Dictionary<string, (string variantId, string inventoryId)>> GetVariantInventoryIdsAsync(string productGid)
+        private async Task<Dictionary<string, (string variantId, string inventoryId, decimal price)>> GetVariantInventoryIdsAsync(string productGid)
         {
             var query = @"
                    query getProductVariants($id: ID!) {
@@ -490,6 +491,7 @@ namespace CMS_Scrappers.Services.Implementations
                                edges {
                                    node {
                                        id
+                                       price
                                        selectedOptions {
                                            name
                                            value
@@ -507,7 +509,7 @@ namespace CMS_Scrappers.Services.Implementations
             var payload = new { query, variables };
             var data = await ExecuteGraphQLAsync(payload);
 
-            var variants = new Dictionary<string, (string,string)>();
+            var variants = new Dictionary<string, (string,string,decimal)>();
 
             var productElement = data.GetProperty("product");
             if (productElement.ValueKind == JsonValueKind.Null)
@@ -522,7 +524,8 @@ namespace CMS_Scrappers.Services.Implementations
                 var node = edge.GetProperty("node");
                 var variantId = node.GetProperty("id").GetString();
                 var inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
-                
+                var priceString = node.GetProperty("price").GetString();
+                decimal price = decimal.TryParse(priceString, out var p) ? p : 0;
                 string size = null;
                 foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
                 {
@@ -535,7 +538,7 @@ namespace CMS_Scrappers.Services.Implementations
 
                 if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId)&&!string.IsNullOrEmpty(variantId))
                 {
-                    variants[size] = (variantId,inventoryItemId);
+                    variants[size] = (variantId,inventoryItemId,price);
                 }
             }
 
@@ -680,16 +683,14 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
         
-        private double Addmarkup(decimal price)
+        private decimal Addmarkup(decimal price)
         {
-            double p = (float)price;
-            if(price<=0)return 0;
-            double markup = 0.2 * p; //20% right here
-            double ourprice = p + markup;
-            double pound = (int)Math.Round(ourprice * 0.8);
-            double k = (int)pound / 5;
-            double converted = k * 5;            
-            return converted;
+            if (price <= 0) return 0;
+    
+            decimal withMarkup = price * 1.2m;
+            decimal inPounds = withMarkup * 0.8m;
+            decimal rounded = Math.Round(inPounds / 5m, MidpointRounding.AwayFromZero) * 5m;
+            return rounded;
         }
 
         private ProductVariantRecord? Get_Current_db_variant(List<ProductVariantRecord>? dbVariants, string? size)

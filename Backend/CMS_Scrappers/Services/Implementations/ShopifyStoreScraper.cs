@@ -86,7 +86,13 @@ public class ShopifyStoreScraper : IScrappers
 
         await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
 
-        _logger.LogInformation("Finished scraping for {ScraperName}", _scraperName, "in time ", Diff);
+        _logger.LogInformation(
+            "Finished scraping for {ScraperName}",
+            _scraperName,
+            "in time ",
+            Diff
+        );
+
     }
 
     public async Task<Guid >Getscrapeid(string name)
