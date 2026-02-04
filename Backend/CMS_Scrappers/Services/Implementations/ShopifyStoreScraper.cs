@@ -54,7 +54,9 @@ public class ShopifyStoreScraper : IScrappers
         var start = await _scrapperRepository.Startrun("Savonches");
 
         TimeStart = DateTime.UtcNow;
-
+        
+        var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
+        var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
         var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
         int i = 0;
         foreach (var page in rawProduct.Pages)
@@ -68,8 +70,7 @@ public class ShopifyStoreScraper : IScrappers
           
             List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _storeBaseUrl);
 
-            var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
-            var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
+
 
             List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
 
@@ -79,11 +80,11 @@ public class ShopifyStoreScraper : IScrappers
         }
 
 
+        await Updateliveproducts(FullflatBatch);
+
         TimeEnd = DateTime.UtcNow;
 
         TimeSpan Diff = TimeEnd - TimeStart;
-        await Updateliveproducts(FullflatBatch);
-
         await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
 
         _logger.LogInformation(
