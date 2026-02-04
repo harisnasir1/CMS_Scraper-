@@ -29,11 +29,11 @@ public class VariantStoreMappingRepository:IVariantStoreMappingRepository
         }
     }
 
-    public async Task<bool> Exist_VariantVariantMapping_BY_variantid(long id)
+    public async Task<bool> Exist_VariantVariantMapping_BY_variantid(long id,Guid pmid)
     {
         try
         {
-            var v= await _context.VariantStoreMapping.FirstOrDefaultAsync(v=>v.VariantId==id);
+            var v= await _context.VariantStoreMapping.FirstOrDefaultAsync(v=>v.VariantId==id && v.ProductStoreMappingId==pmid);
             if (v == null)
                 return false;
 

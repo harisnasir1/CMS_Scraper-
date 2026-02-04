@@ -6,7 +6,7 @@ public interface IVariantStoreMappingRepository
 {
     Task<bool> InsertVariantMapping( VariantStoreMapping variants);
 
-    Task<bool> Exist_VariantVariantMapping_BY_variantid(long id);
+    Task<bool> Exist_VariantVariantMapping_BY_variantid(long id,Guid pmid);
     
     Task<bool> DelteVariantMapping(Guid id);
 
