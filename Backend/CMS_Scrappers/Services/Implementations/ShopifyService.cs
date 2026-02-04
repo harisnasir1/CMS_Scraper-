@@ -1607,7 +1607,7 @@ namespace CMS_Scrappers.Services.Implementations
         {
             try
             {
-                var check = await _variantStoreMappingRepository.Exist_VariantVariantMapping_BY_variantid(dbvariantid);
+                var check = await _variantStoreMappingRepository.Exist_VariantVariantMapping_BY_variantid(dbvariantid,productStoreMappingId);
                 if (check)
                 {
                     return;
