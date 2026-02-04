@@ -7,6 +7,8 @@ using  CMS_Scrappers.Data.DTO;
 using CMS_Scrappers.Repositories.Interfaces;
 using System.Net.Http.Headers;
 using CMS_Scrappers.Models;
+using CMS_Scrappers.Models;
+using CMS_Scrappers.Repositories.Repos;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -16,12 +18,14 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly HttpClient _httpClient;
         private readonly ILogger<ShopifyService> _logger;
         private readonly IProductStoreMappingRepository _ProductMappingRepository;
+        private readonly IVariantStoreMappingRepository _variantStoreMappingRepository;
         private IFileReadWrite _readWrite;
         private string _locationId;
         
-        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository,IFileReadWrite readWrite) {
+        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository, IVariantStoreMappingRepository variantStoreMappingRepository,IFileReadWrite readWrite) {
             
             _ProductMappingRepository = ProductMappingRepository;
+            _variantStoreMappingRepository = variantStoreMappingRepository;
             _shopifySettings = shopifysettings;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Shopify-Access-Token", shopifysettings.SHOPIFY_ACCESS_TOKEN);
@@ -343,14 +347,20 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
                     {
-                        string gid = $"gid://shopify/Product/{dbProduct.ProductStoreMapping.First().ExternalProductId}";       //we have migrated to different table so we need to get this from different table.
-                        //as db constraints one sdata can point to multiple product mapping but we one productmap is against one store
-                        // so we get one product for one sotre so in return we always get 1 mapping that is why we can use [0]
-                                                                                                                                                     
-                        Dictionary<string , (string variantId, string inventoryId) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+                        var psmapping = dbProduct.ProductStoreMapping.FirstOrDefault();
+                        if (psmapping == null)
+                        {
+                            _logger.LogWarning($"No store mapping found for product {dbProduct.Id}");
+                            continue;
+                        }
+                        string gid = $"gid://shopify/Product/{psmapping.ExternalProductId}";       
+                                                                                                                          
+                        Dictionary<string , (string variantId, string inventoryId,decimal sprice) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
                         List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
                         {
+                            var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
+                         
                             if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
                             {
                                 int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
@@ -360,20 +370,25 @@ namespace CMS_Scrappers.Services.Implementations
                                     locationId = locationId,
                                     quantity = newQuantity
                                 });
-                                //get the db current variant first.
-                                 var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
-                                //check if db price is changed from comming variant price then update the price.
-                                //well we can not check if price get change because we updated price beofre this step.
-                                //at it is very long to go back so just check fi they are in stock then update the price.
-                                if (db_c_variant!=null&&incomingvariant.Price > 0&&db_c_variant.InStock)
+                               
+                                
+                                var inprice = Addmarkup(incomingvariant.Price);
+                                if (db_c_variant!=null&&inprice !=details.sprice&&db_c_variant.InStock)
                                 {
                                     priceUpdate.Add(new
                                     {
                                         productId = gid,
                                         id = details.variantId,
-                                        price =  Addmarkup( incomingvariant.Price).ToString("F2"),
+                                        price = inprice.ToString("F2"),
                                     });
                                 }
+                                else
+                                {
+                                    _logger.LogInformation($"skiiping price update for product with gid:{gid}");
+                                }
+
+                                await StoreShopifyVariantinfo(details.variantId, details.inventoryId, db_c_variant.Id,
+                                    psmapping.Id,inprice,newQuantity);
                             }
                         }
                     }
@@ -381,12 +396,12 @@ namespace CMS_Scrappers.Services.Implementations
                 if(inventoryQuantities.Count > 0)
                 {
                    await Update_Variant_Quantites_batch(inventoryQuantities, i);
-                   await Task.Delay(2000);
+                   await Task.Delay(200);
                 }
                 if(priceUpdate.Count > 0)
                 {
                     await UpdatePricesBatch(priceUpdate, i);
-                    await Task.Delay(2000);
+                    await Task.Delay(200);
                 }
         }
         
@@ -404,8 +419,7 @@ namespace CMS_Scrappers.Services.Implementations
                 _logger.LogDebug($"Metafield value rejected: too short (length: {trimmedValue.Length})");
                 return false;
             }
-                
-          
+            
             var lowerValue = trimmedValue.ToLowerInvariant();
             var emptyValues = new[] { "n/a", "na", "none", "null", "undefined", "unknown", "-", "--", "..." };
             
@@ -481,7 +495,7 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
         
-        private async Task<Dictionary<string, (string variantId, string inventoryId)>> GetVariantInventoryIdsAsync(string productGid)
+        private async Task<Dictionary<string, (string variantId, string inventoryId, decimal price)>> GetVariantInventoryIdsAsync(string productGid)
         {
             var query = @"
                    query getProductVariants($id: ID!) {
@@ -490,6 +504,7 @@ namespace CMS_Scrappers.Services.Implementations
                                edges {
                                    node {
                                        id
+                                       price
                                        selectedOptions {
                                            name
                                            value
@@ -507,7 +522,7 @@ namespace CMS_Scrappers.Services.Implementations
             var payload = new { query, variables };
             var data = await ExecuteGraphQLAsync(payload);
 
-            var variants = new Dictionary<string, (string,string)>();
+            var variants = new Dictionary<string, (string,string,decimal)>();
 
             var productElement = data.GetProperty("product");
             if (productElement.ValueKind == JsonValueKind.Null)
@@ -522,7 +537,8 @@ namespace CMS_Scrappers.Services.Implementations
                 var node = edge.GetProperty("node");
                 var variantId = node.GetProperty("id").GetString();
                 var inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
-                
+                var priceString = node.GetProperty("price").GetString();
+                decimal price = decimal.TryParse(priceString, out var p) ? p : 0;
                 string size = null;
                 foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
                 {
@@ -532,10 +548,9 @@ namespace CMS_Scrappers.Services.Implementations
                         break;
                     }
                 }
-
                 if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId)&&!string.IsNullOrEmpty(variantId))
                 {
-                    variants[size] = (variantId,inventoryItemId);
+                    variants[size] = (variantId,inventoryItemId,price);
                 }
             }
 
@@ -557,7 +572,6 @@ namespace CMS_Scrappers.Services.Implementations
         {
             var jsonContent = JsonSerializer.Serialize(payload);
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
             
             var request = new HttpRequestMessage(HttpMethod.Post, $"{_shopifySettings.SHOPIFY_STORE_DOMAIN}/admin/api/2024-07/graphql.json");
             request.Headers.Add("X-Shopify-Access-Token", _shopifySettings.SHOPIFY_ACCESS_TOKEN);
@@ -623,7 +637,6 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                   
                     var response = await ExecuteGraphQLAsync(payload);
-                    await Task.Delay(300);
                     // handle errors
                     if (response.TryGetProperty("productVariantsBulkUpdate", out var result) &&
                         result.TryGetProperty("userErrors", out var errors))
@@ -680,16 +693,14 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
         
-        private double Addmarkup(decimal price)
+        private decimal Addmarkup(decimal price)
         {
-            double p = (float)price;
-            if(price<=0)return 0;
-            double markup = 0.2 * p; //20% right here
-            double ourprice = p + markup;
-            double pound = (int)Math.Round(ourprice * 0.8);
-            double k = (int)pound / 5;
-            double converted = k * 5;            
-            return converted;
+            if (price <= 0) return 0;
+    
+            decimal withMarkup = price * 1.2m;
+            decimal inPounds = withMarkup * 0.8m;
+            decimal rounded = Math.Round(inPounds / 5m, MidpointRounding.AwayFromZero) * 5m;
+            return rounded;
         }
 
         private ProductVariantRecord? Get_Current_db_variant(List<ProductVariantRecord>? dbVariants, string? size)
@@ -1590,5 +1601,41 @@ namespace CMS_Scrappers.Services.Implementations
 
             return publications;
         }
+
+
+        private async Task StoreShopifyVariantinfo(string variantId, string inventoryId,long dbvariantid,Guid productStoreMappingId,decimal sprice,int instock )
+        {
+            try
+            {
+                var check = await _variantStoreMappingRepository.Exist_VariantVariantMapping_BY_variantid(dbvariantid);
+                if (check)
+                {
+                    return;
+                }
+                string vid = variantId.Split('/').Last();
+                string inid = inventoryId.Split('/').Last();
+                bool avail= instock == 0 ? false : true;
+                var mapping = new VariantStoreMapping
+                {
+                    Id = Guid.NewGuid(),
+                    VariantId = dbvariantid,
+                    ProductStoreMappingId = productStoreMappingId,
+                    ShopifyVariantId = vid,
+                    ShopifyInventoryId = inid,
+                    ShopifyPrice = sprice,
+                    InStock=avail,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+               await _variantStoreMappingRepository.InsertVariantMapping(mapping);
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error in inserting variants in variant mapping{ex}");
+            }
+        }
+        
+        
     }
 }

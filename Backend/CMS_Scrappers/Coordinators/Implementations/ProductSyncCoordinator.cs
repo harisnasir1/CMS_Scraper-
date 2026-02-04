@@ -10,6 +10,7 @@ namespace CMS_Scrappers.Coordinators.Implementations;
 public class ProductSyncCoordinator:IProductSyncCoordinator
 {
     private readonly IProductStoreMappingRepository _productStoreMappingRepository;
+    private readonly IVariantStoreMappingRepository _variantStoreMappingRepository;
     private readonly IShopifyRepository _shopifyRepository;
     private readonly ILogger<ShopifyService> _logger;
     private readonly ISdataRepository _sdataRepository;
@@ -18,6 +19,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly int VARIANT_THRESHOLD;
     public ProductSyncCoordinator(
         IProductStoreMappingRepository storemaprepository,
+        IVariantStoreMappingRepository variantStoreMappingRepository,
         IShopifyRepository shopifyrepository,
         ILogger<ShopifyService> logger,
         ISdataRepository sdataRepository,
@@ -28,6 +30,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         _logger=logger;
         _shopifyRepository = shopifyrepository;
         _productStoreMappingRepository = storemaprepository;
+        _variantStoreMappingRepository = variantStoreMappingRepository;
         _readWrite = readWrite;
         STORE_VARIANT_LIMIT = 50000;
         VARIANT_THRESHOLD = 400;
@@ -91,7 +94,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
                         continue;
                     }
                     await _shopifyservice.UpdateProduct(relevantScrapedData, sdata);
-                    //for now but it's good to have this as this var is reusing there should be no problem regarding memory issue.
+                    
                 
                     _logger.LogInformation($"Shopify update {relevantScrapedData.Count} completed successfully for {store.ShopName}" ); 
                 }
@@ -184,7 +187,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private ShopifyService GetShopifyService(Shopify store)
     {
         var storesettings = this.Configtosettings(store);
-        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_readWrite);
+        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_variantStoreMappingRepository,_readWrite);
         return shopifyservice;
     }
 
