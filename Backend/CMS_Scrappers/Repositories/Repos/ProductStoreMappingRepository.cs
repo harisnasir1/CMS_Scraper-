@@ -25,6 +25,7 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
        }
        catch (Exception ex)
        {
+           _logger.LogCritical($"Error inserting Product Mapping{ex}");
            return false;      
        }
    

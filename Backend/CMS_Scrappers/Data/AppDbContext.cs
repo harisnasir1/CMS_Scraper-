@@ -16,5 +16,5 @@ public class AppDbContext : DbContext
     
     public DbSet<ProductStoreMapping> ProductStoreMapping { get; set; }
     
-   
+    public DbSet<VariantStoreMapping> VariantStoreMapping { get; set; }
 }

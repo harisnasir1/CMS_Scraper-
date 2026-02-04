@@ -42,6 +42,7 @@ public class ProductImageRecordDTO
 
 public class ProductVariantRecordDTO
 {
+    public long? Id { get; set; }
     public string Size { get; set; } = "";
     public string SKU { get; set; } = "";
     public decimal Price { get; set; }=0;
