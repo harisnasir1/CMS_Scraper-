@@ -25,6 +25,8 @@ public class VariantStoreMapping
     [Column(TypeName = "decimal(10,2)")]
     public decimal ShopifyPrice { get; set; }
 
+    public bool InStock { get; set; } = false; 
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

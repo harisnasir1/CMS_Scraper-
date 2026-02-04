@@ -359,6 +359,7 @@ namespace CMS_Scrappers.Services.Implementations
                         List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
                         {
+                            var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
                          
                             if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
                             {
@@ -369,11 +370,8 @@ namespace CMS_Scrappers.Services.Implementations
                                     locationId = locationId,
                                     quantity = newQuantity
                                 });
-                                //get the db current variant first.
-                                var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
-                                //check if db price is changed from comming variant price then update the price.
-                                //well we can not check if price get change because we updated price beofre this step.
-                                //at it is very long to go back so just check fi they are in stock then update the price.
+                               
+                                
                                 var inprice = Addmarkup(incomingvariant.Price);
                                 if (db_c_variant!=null&&inprice !=details.sprice&&db_c_variant.InStock)
                                 {
@@ -390,7 +388,7 @@ namespace CMS_Scrappers.Services.Implementations
                                 }
 
                                 await StoreShopifyVariantinfo(details.variantId, details.inventoryId, db_c_variant.Id,
-                                    psmapping.Id,inprice);
+                                    psmapping.Id,inprice,newQuantity);
                             }
                         }
                     }
@@ -1605,7 +1603,7 @@ namespace CMS_Scrappers.Services.Implementations
         }
 
 
-        private async Task StoreShopifyVariantinfo(string variantId, string inventoryId,long dbvariantid,Guid productStoreMappingId,decimal sprice )
+        private async Task StoreShopifyVariantinfo(string variantId, string inventoryId,long dbvariantid,Guid productStoreMappingId,decimal sprice,int instock )
         {
             try
             {
@@ -1614,8 +1612,9 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     return;
                 }
-                string vid = variantId.Split('/')[4];
-                string inid = inventoryId.Split('/')[4];
+                string vid = variantId.Split('/').Last();
+                string inid = inventoryId.Split('/').Last();
+                bool avail= instock == 0 ? false : true;
                 var mapping = new VariantStoreMapping
                 {
                     Id = Guid.NewGuid(),
@@ -1624,6 +1623,7 @@ namespace CMS_Scrappers.Services.Implementations
                     ShopifyVariantId = vid,
                     ShopifyInventoryId = inid,
                     ShopifyPrice = sprice,
+                    InStock=avail,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };

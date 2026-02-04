@@ -46,6 +46,5 @@ public class ProductVariantRecordDTO
     public string Size { get; set; } = "";
     public string SKU { get; set; } = "";
     public decimal Price { get; set; }=0;
-    
     public int Available{get;set;}
 }
