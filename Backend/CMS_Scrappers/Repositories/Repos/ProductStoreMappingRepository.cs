@@ -13,7 +13,7 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
         _logger=logger;
         _context = context;
     }  
-   public async Task<bool> InsertProductmapping(ProductStoreMapping data)
+   public async Task<Guid> InsertProductmapping(ProductStoreMapping data)
    {
        try
        {
@@ -21,12 +21,12 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
 
            await _context.SaveChangesAsync();
            
-           return true;
+           return data.Id;
        }
        catch (Exception ex)
        {
            _logger.LogCritical($"Error inserting Product Mapping{ex}");
-           return false;      
+           return Guid.Empty;      
        }
    
    }

@@ -174,7 +174,8 @@ namespace CMS_Scrappers.Services.Implementations
                 var key=await Initial_prep_for_Bulk(name,jonldata.Item1);
                 if (string.IsNullOrEmpty(key)) return false;
                 var bulkOp =  await StartBulkProductCreateAsync(key);
-                var shopifyCmsIds=   await Insert_Get_BulkInsert_Data(lmap);
+                var ptoskumap = product_to_Sku_to_variant(data);
+                var shopifyCmsIds=   await Insert_Get_BulkInsert_Data(lmap,ptoskumap);
                 if (shopifyCmsIds.Count==0)
                 {
                     _logger.LogError("No Shopify IDs were returned from the pulling function. Stopping bulk insert.");   
@@ -857,7 +858,26 @@ namespace CMS_Scrappers.Services.Implementations
                     mutation: ""
                       mutation productCreate($input: ProductSetInput!) {
                         productSet(input: $input) {
-                          product { id }
+                        product { 
+                                   id 
+                                   variants(first: 100) {
+                                     edges {
+                                       node {
+                                         id
+                                         price
+                                         sku
+                                         inventoryQuantity
+                                         selectedOptions {
+                                           name
+                                           value
+                                         }
+                                         inventoryItem {
+                                           id
+                                         }
+                                       }
+                                     }
+                                   }
+                                 }
                           userErrors {
                             field
                             message
@@ -1019,7 +1039,7 @@ namespace CMS_Scrappers.Services.Implementations
              
         }
 
-        private async Task<Dictionary<Guid, string>> Insert_Get_BulkInsert_Data(Dictionary<long, Guid> lmap)
+        private async Task<Dictionary<Guid, string>> Insert_Get_BulkInsert_Data(Dictionary<long, Guid> lmap,Dictionary<Guid, Dictionary<string, long>> skutovarmap)
         {
             try
             {
@@ -1038,33 +1058,29 @@ namespace CMS_Scrappers.Services.Implementations
                  }
         
                  response.EnsureSuccessStatusCode();
-        
                  using (var sTdata = await response.Content.ReadAsStreamAsync())
                  using (var reader = new StreamReader(sTdata, Encoding.UTF8))
                  {
                      string? line;
                      int successCount = 0;
                      int errorCount = 0;
-        
                      _logger.LogInformation("Starting to parse results...");
-        
+                     List<VariantStoreMapping> variants = new List<VariantStoreMapping>();
                      while ((line = await reader.ReadLineAsync()) != null)
                      {
                          try
                          {
                              using var doc = JsonDocument.Parse(line);
                              var productSet = doc.RootElement.GetProperty("data").GetProperty("productSet");
-                             
                              if (productSet.TryGetProperty("product", out var product) && product.ValueKind != JsonValueKind.Null)
                              {
                                  var shopifyId = product.GetProperty("id").GetString();
+                                 var incoming_variants = product.GetProperty("variants").GetProperty("edges").EnumerateArray();
                                  int lineNumber = doc.RootElement.GetProperty("__lineNumber").GetInt32();
-        
-                                 
-                                 if (lmap.TryGetValue((long)lineNumber, out Guid productid))
+                                 if (lmap.TryGetValue((long)lineNumber, out Guid productid) && skutovarmap.TryGetValue((Guid)productid ,out Dictionary<string , long> mvaris) )
                                  {
-                                     string externalid = shopifyId.Split('/').Last(); 
-        
+                                     string externalid = shopifyId.Split('/').Last();
+                                     
                                      var mapping = new ProductStoreMapping
                                      {
                                          Id = Guid.NewGuid(),
@@ -1076,8 +1092,51 @@ namespace CMS_Scrappers.Services.Implementations
                                          CreatedAt = DateTime.UtcNow,
                                          UpdatedAt = DateTime.UtcNow
                                      };
-                                     await _ProductMappingRepository.InsertProductmapping(mapping);
+                                    var pmid= await _ProductMappingRepository.InsertProductmapping(mapping);
+                                    if(pmid==Guid.Empty) continue;
                                      Shopify_cmsids.Add(productid, shopifyId);
+                                     
+                                     foreach (var item in incoming_variants)                   
+                                     {
+                                         
+                                         JsonElement node = item.GetProperty("node");
+                                         string variantId = node.GetProperty("id").GetString();
+                                         string sku = node.GetProperty("sku").GetString();
+                                         bool instock = node.GetProperty("inventoryQuantity").GetInt32() == 1;
+                                         decimal price = decimal.Parse(node.GetProperty("price").GetString());
+                                         if(mvaris.TryGetValue((string)sku,out long mvid))
+                                         {
+                                             string inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
+                                             
+                                             foreach (JsonElement option in node.GetProperty("selectedOptions")
+                                                          .EnumerateArray())
+                                             {
+                                                 string name = option.GetProperty("name").GetString();
+                                                 string value = option.GetProperty("value").GetString();
+
+                                                 if (name == "Size")
+                                                 {
+                                                     
+                                                     string svid = variantId.Split('/').Last();
+                                                     string inid = inventoryItemId.Split('/').Last();
+                                                    var vmdata=new VariantStoreMapping
+                                                     {
+                                                         Id = Guid.NewGuid(),
+                                                         VariantId = mvid, 
+                                                         ProductStoreMappingId = pmid,
+                                                         ShopifyVariantId = svid,
+                                                         ShopifyInventoryId = inid,
+                                                         ShopifyPrice = price, 
+                                                         InStock = instock,
+                                                         CreatedAt = DateTime.UtcNow,
+                                                         UpdatedAt = DateTime.UtcNow
+                                                     };
+                                                     await _variantStoreMappingRepository.InsertVariantMapping(vmdata);
+                                                 }
+                                             }
+                                         }
+                                     }
+                                     
                                      successCount++;
                                  }
                                  else
@@ -1184,7 +1243,7 @@ namespace CMS_Scrappers.Services.Implementations
                         variants = sdata.Variants.Select(v => new
                         {
                             price = Addmarkup(v.Price).ToString("F2"),
-                            sku = v.SKU!=""?v.SKU:sdata.Sku+"-"+v.Size,
+                            sku = this.Givesku(v.SKU,v.Size,v.Id,"SAV"),
                             optionValues = new[]
                             {
                                 new { optionName = "Size", name = v.Size }
@@ -1549,7 +1608,7 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     "Online Store",
                     "Facebook",
-                    "Instagram", 
+                    "Instagram",
                     "TikTok",
                     "Google",
                 };
@@ -1634,6 +1693,33 @@ namespace CMS_Scrappers.Services.Implementations
             {
                 _logger.LogError($"Error in inserting variants in variant mapping{ex}");
             }
+        }
+
+        private string Givesku(string sku,string size,long variantid,string prefix)
+        {
+            if (string.IsNullOrEmpty(sku))
+            {
+                return prefix + "-" + size + "-" + variantid.ToString();
+            }
+            return sku;
+        }
+
+        private Dictionary<Guid, Dictionary<string, long>> product_to_Sku_to_variant(List<Sdata> data)
+        {
+            if(data.Count==0) return
+            new Dictionary<Guid, Dictionary<string, long>>();
+            Dictionary<Guid, Dictionary<string, long>> map = new Dictionary<Guid, Dictionary<string, long>>();
+            foreach (var product in data)
+            {
+                var sku_map=new Dictionary<string,long > ();
+                foreach (var variant in product.Variants)
+                {
+                    var sku = Givesku(variant.SKU, variant.Size, variant.Id, "SAV");
+                    sku_map.Add(sku,variant.Id);
+                }
+                map.Add(product.Id,sku_map);
+            }
+            return map;
         }
         
         
