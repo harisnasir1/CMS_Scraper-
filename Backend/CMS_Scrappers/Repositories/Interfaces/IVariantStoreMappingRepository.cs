@@ -6,6 +6,10 @@ public interface IVariantStoreMappingRepository
 {
     Task<bool> InsertVariantMapping( VariantStoreMapping variants);
 
+    Task<List<VariantStoreMapping>> Get_ProfcutStoreMapping_AllVariants(Guid id);
+
+    Task<bool> UpdateStockAndPrice(List<(long variantId, Guid productStoreMappingId, bool instock, decimal price)> updates);
+
     Task<bool> Exist_VariantVariantMapping_BY_variantid(long id,Guid pmid);
     
     Task<bool> DelteVariantMapping(Guid id);
