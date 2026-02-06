@@ -101,6 +101,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"✗ Update FAILED for {store.ShopName}: {ex.Message}");
+                    continue;
                 }
               
             }

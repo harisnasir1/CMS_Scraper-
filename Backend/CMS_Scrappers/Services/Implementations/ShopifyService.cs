@@ -334,6 +334,9 @@ namespace CMS_Scrappers.Services.Implementations
 
         private async Task Batchupdateproduct(List<ShopifyFlatProduct> currentBatch,Dictionary<string, Sdata> sdata,int i,string locationId)
         {
+            try
+            {
+
                 if (string.IsNullOrEmpty(locationId))
                 {                
                     _logger.LogError("Could not find a Shopify location to update inventory.");
@@ -377,10 +380,7 @@ namespace CMS_Scrappers.Services.Implementations
                                         price = inprice.ToString("F2"),
                                     });
                                 }
-                                else
-                                {
-                                    _logger.LogInformation($"skiiping price update for product with gid:{gid}");
-                                }
+                               
                              dbUpdates.Add((db_c_variant.Id, psmapping.Id, newQuantity == 1 ? true : false, inprice));
                             }
                         }
@@ -418,6 +418,13 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     await updateVariantMapping(dbUpdates);
                 }
+                
+            }
+            catch (Exception e)
+            {
+                _logger.LogCritical($"Error on updation of products for ${_shopifySettings.SHOPIFY_STORE_NAME} Error:{e}");
+                throw;
+            }
         }
         
         private bool IsValidMetafieldValue(string value)
@@ -516,7 +523,7 @@ namespace CMS_Scrappers.Services.Implementations
                 var dbvari = await _variantStoreMappingRepository.Get_ProfcutStoreMapping_AllVariants(psmid);
                 if (dbvari.Count == 0)
                 {
-                    _logger.LogWarning($"Fallback Can not find variants in db for product store mapping id={psmid}");
+                    //_logger.LogWarning($"Fallback Can not find variants in db for product store mapping id={psmid}");
                     return await GetVariantInventoryIdsShopify(productGid);   
                 }
 
