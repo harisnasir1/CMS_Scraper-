@@ -174,7 +174,8 @@ namespace CMS_Scrappers.Services.Implementations
                 var key=await Initial_prep_for_Bulk(name,jonldata.Item1);
                 if (string.IsNullOrEmpty(key)) return false;
                 var bulkOp =  await StartBulkProductCreateAsync(key);
-                var shopifyCmsIds=   await Insert_Get_BulkInsert_Data(lmap);
+                var ptoskumap = product_to_Sku_to_variant(data);
+                var shopifyCmsIds=   await Insert_Get_BulkInsert_Data(lmap,ptoskumap);
                 if (shopifyCmsIds.Count==0)
                 {
                     _logger.LogError("No Shopify IDs were returned from the pulling function. Stopping bulk insert.");   
@@ -333,19 +334,17 @@ namespace CMS_Scrappers.Services.Implementations
 
         private async Task Batchupdateproduct(List<ShopifyFlatProduct> currentBatch,Dictionary<string, Sdata> sdata,int i,string locationId)
         {
-            
                 if (string.IsNullOrEmpty(locationId))
                 {                
                     _logger.LogError("Could not find a Shopify location to update inventory.");
                     return;
                 }
-            
                 var inventoryQuantities = new List<object>();
                 var priceUpdate = new List<object>();
-                
+                var dbUpdates = new List<(long variantId, Guid psmId, bool inStock, decimal price)>();
                 foreach (var incomingProduct in currentBatch)
                 {
-                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))                           // the thing happing here is when we scrape dta from the endpoint we don't have all the ids and stuff as it is not from db.//and to mentain the flow we get the live data from db and match them on product url which is gonna be unique dah !
+                    if (sdata.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))  
                     {
                         var psmapping = dbProduct.ProductStoreMapping.FirstOrDefault();
                         if (psmapping == null)
@@ -353,14 +352,12 @@ namespace CMS_Scrappers.Services.Implementations
                             _logger.LogWarning($"No store mapping found for product {dbProduct.Id}");
                             continue;
                         }
-                        string gid = $"gid://shopify/Product/{psmapping.ExternalProductId}";       
-                                                                                                                          
-                        Dictionary<string , (string variantId, string inventoryId,decimal sprice) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid);
+                        string gid = $"gid://shopify/Product/{psmapping.ExternalProductId}";  
+                        Dictionary<string , (string variantId, string inventoryId,decimal sprice) > variantInventoryMap = await GetVariantInventoryIdsAsync(gid,psmapping.Id);
                         List<ProductVariantRecord> db_current_variant=dbProduct.Variants;
                         foreach(var incomingvariant in incomingProduct.Variants)
                         {
                             var db_c_variant=Get_Current_db_variant(db_current_variant,incomingvariant.Size);
-                         
                             if (variantInventoryMap.TryGetValue(incomingvariant.Size, out var details))
                             {
                                 int newQuantity = incomingvariant.Available == 1 ? 1 : 0;
@@ -370,8 +367,6 @@ namespace CMS_Scrappers.Services.Implementations
                                     locationId = locationId,
                                     quantity = newQuantity
                                 });
-                               
-                                
                                 var inprice = Addmarkup(incomingvariant.Price);
                                 if (db_c_variant!=null&&inprice !=details.sprice&&db_c_variant.InStock)
                                 {
@@ -386,22 +381,42 @@ namespace CMS_Scrappers.Services.Implementations
                                 {
                                     _logger.LogInformation($"skiiping price update for product with gid:{gid}");
                                 }
-
-                                await StoreShopifyVariantinfo(details.variantId, details.inventoryId, db_c_variant.Id,
-                                    psmapping.Id,inprice,newQuantity);
+                             dbUpdates.Add((db_c_variant.Id, psmapping.Id, newQuantity == 1 ? true : false, inprice));
                             }
                         }
                     }
                 }
+                bool shopifySuccess = true;
                 if(inventoryQuantities.Count > 0)
                 {
-                   await Update_Variant_Quantites_batch(inventoryQuantities, i);
-                   await Task.Delay(200);
+                    try
+                    {
+                        await Update_Variant_Quantites_batch(inventoryQuantities, i);
+                        await Task.Delay(200);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Inventory update failed: {ex.Message}");
+                        shopifySuccess = false;
+                    }
+                 
                 }
                 if(priceUpdate.Count > 0)
                 {
-                    await UpdatePricesBatch(priceUpdate, i);
-                    await Task.Delay(200);
+                    try
+                    {
+                        await UpdatePricesBatch(priceUpdate, i);
+                        await Task.Delay(200);
+                    }
+                        catch (Exception ex)
+                    {
+                        _logger.LogError($"Price update failed: {ex.Message}");
+                        shopifySuccess = false;
+                    }
+                }
+                if (shopifySuccess && dbUpdates.Count > 0)
+                {
+                    await updateVariantMapping(dbUpdates);
                 }
         }
         
@@ -444,8 +459,6 @@ namespace CMS_Scrappers.Services.Implementations
                     {
                         return true;
                     }
-                    
-             
                     if (attempt == 1)
                     {
                         _logger.LogWarning("Metafield operation failed, not retrying as it's not a transient error");
@@ -495,66 +508,33 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
         
-        private async Task<Dictionary<string, (string variantId, string inventoryId, decimal price)>> GetVariantInventoryIdsAsync(string productGid)
+        private async Task<Dictionary<string, (string variantId, string inventoryId, decimal price)>> GetVariantInventoryIdsAsync(string productGid,Guid psmid)
         {
-            var query = @"
-                   query getProductVariants($id: ID!) {
-                       product(id: $id) {
-                           variants(first: 50) {
-                               edges {
-                                   node {
-                                       id
-                                       price
-                                       selectedOptions {
-                                           name
-                                           value
-                                       }
-                                       inventoryItem {
-                                           id
-                                       }
-                                   }
-                               }
-                           }
-                       }
-                   }";
-
-            var variables = new { id = productGid };
-            var payload = new { query, variables };
-            var data = await ExecuteGraphQLAsync(payload);
-
             var variants = new Dictionary<string, (string,string,decimal)>();
-
-            var productElement = data.GetProperty("product");
-            if (productElement.ValueKind == JsonValueKind.Null)
+            try
             {
-                _logger.LogWarning($"No product found for gid {productGid}");
+                var dbvari = await _variantStoreMappingRepository.Get_ProfcutStoreMapping_AllVariants(psmid);
+                if (dbvari.Count == 0)
+                {
+                    _logger.LogWarning($"Fallback Can not find variants in db for product store mapping id={psmid}");
+                    return await GetVariantInventoryIdsShopify(productGid);   
+                }
+
+                foreach (var variant in dbvari)
+                {
+                    variants[variant.Variant.Size] = (
+                        $"gid://shopify/ProductVariant/{variant.ShopifyVariantId}",
+                        $"gid://shopify/InventoryItem/{variant.ShopifyInventoryId}",
+                        variant.ShopifyPrice
+                    );
+                }
                 return variants;
             }
-            var variantEdges = data.GetProperty("product").GetProperty("variants").GetProperty("edges");
-
-            foreach (var edge in variantEdges.EnumerateArray())
+            catch (Exception ex)
             {
-                var node = edge.GetProperty("node");
-                var variantId = node.GetProperty("id").GetString();
-                var inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
-                var priceString = node.GetProperty("price").GetString();
-                decimal price = decimal.TryParse(priceString, out var p) ? p : 0;
-                string size = null;
-                foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
-                {
-                    if (option.GetProperty("name").GetString().Equals("Size", StringComparison.OrdinalIgnoreCase))
-                    {
-                        size = option.GetProperty("value").GetString();
-                        break;
-                    }
-                }
-                if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId)&&!string.IsNullOrEmpty(variantId))
-                {
-                    variants[size] = (variantId,inventoryItemId,price);
-                }
+                _logger.LogError($"Can not find variants in db for product store mapping id={psmid}.   error:{ex}");
+                 return await GetVariantInventoryIdsShopify(productGid);
             }
-
-            return variants;
         }
         
         private async Task<string> GetFirstLocationIdAsync()
@@ -689,7 +669,7 @@ namespace CMS_Scrappers.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError($"Error updating inventory batch {i}: {ex.Message}");
-                throw; 
+                throw;
             }
         }
         
@@ -857,7 +837,26 @@ namespace CMS_Scrappers.Services.Implementations
                     mutation: ""
                       mutation productCreate($input: ProductSetInput!) {
                         productSet(input: $input) {
-                          product { id }
+                        product { 
+                                   id 
+                                   variants(first: 100) {
+                                     edges {
+                                       node {
+                                         id
+                                         price
+                                         sku
+                                         inventoryQuantity
+                                         selectedOptions {
+                                           name
+                                           value
+                                         }
+                                         inventoryItem {
+                                           id
+                                         }
+                                       }
+                                     }
+                                   }
+                                 }
                           userErrors {
                             field
                             message
@@ -1019,7 +1018,7 @@ namespace CMS_Scrappers.Services.Implementations
              
         }
 
-        private async Task<Dictionary<Guid, string>> Insert_Get_BulkInsert_Data(Dictionary<long, Guid> lmap)
+        private async Task<Dictionary<Guid, string>> Insert_Get_BulkInsert_Data(Dictionary<long, Guid> lmap,Dictionary<Guid, Dictionary<string, long>> skutovarmap)
         {
             try
             {
@@ -1038,33 +1037,29 @@ namespace CMS_Scrappers.Services.Implementations
                  }
         
                  response.EnsureSuccessStatusCode();
-        
                  using (var sTdata = await response.Content.ReadAsStreamAsync())
                  using (var reader = new StreamReader(sTdata, Encoding.UTF8))
                  {
                      string? line;
                      int successCount = 0;
                      int errorCount = 0;
-        
                      _logger.LogInformation("Starting to parse results...");
-        
+                     List<VariantStoreMapping> variants = new List<VariantStoreMapping>();
                      while ((line = await reader.ReadLineAsync()) != null)
                      {
                          try
                          {
                              using var doc = JsonDocument.Parse(line);
                              var productSet = doc.RootElement.GetProperty("data").GetProperty("productSet");
-                             
                              if (productSet.TryGetProperty("product", out var product) && product.ValueKind != JsonValueKind.Null)
                              {
                                  var shopifyId = product.GetProperty("id").GetString();
+                                 var incoming_variants = product.GetProperty("variants").GetProperty("edges").EnumerateArray();
                                  int lineNumber = doc.RootElement.GetProperty("__lineNumber").GetInt32();
-        
-                                 
-                                 if (lmap.TryGetValue((long)lineNumber, out Guid productid))
+                                 if (lmap.TryGetValue((long)lineNumber, out Guid productid) && skutovarmap.TryGetValue((Guid)productid ,out Dictionary<string , long> mvaris) )
                                  {
-                                     string externalid = shopifyId.Split('/').Last(); 
-        
+                                     string externalid = shopifyId.Split('/').Last();
+                                     
                                      var mapping = new ProductStoreMapping
                                      {
                                          Id = Guid.NewGuid(),
@@ -1076,8 +1071,51 @@ namespace CMS_Scrappers.Services.Implementations
                                          CreatedAt = DateTime.UtcNow,
                                          UpdatedAt = DateTime.UtcNow
                                      };
-                                     await _ProductMappingRepository.InsertProductmapping(mapping);
+                                    var pmid= await _ProductMappingRepository.InsertProductmapping(mapping);
+                                    if(pmid==Guid.Empty) continue;
                                      Shopify_cmsids.Add(productid, shopifyId);
+                                     
+                                     foreach (var item in incoming_variants)                   
+                                     {
+                                         
+                                         JsonElement node = item.GetProperty("node");
+                                         string variantId = node.GetProperty("id").GetString();
+                                         string sku = node.GetProperty("sku").GetString();
+                                         bool instock = node.GetProperty("inventoryQuantity").GetInt32() == 1;
+                                         decimal price = decimal.Parse(node.GetProperty("price").GetString());
+                                         if(mvaris.TryGetValue((string)sku,out long mvid))
+                                         {
+                                             string inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
+                                             
+                                             foreach (JsonElement option in node.GetProperty("selectedOptions")
+                                                          .EnumerateArray())
+                                             {
+                                                 string name = option.GetProperty("name").GetString();
+                                                 string value = option.GetProperty("value").GetString();
+
+                                                 if (name == "Size")
+                                                 {
+                                                     
+                                                     string svid = variantId.Split('/').Last();
+                                                     string inid = inventoryItemId.Split('/').Last();
+                                                    var vmdata=new VariantStoreMapping
+                                                     {
+                                                         Id = Guid.NewGuid(),
+                                                         VariantId = mvid, 
+                                                         ProductStoreMappingId = pmid,
+                                                         ShopifyVariantId = svid,
+                                                         ShopifyInventoryId = inid,
+                                                         ShopifyPrice = price, 
+                                                         InStock = instock,
+                                                         CreatedAt = DateTime.UtcNow,
+                                                         UpdatedAt = DateTime.UtcNow
+                                                     };
+                                                     await _variantStoreMappingRepository.InsertVariantMapping(vmdata);
+                                                 }
+                                             }
+                                         }
+                                     }
+                                     
                                      successCount++;
                                  }
                                  else
@@ -1184,7 +1222,7 @@ namespace CMS_Scrappers.Services.Implementations
                         variants = sdata.Variants.Select(v => new
                         {
                             price = Addmarkup(v.Price).ToString("F2"),
-                            sku = v.SKU!=""?v.SKU:sdata.Sku+"-"+v.Size,
+                            sku = this.Givesku(v.SKU,v.Size,v.Id,"SAV"),
                             optionValues = new[]
                             {
                                 new { optionName = "Size", name = v.Size }
@@ -1549,7 +1587,7 @@ namespace CMS_Scrappers.Services.Implementations
                 {
                     "Online Store",
                     "Facebook",
-                    "Instagram", 
+                    "Instagram",
                     "TikTok",
                     "Google",
                 };
@@ -1635,7 +1673,102 @@ namespace CMS_Scrappers.Services.Implementations
                 _logger.LogError($"Error in inserting variants in variant mapping{ex}");
             }
         }
-        
-        
+
+        private string Givesku(string sku,string size,long variantid,string prefix)
+        {
+            if (string.IsNullOrEmpty(sku))
+            {
+                return prefix + "-" + size + "-" + variantid.ToString();
+            }
+            return sku;
+        }
+
+        private Dictionary<Guid, Dictionary<string, long>> product_to_Sku_to_variant(List<Sdata> data)
+        {
+            if(data.Count==0) return
+            new Dictionary<Guid, Dictionary<string, long>>();
+            Dictionary<Guid, Dictionary<string, long>> map = new Dictionary<Guid, Dictionary<string, long>>();
+            foreach (var product in data)
+            {
+                var sku_map=new Dictionary<string,long > ();
+                foreach (var variant in product.Variants)
+                {
+                    var sku = Givesku(variant.SKU, variant.Size, variant.Id, "SAV");
+                    sku_map.Add(sku,variant.Id);
+                }
+                map.Add(product.Id,sku_map);
+            }
+            return map;
+        }
+
+        private async Task<Dictionary<string, (string variantId, string inventoryId, decimal price)>> GetVariantInventoryIdsShopify(string productGid)
+        {
+            var variants = new Dictionary<string, (string,string,decimal)>();
+                       var query = @"
+                       query getProductVariants($id: ID!) {
+                           product(id: $id) {
+                               variants(first: 50) {
+                                   edges {
+                                       node {
+                                           id
+                                           price
+                                           selectedOptions {
+                                               name
+                                               value
+                                           }
+                                           inventoryItem {
+                                               id
+                                           }
+                                       }
+                                   }
+                               }
+                           }
+                       }";
+            var variables = new { id = productGid };
+            var payload = new { query, variables };
+            var data = await ExecuteGraphQLAsync(payload);
+            var productElement = data.GetProperty("product");
+            if (productElement.ValueKind == JsonValueKind.Null)
+            {
+                _logger.LogWarning($"No product found for gid {productGid}");
+                return variants;
+            }
+            var variantEdges = data.GetProperty("product").GetProperty("variants").GetProperty("edges");
+            foreach (var edge in variantEdges.EnumerateArray())
+            {
+                var node = edge.GetProperty("node");
+                var variantId = node.GetProperty("id").GetString();
+                var inventoryItemId = node.GetProperty("inventoryItem").GetProperty("id").GetString();
+                var priceString = node.GetProperty("price").GetString();
+                decimal price = decimal.TryParse(priceString, out var p) ? p : 0;
+                string size = null;
+                foreach (var option in node.GetProperty("selectedOptions").EnumerateArray())
+                {
+                    if (option.GetProperty("name").GetString().Equals("Size", StringComparison.OrdinalIgnoreCase))
+                    {
+                        size = option.GetProperty("value").GetString();
+                        break;
+                    }
+                }
+                if (!string.IsNullOrEmpty(size) && !string.IsNullOrEmpty(inventoryItemId)&&!string.IsNullOrEmpty(variantId))
+                {
+                    variants[size] = (variantId,inventoryItemId,price);
+                }
+            }
+            return variants;
+        }
+
+        private async Task<bool> updateVariantMapping(List<(long variantId, Guid productStoreMappingId, bool instock, decimal price)> updates)
+        {
+            try
+            {
+                return await _variantStoreMappingRepository.UpdateStockAndPrice(updates);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogCritical($"Error inserting Variant Mapping{ex}");
+                return false;      
+            }
+        }
     }
 }
