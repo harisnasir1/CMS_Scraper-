@@ -13,6 +13,7 @@ using CMS_Scrappers.Services.Implementations;
 using CMS_Scrappers.Utils;
 using CMS_Scrappers.Ai;
 using CMS_Scrappers.Ai.Implementation;
+using CMS_Scrappers.BackgroundJobs.Cronjobs.Implementations;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
 using CMS_Scrappers.BackgroundJobs.Implementations;
 using CMS_Scrappers.Coordinators.Implementations;
@@ -119,6 +120,10 @@ builder.Services.AddSingleton<IUpdateShopifyTaskQueue,UpdateShopifyTaskQueue>();
 builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
 builder.Services.AddHostedService<LowPriorityWorkerService>();
 builder.Services.AddHostedService<UpdateShopifyWorkerService>();
+
+//conjobs
+builder.Services.AddHostedService<Scrappingjob>();
+
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -138,6 +143,9 @@ builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<IAi, AI>();
+
+
+
 //builder.Services.AddScoped<IShopifyService, ShopifyService>();
 //Coordinators
 builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
