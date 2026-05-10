@@ -6,8 +6,8 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) {}
     public DbSet<User> Users { get; set; }
     public DbSet<Sdata> Sdata { get; set; }
-    public DbSet<RRSyncProductMap> RRSyncProductMaps { get; set; }
-    public DbSet<RRSyncVariantMap> RRSyncVariantMaps { get; set; }
+    public DbSet<RRSyncProductMap> RRSyncProductMap { get; set; }
+    public DbSet<RRSyncVariantMap> RRSyncVariantMap { get; set; }
     public DbSet<Shopify> Shopify { get; set; }
     public DbSet<Scrapper> Scrappers { get; set; }
     

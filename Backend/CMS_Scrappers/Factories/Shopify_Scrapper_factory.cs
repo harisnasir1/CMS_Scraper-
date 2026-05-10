@@ -20,7 +20,7 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
 
         private readonly IUpdateShopifyTaskQueue _updateShopifyTaskQueue;
         private readonly IProductSyncCoordinator _productSyncCoordinator;
-
+        private readonly IRRsyncCoordinator _rsyncCoordinator;
         public Shopify_Scrapper_factory (
            
             ShoipfyScrapper shoipfyScrapper
@@ -29,7 +29,8 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
             IServiceProvider serviceProvider,
            ISdataRepository sdataRepository,
             IUpdateShopifyTaskQueue updateShopifyTaskQueue,
-            IProductSyncCoordinator productSyncCoordinator
+            IProductSyncCoordinator productSyncCoordinator,
+            IRRsyncCoordinator rsyncCoordinator
         )
         {
          
@@ -40,6 +41,7 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
             _sdataRepository=sdataRepository;
              _updateShopifyTaskQueue=updateShopifyTaskQueue;
              _productSyncCoordinator = productSyncCoordinator;
+             _rsyncCoordinator = rsyncCoordinator;
         }
 
         public ShopifyStoreScraper CreateScraper(string StoreName){
@@ -56,6 +58,6 @@ public class Shopify_Scrapper_factory:IShopifyScrapperFact{
              default:
                 throw new NotSupportedException($"Store '{StoreName}' is not supported.");
            }
-            return new ShopifyStoreScraper(StoreName, baseurl, _looger, _shopifyclient, strategy, _scrapperRepository,_serviceProvider,_sdataRepository,_updateShopifyTaskQueue,_productSyncCoordinator);
+            return new ShopifyStoreScraper(StoreName, baseurl, _looger, _shopifyclient, strategy, _scrapperRepository,_serviceProvider,_sdataRepository,_updateShopifyTaskQueue,_productSyncCoordinator,_rsyncCoordinator);
         }
 }

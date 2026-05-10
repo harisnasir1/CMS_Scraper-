@@ -7,4 +7,5 @@ public interface IRRSyncProductMapRepository
     Task<RRSyncProductMap> Get(Guid sid);
     Task<bool> Update(Guid sid,string status);
     Task<bool> Delete(Guid sid);
+    Task<List<Guid>> GiveLiveProductsForRRSync(List<Guid> sdataIds);
 }

@@ -9,5 +9,6 @@
 
         Task<List<Sdata>> GiveBulkliveproductperstore(Guid storeid);
         Task<int> GiveBulkliveproductperstoreCount(Guid storeid);
+        Task<Dictionary<string,Sdata>> GiveLiveDataToSync(DateTime scrapeStartedAt);
     }
 

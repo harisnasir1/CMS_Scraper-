@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CMS_Scrappers.Models;
 using Microsoft.EntityFrameworkCore;
-
+[Table("RRSyncProductMap")]
 [Index(nameof(Id))]
 [Index(nameof(SdataId), IsUnique = true)]
 [Index(nameof(RRSyncProductId))]

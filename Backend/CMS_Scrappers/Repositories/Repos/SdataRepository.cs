@@ -39,8 +39,11 @@ namespace CMS_Scrappers.Repositories.Repos
                 {
                     if (dbProductsDict.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))
                     {
-                        UpdateVariants(dbProduct, incomingProduct);
-                        dbProduct.UpdatedAt = DateTime.UtcNow;
+                       var change= UpdateVariants(dbProduct, incomingProduct);
+                       if(change)
+                       {
+                           dbProduct.UpdatedAt = DateTime.UtcNow;
+                       }
                     }
                 }
             }
@@ -61,9 +64,9 @@ namespace CMS_Scrappers.Repositories.Repos
             await _context.SaveChangesAsync();
         }
 
-        private void UpdateVariants(Sdata dbProduct, ShopifyFlatProduct incomingProduct)
+        private bool UpdateVariants(Sdata dbProduct, ShopifyFlatProduct incomingProduct)
         {
-          
+            var change = false;
             var incomingVariantsDict = incomingProduct.Variants
                 .GroupBy(v => v.Size ?? "")
                 .Select(g => g.First())
@@ -74,10 +77,20 @@ namespace CMS_Scrappers.Repositories.Repos
                
                 if (incomingVariantsDict.TryGetValue(dbVariant.Size, out var incomingVariant))
                 {
-                    dbVariant.InStock = incomingVariant.Available == 1;
-                    dbVariant.Price = incomingVariant.Price;
+                    var newInStock = incomingVariant.Available == 1;
+                    var newPrice = incomingVariant.Price;
+                    
+                    // Only bump UpdatedAt if something actually changed
+                    if (dbVariant.InStock != newInStock || dbVariant.Price != newPrice)
+                    {
+                        dbVariant.InStock = newInStock;
+                        dbVariant.Price = newPrice;
+                        dbVariant.UpdatedAt = DateTime.UtcNow;
+                        change = true;
+                    }
                 }
             }
+            return change;
         }
 
         private Sdata MapToNewSdata(ShopifyFlatProduct flatProduct, Guid scraperId)
@@ -176,5 +189,33 @@ namespace CMS_Scrappers.Repositories.Repos
 
             return dbProductsDict;
         }
+
+      public async Task<Dictionary<string,Sdata>> GiveLiveDataToSync(DateTime scrapeStartedAt)
+        {
+            return await _context.Sdata
+                .AsNoTracking()
+                .Include(s => s.Variants)
+                .Include(s => s.Image)
+                .Where(s => s.Status == "Live")
+                .Where(s =>
+                    // No map at all — never synced
+                    !_context.RRSyncProductMap.Any(m => m.SdataId == s.Id)
+                    // OR a variant has changed since its map was last touched
+                    || s.Variants.Any(v =>
+                        _context.RRSyncVariantMap.Any(m =>
+                            m.VariantId == v.Id
+                            && m.SyncStatus == "Active"
+                            && m.UpdatedAt < v.UpdatedAt))
+                    // OR Sdata itself has changed since the product map was touched
+                    || _context.RRSyncProductMap.Any(m =>
+                        m.SdataId == s.Id
+                        && m.SyncStatus == "Active"
+                        && m.UpdatedAt < s.UpdatedAt))
+                .OrderBy(s => s.Id)
+                .Take(1)
+                .AsSplitQuery()
+                .ToDictionaryAsync(s => s.Id.ToString(), s => s);
+        }
+        
     }
 }

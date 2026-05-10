@@ -36,6 +36,11 @@ builder.Services.AddSingleton(AWSsettings);
 var AiSettings = builder.Configuration.GetSection("GroqApiKey").Get<AISettings>();
 builder.Services.AddSingleton(AiSettings);
 
+var RRSyncConfig = builder.Configuration.GetSection("RRSync").Get<RRSyncConfig>();
+builder.Services.AddSingleton(RRSyncConfig);
+
+
+
 //var ShopifySettings=builder.Configuration.GetSection("ShopifyApi").Get<ShopifySettings>();
 //builder.Services.AddSingleton(ShopifySettings);
 
@@ -130,6 +135,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IShopifyRepository, ShopifyRepository>();
 builder.Services.AddScoped<IProductStoreMappingRepository, ProductStoreMappingRepository>();
 builder.Services.AddScoped<IVariantStoreMappingRepository, VariantStoreMappingRepository>();
+builder.Services.AddScoped<IRRSyncProductMapRepository, RRSyncProductMapRepository>();
+builder.Services.AddScoped<IRRSyncVariantMapRepository, RRSyncVariantMapRepository>();
 builder.Services.AddScoped<ISdataRepository, SdataRepository>();
 builder.Services.AddScoped<IScrapperRepository, ScrapperRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
@@ -143,13 +150,12 @@ builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<IAi, AI>();
-
-
-
+builder.Services.AddScoped<IRRSyncService, RRSyncService>();
+builder.Services.AddHttpClient<IRRSyncAuthService, RRSyncAuthService>();
 //builder.Services.AddScoped<IShopifyService, ShopifyService>();
 //Coordinators
 builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
-
+builder.Services.AddScoped<IRRsyncCoordinator, RRsyncCoordinator>();
 builder.Services.AddControllers();
 var app = builder.Build();
 app.UseRouting();

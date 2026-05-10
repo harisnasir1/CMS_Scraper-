@@ -20,7 +20,7 @@ public class RRSyncProductMapRepository:IRRSyncProductMapRepository
         try
         {
             if(data==null) return Guid.Empty;
-            await _context.RRSyncProductMaps.AddAsync(data);
+            await _context.RRSyncProductMap.AddAsync(data);
             await _context.SaveChangesAsync();
             return data.Id;
         }
@@ -36,7 +36,7 @@ public class RRSyncProductMapRepository:IRRSyncProductMapRepository
     {
         try
         {
-            var result = await _context.RRSyncProductMaps.ToListAsync();
+            var result = await _context.RRSyncProductMap.ToListAsync();
             if (result == null) 
                 return new List<RRSyncProductMap>();
             return result;
@@ -51,9 +51,8 @@ public class RRSyncProductMapRepository:IRRSyncProductMapRepository
     {
         try
         {
-            var result = await _context.RRSyncProductMaps.Include(p=>p.VariantMaps).FirstOrDefaultAsync(rs => rs.SyncStatus == "Active" && rs.SdataId==sid);
-            if (result == null) 
-                return new RRSyncProductMap();
+            var result = await _context.RRSyncProductMap.Include(p=>p.VariantMaps).FirstOrDefaultAsync(rs => rs.SyncStatus == "Active" && rs.SdataId==sid);
+            if (result == null) return null;
             
             return result;
         }
@@ -64,13 +63,27 @@ public class RRSyncProductMapRepository:IRRSyncProductMapRepository
         }
     }
 
-    public Task<bool> Update(Guid sid, string status)
+    public async Task<bool> Update(Guid sid, string status)
     {
-        throw new NotImplementedException();
+        if(status==null || string.IsNullOrEmpty(status)) return false;
+        var map= await _context.RRSyncProductMap.FirstOrDefaultAsync(rs => rs.SdataId==sid);
+        if (map == null) return false;
+        map.SyncStatus=status;
+        await _context.SaveChangesAsync();
+        return true;
     }
 
     public Task<bool> Delete(Guid sid)
     {
         throw new NotImplementedException();
+    }
+    
+    public async Task<List<Guid>> GiveLiveProductsForRRSync(List<Guid> sdataIds)
+    {
+        return await _context.RRSyncProductMap
+            .AsNoTracking()
+            .Where(m => m.SyncStatus == "Active" && sdataIds.Contains(m.SdataId)&& m.Sdata.Status!="Live")
+            .Select(m => m.SdataId)
+            .ToListAsync();
     }
 }
