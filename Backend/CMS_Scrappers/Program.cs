@@ -18,6 +18,7 @@ using CMS_Scrappers.BackgroundJobs.Interfaces;
 using CMS_Scrappers.BackgroundJobs.Implementations;
 using CMS_Scrappers.Coordinators.Implementations;
 using CMS_Scrappers.Coordinators.Interfaces;
+using CMS_Scrappers.Utils.variantMapperSync;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -156,6 +157,7 @@ builder.Services.AddHttpClient<IRRSyncAuthService, RRSyncAuthService>();
 //Coordinators
 builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
 builder.Services.AddScoped<IRRsyncCoordinator, RRsyncCoordinator>();
+builder.Services.AddScoped<ISavonchesSyncSize, SavonchesSyncSize>();
 builder.Services.AddControllers();
 var app = builder.Build();
 app.UseRouting();

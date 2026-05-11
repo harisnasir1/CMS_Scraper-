@@ -196,10 +196,11 @@ namespace CMS_Scrappers.Repositories.Repos
                 .AsNoTracking()
                 .Include(s => s.Variants)
                 .Include(s => s.Image)
-                .Where(s => s.Status == "Live")
+                .Where(s => s.Status == "Live"&& s.Description != "")
                 .Where(s =>
                     // No map at all — never synced
-                    !_context.RRSyncProductMap.Any(m => m.SdataId == s.Id)
+                    (!_context.RRSyncProductMap.Any(m => m.SdataId == s.Id) 
+                     && s.Variants.Any(v => v.InStock))
                     // OR a variant has changed since its map was last touched
                     || s.Variants.Any(v =>
                         _context.RRSyncVariantMap.Any(m =>
@@ -212,7 +213,7 @@ namespace CMS_Scrappers.Repositories.Repos
                         && m.SyncStatus == "Active"
                         && m.UpdatedAt < s.UpdatedAt))
                 .OrderBy(s => s.Id)
-                .Take(1)
+                .Take(10)
                 .AsSplitQuery()
                 .ToDictionaryAsync(s => s.Id.ToString(), s => s);
         }

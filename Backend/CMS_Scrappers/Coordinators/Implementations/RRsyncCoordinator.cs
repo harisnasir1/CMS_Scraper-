@@ -15,19 +15,19 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     private readonly IRRSyncProductMapRepository _productMapRepository;
     private readonly IRRSyncVariantMapRepository _variantMapRepository;
     private readonly IRRSyncService _syncService;
-   
+    private readonly ISavonchesSyncSize _saveSize;
     private readonly int RatelimitCount = 250;
 
     public RRsyncCoordinator(ILogger<RRsyncCoordinator> logger, IRRSyncProductMapRepository productMapRepository,
         IRRSyncVariantMapRepository variantMapRepository, ISdataRepository sdataRepository,
-        IRRSyncService syncService)
+        IRRSyncService syncService, ISavonchesSyncSize saveSize)
     {
         _logger = logger;
         _productMapRepository = productMapRepository;
         _variantMapRepository = variantMapRepository;
         _sdataRepository = sdataRepository;
         _syncService = syncService;
-        
+        _saveSize = saveSize;
     }
 
     public async Task<bool> Syncportal(DateTime scrapeStartedAt,string ScraperName)
@@ -70,10 +70,10 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                 {
                     ProductName = ldata.Title,
                     Brand = ldata.Brand,
-                    Sku = ldata.Sku ?? "",
+                    Sku = string.IsNullOrEmpty(ldata.Sku) ? GenerateSKU(ldata.Brand):ldata.Sku,
                     Note = ldata.Description,
                     StockXId = ldata.Id.ToString(),
-                    Category = ldata.Category,
+                    Category =string.IsNullOrEmpty(ldata.Category)?"Unisex":ldata.Category,
                     Subcategory = "", //need to investigate the subcategory part
                     Gender = ldata.Gender,
                     ProductType = ldata.ProductType,
@@ -183,7 +183,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         Sdata cmsProduct)
     {
         var variantRequests = cmsProduct.Variants
-            .Select(PrepareRRSyncvarinat)
+            .Select(v=>PrepareRRSyncvarinat(v,cmsProduct))
             .ToList();
 
         if (!variantRequests.Any())
@@ -259,11 +259,16 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         }
     }
 
-    private CreateRRSyncVariantRequest PrepareRRSyncvarinat(ProductVariantRecord variant)
+    private CreateRRSyncVariantRequest PrepareRRSyncvarinat(ProductVariantRecord variant,Sdata product)
     {
+        string mappedSize = _saveSize.GetMappedSizes(
+            product.Category, 
+            product.ProductType, 
+            variant.Size
+        );
         var vareobj = new CreateRRSyncVariantRequest
         {
-            Size = variant.Size,
+            Size = mappedSize==null?variant.Size:mappedSize,
             Color = "",
             Qty = variant.InStock ? 1 : 0,
             SellPrice = _syncService.Addmarkup(variant.Price),
@@ -306,7 +311,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
             .ToHashSet();
 
         await UpdateChangedVariantsAsync(rrProductId, rrVariants, mapsByRRSyncId, cmsByVariantId);
-        await CreateMissingVariantsAsync(rrProductId, ldata.Variants, cmsVariantIdsWithMaps, productMap.Id);
+        await CreateMissingVariantsAsync(rrProductId, ldata, cmsVariantIdsWithMaps, productMap.Id);
     }
 
     private async Task UpdateChangedVariantsAsync(
@@ -383,17 +388,18 @@ public class RRsyncCoordinator : IRRsyncCoordinator
 
     private async Task CreateMissingVariantsAsync(
         string rrProductId,
-        List<ProductVariantRecord> cmsVariants,
+        Sdata product,
         HashSet<long> cmsVariantIdsWithMaps,
         Guid productMapId)
     {
+        var cmsVariants = product.Variants;
         var newCmsVariants = cmsVariants
             .Where(v => !cmsVariantIdsWithMaps.Contains(v.Id))
             .ToList();
 
         if (!newCmsVariants.Any()) return;
 
-        var requests = newCmsVariants.Select(PrepareRRSyncvarinat).ToList();
+        var requests = newCmsVariants.Select(v=>PrepareRRSyncvarinat(v,product)).ToList();
 
         foreach (var v in newCmsVariants)
             _logger.LogInformation("New variant to create on RRSync: {Id}", v.Id);
@@ -426,4 +432,12 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     }
 
     #endregion
+    
+    private static string GenerateSKU(string brandName)
+    {
+        var prefix = brandName.Substring(0, 2).ToUpper();
+        var random = new Random();
+        var number = random.Next(0, 999999).ToString("D6");
+        return prefix + number;
+    }
 }

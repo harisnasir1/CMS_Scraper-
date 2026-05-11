@@ -39,7 +39,22 @@ public class RRSyncService:IRRSyncService
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _http.SendAsync(msg);
+        var rawBody = await response.Content.ReadAsStringAsync();
 
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Bulk create HTTP {Status} ({Reason}). Body: {Body}",
+                (int)response.StatusCode, response.ReasonPhrase, rawBody);
+
+            return new RRApiResponse<Dictionary<string, string>>
+            {
+                IsSuccess = false,
+                Status = "Fail",
+                Message = $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}",
+                ErrorCode = (int)response.StatusCode,
+            };
+        }
         var body = await response.Content.ReadFromJsonAsync<RRApiResponse<Dictionary<string, string>>>()
                    ?? throw new InvalidOperationException("Empty bulk create response");
 
