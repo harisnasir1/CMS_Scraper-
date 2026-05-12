@@ -213,7 +213,6 @@ namespace CMS_Scrappers.Repositories.Repos
                         && m.SyncStatus == "Active"
                         && m.UpdatedAt < s.UpdatedAt))
                 .OrderBy(s => s.Id)
-                .Take(10)
                 .AsSplitQuery()
                 .ToDictionaryAsync(s => s.Id.ToString(), s => s);
         }

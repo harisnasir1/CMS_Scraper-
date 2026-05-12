@@ -82,6 +82,22 @@ public class RRSyncService:IRRSyncService
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _http.SendAsync(msg);
+        var rawBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Bulk create HTTP {Status} ({Reason}). Body: {Body}",
+                (int)response.StatusCode, response.ReasonPhrase, rawBody);
+
+            return new RRApiResponse<Dictionary<string, string>>
+            {
+                IsSuccess = false,
+                Status = "Fail",
+                Message = $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}",
+                ErrorCode = (int)response.StatusCode,
+            };
+        }
         var body = await response.Content.ReadFromJsonAsync<RRApiResponse<Dictionary<string, string>>>()
                    ?? throw new InvalidOperationException("Empty bulk create response");
 
@@ -98,7 +114,7 @@ public class RRSyncService:IRRSyncService
   public  async Task<RRApiResponse<List<RRSyncVarinatDTO>>> GetAllSyncVarinats(string syncproductid)
     {
         var token = await _syncauthService.GetTokenAsync();
-        var url = $"{_syncconfig.BaseURl}/api/Scrapper/GetMyProductById?productId={Uri.EscapeDataString(syncproductid)}";
+        var url = $"{_syncconfig.BaseURl}/api/Scrapper/GetMyProductVariants?productId={Uri.EscapeDataString(syncproductid)}";
         using var msg = new HttpRequestMessage(
             HttpMethod.Get,url);
        

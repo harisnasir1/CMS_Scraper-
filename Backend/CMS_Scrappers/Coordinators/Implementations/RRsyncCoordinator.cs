@@ -184,6 +184,8 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     {
         var variantRequests = cmsProduct.Variants
             .Select(v=>PrepareRRSyncvarinat(v,cmsProduct))
+            .Where(r => r != null)
+            .Select(r => r!)  
             .ToList();
 
         if (!variantRequests.Any())
@@ -264,11 +266,19 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         string mappedSize = _saveSize.GetMappedSizes(
             product.Category, 
             product.ProductType, 
-            variant.Size
+            variant.Size,
+            product.Gender
         );
+        if (mappedSize == null)
+        {
+            _logger.LogWarning(
+                "Skipping variant {Id} — size '{Raw}' doesn't map for {Cat}/{Type}", 
+                variant.Id, variant.Size, product.Category, product.ProductType);
+            return null;
+        }
         var vareobj = new CreateRRSyncVariantRequest
         {
-            Size = mappedSize==null?variant.Size:mappedSize,
+            Size = mappedSize,
             Color = "",
             Qty = variant.InStock ? 1 : 0,
             SellPrice = _syncService.Addmarkup(variant.Price),
@@ -359,7 +369,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                 rrProductId, response.Message);
         }
         var rrsyncVariantIds = updates.Select(u => u.Id).ToList();
-        _variantMapRepository.TouchVariantMapsAfterSync(rrsyncVariantIds);
+         await  _variantMapRepository.TouchVariantMapsAfterSync(rrsyncVariantIds);
     }
 
     private UpdateRRSyncVariantRequest? TryBuildVariantUpdate(
