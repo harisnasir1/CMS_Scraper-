@@ -40,6 +40,7 @@ namespace CMS_Scrappers.Repositories.Repos
                     if (dbProductsDict.TryGetValue(incomingProduct.ProductUrl, out var dbProduct))
                     {
                        var change= UpdateVariants(dbProduct, incomingProduct);
+                       dbProduct.LastViewed = DateTime.UtcNow;
                        if(change)
                        {
                            dbProduct.UpdatedAt = DateTime.UtcNow;
@@ -79,7 +80,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 {
                     var newInStock = incomingVariant.Available == 1;
                     var newPrice = incomingVariant.Price;
-                    
+                    dbVariant.LastViewed = DateTime.UtcNow;
                     // Only bump UpdatedAt if something actually changed
                     if (dbVariant.InStock != newInStock || dbVariant.Price != newPrice)
                     {
@@ -114,6 +115,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 Status = flatProduct.Status ?? "",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
+                LastViewed = DateTime.UtcNow,
                 Image = flatProduct.Images.Select(img => new ProductImageRecord
                 {
                     Priority = img.Priority,
@@ -124,7 +126,10 @@ namespace CMS_Scrappers.Repositories.Repos
                     Size = variant.Size ?? "",
                     SKU = variant.SKU ?? "",
                     Price = variant.Price,
-                    InStock = variant.Available == 1
+                    InStock = variant.Available == 1,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    LastViewed = DateTime.UtcNow,
                 }).ToList(),
                 Enriched= flatProduct.Enriched,
             };
