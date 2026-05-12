@@ -17,7 +17,7 @@ public class ShopifyStoreScraper : IScrappers
     private readonly string _storeBaseUrl;
     private readonly IProductSyncCoordinator _productSyncCoordinator;
     private readonly IUpdateShopifyTaskQueue _updateShopifyTaskQueue;
-
+    private readonly IRRsyncCoordinator _rrsyncCoordinator;
     private DateTime TimeStart { get; set; }
     private DateTime TimeEnd { get; set; }
     public ShopifyStoreScraper(
@@ -30,7 +30,8 @@ public class ShopifyStoreScraper : IScrappers
         ,IServiceProvider serviceProvider
         , ISdataRepository sdataRepository
         ,IUpdateShopifyTaskQueue updateShopifyTaskQueue,
-        IProductSyncCoordinator productSyncCoordinator
+        IProductSyncCoordinator productSyncCoordinator,
+        IRRsyncCoordinator rrsyncCoordinator
         )
         {
          _scraperName = scraperName;
@@ -43,6 +44,7 @@ public class ShopifyStoreScraper : IScrappers
          _sdataRepository = sdataRepository;
          _updateShopifyTaskQueue = updateShopifyTaskQueue;
          _productSyncCoordinator = productSyncCoordinator;
+         _rrsyncCoordinator = rrsyncCoordinator;
         }
 
     public async Task ScrapeAsync()
@@ -69,9 +71,7 @@ public class ShopifyStoreScraper : IScrappers
 
           
             List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _storeBaseUrl);
-
-
-
+            
             List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
 
             await _sdataRepository.Add(trendBatch, scrapperid);
@@ -79,9 +79,9 @@ public class ShopifyStoreScraper : IScrappers
             i++;
         }
 
-
+        await updateRrsyncData(TimeStart,"savonches");
         await Updateliveproducts(FullflatBatch);
-
+        
         TimeEnd = DateTime.UtcNow;
 
         TimeSpan Diff = TimeEnd - TimeStart;
@@ -97,6 +97,19 @@ public class ShopifyStoreScraper : IScrappers
     {
        var scrape = _serviceProvider.GetRequiredService<IScrapperRepository>();
        return await scrape.Giveidbyname(name);
+    }
+
+    private async Task updateRrsyncData(DateTime time,string ScraperName)
+    {
+        try
+        {
+            await _rrsyncCoordinator.Syncportal(time,ScraperName);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError("error updating RRSync products {Message} ",e.ToString());
+            throw;
+        }
     }
 
     private async Task Updateliveproducts(List<ShopifyFlatProduct> data)
