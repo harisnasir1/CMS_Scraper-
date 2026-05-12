@@ -73,9 +73,9 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                     Sku = string.IsNullOrEmpty(ldata.Sku) ? GenerateSKU(ldata.Brand):ldata.Sku,
                     Note = ldata.Description,
                     StockXId = ldata.Id.ToString(),
-                    Category =string.IsNullOrEmpty(ldata.Category)?"Unisex":ldata.Category,
+                    Category =string.IsNullOrEmpty(ldata.Category)?"Accessories":ldata.Category,
                     Subcategory = "", //need to investigate the subcategory part
-                    Gender = ldata.Gender,
+                    Gender = string.IsNullOrEmpty(ldata.Gender)?"Unisex":ldata.Category,
                     ProductType = ldata.ProductType,
                     UrlKey = ldata.ProductUrl,
                     ThumbnailImage = ldata.Image.OrderBy(i => i.Priority).FirstOrDefault()?.Url ?? "",

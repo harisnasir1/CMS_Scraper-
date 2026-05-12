@@ -41,7 +41,7 @@ public class Sdata
     public string ? Hashimg { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-    
+    public DateTime? LastViewed { get; set; } = null;
     // in Sdata.cs
     public RRSyncProductMap? RRSyncProductMap { get; set; }
 }

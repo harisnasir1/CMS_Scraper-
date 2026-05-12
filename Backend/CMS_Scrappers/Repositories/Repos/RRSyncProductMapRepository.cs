@@ -73,9 +73,13 @@ public class RRSyncProductMapRepository:IRRSyncProductMapRepository
         return true;
     }
 
-    public Task<bool> Delete(Guid sid)
+    public async Task<bool> Delete(Guid sid)
     {
-        throw new NotImplementedException();
+        var map= await _context.RRSyncProductMap.FirstOrDefaultAsync(rs => rs.SdataId==sid);
+        if (map == null) return false;
+        _context.RRSyncProductMap.Remove(map);
+        await _context.SaveChangesAsync();
+        return true;
     }
     
     public async Task<List<Guid>> GiveLiveProductsForRRSync(List<Guid> sdataIds)
