@@ -47,4 +47,37 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
            
        }
    }
+
+   public async Task<ProductStoreMapping> GetProductStoreMapping(Guid id)
+   {
+       try
+       {
+           if (id == Guid.Empty) return null;
+           var k= await _context.ProductStoreMapping.FirstOrDefaultAsync(s => s.Id == id);
+           return k;
+       }
+       catch (Exception e)
+       {
+           Console.WriteLine(e);
+           throw;
+       }
+   }
+
+   public async Task DeleteProductStoreMapping(Guid id)
+   {
+       try
+       {
+           if (id != Guid.Empty) return;
+           var k= await _context.ProductStoreMapping.FirstOrDefaultAsync(s => s.Id == id);
+           _context.ProductStoreMapping.Remove(k);
+           
+           await _context.SaveChangesAsync();
+           
+       }
+       catch (Exception e)
+       {
+           Console.WriteLine(e);
+           throw;
+       }
+   }
 }

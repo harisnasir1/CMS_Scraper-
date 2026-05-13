@@ -102,6 +102,24 @@ public class VariantStoreMappingRepository:IVariantStoreMappingRepository
         }
     }
 
+  public  async Task DeleteAllVariants(List<Guid> ids)
+    {
+        try
+        {
+          if(ids==null || ids.Count == 0) return ;
+          var rows = await _context.VariantStoreMapping
+              .Where(vsm => ids.Contains(vsm.Id))
+              .ToListAsync();
+          _context.VariantStoreMapping.RemoveRange(rows);
+          await _context.SaveChangesAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogCritical($"Error Deleting Variant Mapping by id{e}");
+            throw;
+        }
+    }
+
     public async Task<bool> DeleteAllVariantMapping_per_productmapping(Guid id)
     {
         try

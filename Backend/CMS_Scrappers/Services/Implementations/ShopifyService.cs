@@ -163,27 +163,27 @@ namespace CMS_Scrappers.Services.Implementations
                 await Batchupdateproduct(currentBatch, sdata, currentbatchno,locationId);
             }
         }
-           
-        public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data,string name)
+
+        public async Task<bool> Bulk_mutation_shopify_product_creation(List<Sdata> data, string name)
         {
-            var jonldata = await PrepareProductInputForGraphQL(data,name);
+            var jonldata = await PrepareProductInputForGraphQL(data, name);
             var lmap = jonldata.Item2;
             string path = GetJsonlPath(name);
             try
             {
-                var key=await Initial_prep_for_Bulk(name,jonldata.Item1);
+                var key = await Initial_prep_for_Bulk(name, jonldata.Item1);
                 if (string.IsNullOrEmpty(key)) return false;
-                var bulkOp =  await StartBulkProductCreateAsync(key);
+                var bulkOp = await StartBulkProductCreateAsync(key);
                 var ptoskumap = product_to_Sku_to_variant(data);
-                var shopifyCmsIds=   await Insert_Get_BulkInsert_Data(lmap,ptoskumap);
-                if (shopifyCmsIds.Count==0)
+                var shopifyCmsIds = await Insert_Get_BulkInsert_Data(lmap, ptoskumap);
+                if (shopifyCmsIds.Count == 0)
                 {
-                    _logger.LogError("No Shopify IDs were returned from the pulling function. Stopping bulk insert.");   
+                    _logger.LogError("No Shopify IDs were returned from the pulling function. Stopping bulk insert.");
                     return false;
                 }
 
-                await  PublishPtoductsToChannelsBulk(shopifyCmsIds,name);
-                
+                await PublishPtoductsToChannelsBulk(shopifyCmsIds, name);
+
                 _readWrite.Delete_file(path);
                 return true;
             }
@@ -191,6 +191,100 @@ namespace CMS_Scrappers.Services.Implementations
             {
                 Console.WriteLine(ex.ToString());
                 return false;
+            }
+        }
+
+        public async Task DeleteVariantsFromShopifyAsync(List<StaleVariantInfo> staleVariants)
+        {
+            var byProduct = staleVariants.GroupBy(v => v.ShopifyProductId).ToList();
+
+            foreach (var group in byProduct)
+            {
+                var productGid = group.Key.StartsWith("gid://") ? group.Key : $"gid://shopify/Product/{group.Key}";
+
+                var variantGids = group.Select(v =>
+                        v.ShopifyVariantId.StartsWith("gid://")
+                            ? v.ShopifyVariantId
+                            : $"gid://shopify/ProductVariant/{v.ShopifyVariantId}")
+                    .ToList();
+
+                var mutation = @"
+            mutation productVariantsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+                productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+                    product {
+                        id
+                        title
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }";
+
+                var variables = new { productId = productGid, variantsIds = variantGids };
+
+                var payload = new { query = mutation, variables };
+
+                try
+                {
+                    var data = await ExecuteGraphQLAsync(payload);
+
+                    // Check userErrors
+                    var userErrors = data.GetProperty("productVariantsBulkDelete").GetProperty("userErrors");
+
+                    if (userErrors.GetArrayLength() > 0)
+                    {
+                        _logger.LogError("Shopify variant delete errors for product {ProductId}: {Errors}", productGid,
+                            userErrors.ToString());
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Deleted {Count} variants from product {ProductId} on {Store}",
+                            variantGids.Count, productGid, _shopifySettings.SHOPIFY_STORE_DOMAIN);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to delete variants from Shopify for product {ProductId}", productGid);
+                    throw;
+                }
+            }
+        }
+
+        public async Task DeleteProductFromShopifyAsync(string shopifyProductId)
+        {
+            var productGid = shopifyProductId.StartsWith("gid://")
+                ? shopifyProductId
+                : $"gid://shopify/Product/{shopifyProductId}";
+
+            var mutation = @"
+        mutation productDelete($input: ProductDeleteInput!) {
+            productDelete(input: $input) {
+                deletedProductId
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }";
+
+            var variables = new { input = new { id = productGid } };
+            var payload = new { query = mutation, variables };
+
+            var data = await ExecuteGraphQLAsync(payload);
+
+            var userErrors = data.GetProperty("productDelete").GetProperty("userErrors");
+
+            if (userErrors.GetArrayLength() > 0)
+            {
+                _logger.LogError("Shopify product delete errors for {ProductId}: {Errors}", productGid,
+                    userErrors.ToString());
+            }
+            else
+            {
+                _logger.LogInformation("Deleted product {ProductId} from {Store}", productGid,
+                    _shopifySettings.SHOPIFY_STORE_DOMAIN);
             }
         }
 

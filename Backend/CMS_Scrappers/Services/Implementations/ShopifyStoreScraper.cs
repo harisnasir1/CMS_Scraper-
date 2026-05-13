@@ -123,6 +123,6 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
         await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
-       
+        //await _productSyncCoordinator.DeleteLiveProducts();
     }
 }

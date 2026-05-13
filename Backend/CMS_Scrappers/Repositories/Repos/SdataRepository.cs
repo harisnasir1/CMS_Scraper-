@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System;
 using Amazon.S3.Model;
+using CMS_Scrappers.Data.DTO;
 
 namespace CMS_Scrappers.Repositories.Repos
 {
@@ -220,6 +221,28 @@ namespace CMS_Scrappers.Repositories.Repos
                 .OrderBy(s => s.Id)
                 .AsSplitQuery()
                 .ToDictionaryAsync(s => s.Id.ToString(), s => s);
+        }
+
+      public async  Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold)
+        {
+            return await (
+                    from vsm in _context.VariantStoreMapping
+                    join psm in _context.ProductStoreMapping 
+                        on vsm.ProductStoreMappingId equals psm.Id
+                    join v in _context.ProductVariants 
+                        on vsm.VariantId equals v.Id
+                    where psm.ShopifyStoreId == shopifyStoreId
+                          && (v.LastViewed == null || v.LastViewed < threshold)
+                    select new StaleVariantInfo()
+                    {
+                        VariantId          = v.Id,
+                        ShopifyVariantId   = vsm.ShopifyVariantId,
+                        ShopifyProductId   = psm.ExternalProductId,  
+                        ProductStoreMappingId = psm.Id,
+                        VariantStoreMappingId = vsm.Id,
+                        SdataId            = psm.ProductId
+                    })
+                .ToListAsync();
         }
         
     }
