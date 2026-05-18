@@ -98,7 +98,8 @@ public class ShopifyStoreScraper : IScrappers
         Guid scrapperid = await Getscrapeid("Savonches");
         var lastRun =_scrapperRepository.Give_last_run(scrapperid);
         var threshold = DateTime.UtcNow.AddHours(-24);
-      var count=  await _sdataRepository.DelunseenData(scrapperid,threshold);
+      
+        await _sdataRepository.DelunseenData(scrapperid,threshold);
         _logger.LogInformation(
             "Cleanup done: {Products} products marked SourceDeleted, {Variants} variants marked out of stock");
         
