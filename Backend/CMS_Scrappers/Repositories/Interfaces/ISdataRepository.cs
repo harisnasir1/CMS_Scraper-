@@ -13,5 +13,8 @@
         Task<int> GiveBulkliveproductperstoreCount(Guid storeid);
         Task<Dictionary<string,Sdata>> GiveLiveDataToSync(DateTime scrapeStartedAt);
         Task<List<StaleVariantInfo>> GiveStaleVariants( Guid shopifyStoreId, DateTime threshold);
+        Task  DelunseenData(Guid scraperId,DateTime threshold);
+        
+            
     }
 

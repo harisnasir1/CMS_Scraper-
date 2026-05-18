@@ -77,6 +77,30 @@ public class RRSyncVariantMapRepository:IRRSyncVariantMapRepository
             .Where(m => updates.Contains(m.RRSyncVariantId))
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.UpdatedAt, DateTime.UtcNow));
     }
+    public async Task<List<RRSyncVariantMap>> GetStaleVariantMaps(DateTime threshold)
+    {
+        return await _context.RRSyncVariantMap
+            .Where(vm => vm.SyncStatus == "Active"
+                         && _context.ProductVariants
+                             .Any(v => v.Id == vm.VariantId
+                                       && (v.LastViewed == null || v.LastViewed < threshold)))
+            .ToListAsync();
+    }
+    public async Task MarkAsDeleted(List<Guid> ids)
+    {
+        await _context.RRSyncVariantMap
+            .Where(vm => ids.Contains(vm.Id))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.SyncStatus, "Deleted")
+                .SetProperty(x => x.UpdatedAt, DateTime.UtcNow));
+    }
+    public async Task<List<RRSyncVariantMap>> GetActiveByProductMapId(Guid productMapId)
+    {
+        return await _context.RRSyncVariantMap
+            .Where(vm => vm.RRSyncProductMapId == productMapId
+                         && vm.SyncStatus == "Active")
+            .ToListAsync();
+    }
 
     public Task<bool> Delete(Guid sid)
     {

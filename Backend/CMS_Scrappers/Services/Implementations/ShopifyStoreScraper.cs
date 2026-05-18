@@ -80,7 +80,7 @@ public class ShopifyStoreScraper : IScrappers
         }
 
         await updateRrsyncData(TimeStart,"savonches");
-        await Updateliveproducts(FullflatBatch);
+      //  await Updateliveproducts(FullflatBatch);
         
         TimeEnd = DateTime.UtcNow;
 
@@ -93,7 +93,18 @@ public class ShopifyStoreScraper : IScrappers
 
     }
 
-    public async Task<Guid >Getscrapeid(string name)
+    public async Task MarkUnseenProductsAsSourceDeleted()
+    {
+        Guid scrapperid = await Getscrapeid("Savonches");
+        var lastRun =_scrapperRepository.Give_last_run(scrapperid);
+        var threshold = DateTime.UtcNow.AddHours(-24);
+      var count=  await _sdataRepository.DelunseenData(scrapperid,threshold);
+        _logger.LogInformation(
+            "Cleanup done: {Products} products marked SourceDeleted, {Variants} variants marked out of stock");
+        
+    }
+
+    private async Task<Guid >Getscrapeid(string name)
     {
        var scrape = _serviceProvider.GetRequiredService<IScrapperRepository>();
        return await scrape.Giveidbyname(name);
@@ -104,6 +115,7 @@ public class ShopifyStoreScraper : IScrappers
         try
         {
             await _rrsyncCoordinator.Syncportal(time,ScraperName);
+            await _rrsyncCoordinator.DeleteStaleFromRRSync();
         }
         catch (Exception e)
         {
@@ -123,6 +135,6 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
         await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
-        //await _productSyncCoordinator.DeleteLiveProducts();
+        await _productSyncCoordinator.DeleteLiveProducts();
     }
 }
