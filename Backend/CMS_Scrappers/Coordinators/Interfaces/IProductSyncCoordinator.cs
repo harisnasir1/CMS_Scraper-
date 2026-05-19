@@ -8,5 +8,7 @@ public interface IProductSyncCoordinator
     
     Task DeleteLiveProducts();
 
+    Task CleanupSourceDeletedFromShopify();
+
     Task<bool> BulkSyncLiveProduct(Guid store);
 }

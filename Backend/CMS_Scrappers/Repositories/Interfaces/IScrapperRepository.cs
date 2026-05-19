@@ -6,5 +6,6 @@ public interface IScrapperRepository{
     Task<List<Scrapper>> Getallscrapers();
     Task<string> Get_Status_by_id(Guid id);
     Task<DateTime> Give_last_run(Guid id);
+    Task<Scrapper> Getscrapeid(Guid id);
     
 }

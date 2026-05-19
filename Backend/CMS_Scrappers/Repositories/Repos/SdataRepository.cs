@@ -295,6 +295,27 @@ namespace CMS_Scrappers.Repositories.Repos
                 .ToListAsync();
         }
 
+       public async Task<List<StaleVariantInfo>> GetSourceDeletedVariantsForStore(Guid shopifyStoreId)
+      {
+          return await (
+                  from vsm in _context.VariantStoreMapping
+                  join psm in _context.ProductStoreMapping 
+                      on vsm.ProductStoreMappingId equals psm.Id
+                  join s in _context.Sdata 
+                      on psm.ProductId equals s.Id
+                  where psm.ShopifyStoreId == shopifyStoreId
+                        && s.Status == "SourceDeleted"
+                  select new StaleVariantInfo
+                  {
+                      VariantId             = vsm.VariantId,
+                      ShopifyVariantId      = vsm.ShopifyVariantId,
+                      ShopifyProductId      = psm.ExternalProductId,
+                      ProductStoreMappingId = psm.Id,
+                      VariantStoreMappingId = vsm.Id,
+                      SdataId               = psm.ProductId
+                  })
+              .ToListAsync();
+      }
         public async Task DelunseenData(Guid scraperId, DateTime threshold)
         {
             try

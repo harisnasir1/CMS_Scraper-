@@ -21,7 +21,7 @@ public class ShoipfyScrapper:Scrap_shopify{
         while (true)
         {
             var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
+                await _httpClient.GetAsync($"{url}/products.json?limit=1&page={pageNumber}");
 
             try
             {
@@ -37,7 +37,7 @@ public class ShoipfyScrapper:Scrap_shopify{
 
             var productsResponse = await httpResponse.Content.ReadFromJsonAsync<ShopifyStoreProductsResponse>();
             
-            if (productsResponse?.Products.Count == 0 || productsResponse==null )
+            if (productsResponse?.Products.Count == 0 || productsResponse==null || pageNumber==2 )
             {
                 break;
             }

@@ -111,4 +111,10 @@ public class ScrapperRepository : IScrapperRepository
         var lastrun= src.Lastrun;
         return lastrun;
     }
+
+    public async Task<Scrapper> Getscrapeid(Guid id)
+    {
+        var src=await _context.Scrappers.FirstOrDefaultAsync(u=>u.ID==id);
+        return src;
+    }
 }
