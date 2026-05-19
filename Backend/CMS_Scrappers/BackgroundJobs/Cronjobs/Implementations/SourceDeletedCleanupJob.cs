@@ -26,7 +26,7 @@ public class SourceDeletedCleanupJob:BackgroundService
 
             try
             {
-                //await Cleanupjob();
+                await Cleanupjob();
 
                 _logger.LogInformation("Source deleted cleanup completed");
             }

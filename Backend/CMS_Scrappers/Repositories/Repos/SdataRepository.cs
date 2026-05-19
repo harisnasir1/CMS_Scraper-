@@ -62,27 +62,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 await _context.Sdata.AddRangeAsync(sdataEntitiesToAdd);
             }
 
-            // Pass 3: Mark unseen products' variants as out of stock
-            var allScrapedUrls = data.Select(p => p.ProductUrl).ToHashSet();
-            var unseenProducts = await _context.Sdata
-                .Include(s => s.Variants)
-                .Where(s => s.Sid == scraperId
-                            && !allScrapedUrls.Contains(s.ProductUrl))
-                .ToListAsync();
 
-            foreach (var product in unseenProducts)
-            {
-                foreach (var variant in product.Variants)
-                {
-                    if (variant.InStock)
-                    {
-                        variant.InStock = false;
-                        variant.UpdatedAt = DateTime.UtcNow;
-                    }
-                }
-                product.Status = "SourceDeleted";
-                product.UpdatedAt = DateTime.UtcNow;
-            }
 
             await _context.SaveChangesAsync();
         }
@@ -325,7 +305,7 @@ namespace CMS_Scrappers.Repositories.Repos
                     .Where(s => s.Sid == scraperId
                                 && s.Status != "SourceDeleted"
                                 && s.Status != "Delisted"
-                                && (s.LastViewed == null || s.LastViewed < threshold))
+                                && s.LastViewed < threshold)
                     .ToListAsync();
 
                 if (!unseenProducts.Any())

@@ -79,7 +79,7 @@ public class ShopifyStoreScraper : IScrappers
             i++;
         }
 
-        await updateRrsyncData(TimeStart,"savonches");
+       // await updateRrsyncData(TimeStart,"savonches");
         await Updateliveproducts(FullflatBatch);
         
         TimeEnd = DateTime.UtcNow;
@@ -131,7 +131,7 @@ public class ShopifyStoreScraper : IScrappers
                 scraper.Runtime);
             return;
         }
-        var threshold = DateTime.UtcNow.AddHours(-24);
+        var threshold = DateTime.UtcNow.AddHours(-48);
         await _sdataRepository.DelunseenData(scrapperid, threshold);
         _logger.LogInformation("Cleanup done: {Products} products marked SourceDeleted");
     }
@@ -167,6 +167,6 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
         await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
-        //await _productSyncCoordinator.DeleteLiveProducts();
+        await _productSyncCoordinator.DeleteLiveProducts();
     }
 }
