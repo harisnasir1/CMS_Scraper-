@@ -93,7 +93,50 @@ public class ShopifyStoreScraper : IScrappers
 
     }
 
-    public async Task<Guid >Getscrapeid(string name)
+    public async Task MarkUnseenProductsAsSourceDeleted()
+    {
+        Guid scrapperid = await Getscrapeid("Savonches");
+        var maxWait = 6;
+        var waited = 0;
+        while (waited < maxWait)
+        {
+            var current = await _scrapperRepository.Getscrapeid(scrapperid);
+            if (current == null || current.Status != "Running") break;
+            _logger.LogInformation(
+                "Scraper still running — waiting 5 min ({Attempt}/{Max})", 
+                waited + 1, maxWait);
+            await Task.Delay(TimeSpan.FromMinutes(5));
+            waited++;
+        }
+        if (waited >= maxWait)
+        {
+            _logger.LogError(
+                "Scraper still running after {Min} min — aborting cleanup", maxWait * 5);
+            return;
+        }
+       
+        var scraper = await _scrapperRepository.Getscrapeid(scrapperid);
+        if (scraper == null) return;
+        if (scraper.Lastrun < DateTime.UtcNow.AddHours(-8))
+        {
+            _logger.LogWarning(
+                "Scraper {Name} last ran at {Last} — too old, skipping cleanup",
+                scraper.Name, scraper.Lastrun);
+            return;
+        }
+        if (!TimeSpan.TryParse(scraper.Runtime, out var runtime) || runtime.TotalMinutes < 5)
+        {
+            _logger.LogError(
+                "Scraper runtime {Runtime} is under 5 min — something is wrong",
+                scraper.Runtime);
+            return;
+        }
+        var threshold = DateTime.UtcNow.AddHours(-48);
+        await _sdataRepository.DelunseenData(scrapperid, threshold);
+        _logger.LogInformation("Cleanup done: {Products} products marked SourceDeleted");
+    }
+
+    private async Task<Guid >Getscrapeid(string name)
     {
        var scrape = _serviceProvider.GetRequiredService<IScrapperRepository>();
        return await scrape.Giveidbyname(name);
@@ -104,6 +147,7 @@ public class ShopifyStoreScraper : IScrappers
         try
         {
             await _rrsyncCoordinator.Syncportal(time,ScraperName);
+            await _rrsyncCoordinator.DeleteStaleFromRRSync();
         }
         catch (Exception e)
         {
@@ -123,6 +167,6 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
         await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
-       
+        await _productSyncCoordinator.DeleteLiveProducts();
     }
 }

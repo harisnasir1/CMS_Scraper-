@@ -13,6 +13,6 @@ public interface IVariantStoreMappingRepository
     Task<bool> Exist_VariantVariantMapping_BY_variantid(long id,Guid pmid);
     
     Task<bool> DelteVariantMapping(Guid id);
-
+    Task DeleteAllVariants(List<Guid> ids);
     Task<bool> DeleteAllVariantMapping_per_productmapping(Guid id);
 }

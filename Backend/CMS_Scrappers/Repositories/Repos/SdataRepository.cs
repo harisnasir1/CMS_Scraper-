@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System;
 using Amazon.S3.Model;
+using CMS_Scrappers.Data.DTO;
 
 namespace CMS_Scrappers.Repositories.Repos
 {
@@ -61,7 +62,8 @@ namespace CMS_Scrappers.Repositories.Repos
                 await _context.Sdata.AddRangeAsync(sdataEntitiesToAdd);
             }
 
-          
+
+
             await _context.SaveChangesAsync();
         }
 
@@ -72,10 +74,10 @@ namespace CMS_Scrappers.Repositories.Repos
                 .GroupBy(v => v.Size ?? "")
                 .Select(g => g.First())
                 .ToDictionary(v => v.Size ?? "");
-
+            var existingSizes = new HashSet<string>();
             foreach (var dbVariant in dbProduct.Variants)
             {
-               
+                existingSizes.Add(dbVariant.Size);
                 if (incomingVariantsDict.TryGetValue(dbVariant.Size, out var incomingVariant))
                 {
                     var newInStock = incomingVariant.Available == 1;
@@ -90,6 +92,35 @@ namespace CMS_Scrappers.Repositories.Repos
                         change = true;
                     }
                 }
+                else
+                {
+                    // Variant no longer on supplier — mark out of stock immediately
+                    if (dbVariant.InStock)
+                    {
+                        dbVariant.InStock = false;
+                        dbVariant.UpdatedAt = DateTime.UtcNow;
+                        change = true;
+                    }
+                   
+                }
+                
+            }
+            foreach (var (size, incoming) in incomingVariantsDict)
+            {
+                if (existingSizes.Contains(size)) continue;
+
+                dbProduct.Variants.Add(new ProductVariantRecord
+                {
+                    SdataId = dbProduct.Id,
+                    Size = size,
+                    SKU = incoming.SKU ?? "",
+                    Price = incoming.Price,
+                    InStock = incoming.Available == 1,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    LastViewed = DateTime.UtcNow
+                });
+                change = true;
             }
             return change;
         }
@@ -221,6 +252,93 @@ namespace CMS_Scrappers.Repositories.Repos
                 .AsSplitQuery()
                 .ToDictionaryAsync(s => s.Id.ToString(), s => s);
         }
-        
+
+      public async  Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold)
+        {
+            return await (
+                    from vsm in _context.VariantStoreMapping
+                    join psm in _context.ProductStoreMapping 
+                        on vsm.ProductStoreMappingId equals psm.Id
+                    join v in _context.ProductVariants 
+                        on vsm.VariantId equals v.Id
+                    where psm.ShopifyStoreId == shopifyStoreId
+                          && (v.LastViewed == null || v.LastViewed < threshold)
+                    select new StaleVariantInfo()
+                    {
+                        VariantId          = v.Id,
+                        ShopifyVariantId   = vsm.ShopifyVariantId,
+                        ShopifyProductId   = psm.ExternalProductId,  
+                        ProductStoreMappingId = psm.Id,
+                        VariantStoreMappingId = vsm.Id,
+                        SdataId            = psm.ProductId
+                    })
+                .ToListAsync();
+        }
+
+       public async Task<List<StaleVariantInfo>> GetSourceDeletedVariantsForStore(Guid shopifyStoreId)
+      {
+          return await (
+                  from vsm in _context.VariantStoreMapping
+                  join psm in _context.ProductStoreMapping 
+                      on vsm.ProductStoreMappingId equals psm.Id
+                  join s in _context.Sdata 
+                      on psm.ProductId equals s.Id
+                  where psm.ShopifyStoreId == shopifyStoreId
+                        && s.Status == "SourceDeleted"
+                  select new StaleVariantInfo
+                  {
+                      VariantId             = vsm.VariantId,
+                      ShopifyVariantId      = vsm.ShopifyVariantId,
+                      ShopifyProductId      = psm.ExternalProductId,
+                      ProductStoreMappingId = psm.Id,
+                      VariantStoreMappingId = vsm.Id,
+                      SdataId               = psm.ProductId
+                  })
+              .ToListAsync();
+      }
+        public async Task DelunseenData(Guid scraperId, DateTime threshold)
+        {
+            try
+            {
+                var unseenProducts = await _context.Sdata
+                    .Include(s => s.Variants)
+                    .Where(s => s.Sid == scraperId
+                                && s.Status != "SourceDeleted"
+                                && s.Status != "Delisted"
+                                && s.LastViewed < threshold)
+                    .ToListAsync();
+
+                if (!unseenProducts.Any())
+                {
+                  
+                    return;
+                }
+
+                var markedCount = 0;
+                var variantCount = 0;
+                foreach (var product in unseenProducts)
+                {
+                    foreach (var variant in product.Variants)
+                    {
+                        if (variant.InStock)
+                        {
+                            variant.InStock = false;
+                            variant.UpdatedAt = DateTime.UtcNow;
+                            variantCount++;
+                        }
+                    }
+                    product.Status = "SourceDeleted";
+                    product.UpdatedAt = DateTime.UtcNow;
+                    markedCount++;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }
     }
 }

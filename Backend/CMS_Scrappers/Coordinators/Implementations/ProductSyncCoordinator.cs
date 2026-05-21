@@ -181,7 +181,180 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         }
     }
 
-   
+    public async Task DeleteLiveProducts()
+    {
+        try
+        {
+            var stores = await this.GetallStoresconfigs();
+            var threshold = DateTime.UtcNow.AddHours(-24);
+            var allAffectedSdataIds = new HashSet<Guid>();
+            foreach (var store in stores)
+            {
+                var staleVariants = await _sdataRepository.GiveStaleVariants(store.Id, threshold);
+                if (!staleVariants.Any())
+                {
+                    _logger.LogInformation("No stale variants for {Store}", store.ShopName);
+                    continue;
+                }
+                var _shopifyservice = this.GetShopifyService(store);
+                try
+                {
+                   await _shopifyservice.DeleteVariantsFromShopifyAsync(staleVariants);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Shopify deletion failed for store {Store} — skipping CMS cleanup for this store",
+                        store.ShopName);
+                    continue;  
+                }
+                _logger.LogInformation(
+                    "{Count} stale variants found for {Store}",
+                    staleVariants.Count, store.ShopName);
+                var variantStoreMappingIds = staleVariants
+                    .Select(v => v.VariantStoreMappingId)
+                    .ToList();
+               await _variantStoreMappingRepository.DeleteAllVariants(variantStoreMappingIds);
+               var affectedProductMappingIds = staleVariants
+                   .Select(v => v.ProductStoreMappingId)
+                   .Distinct()
+                   .ToList();
+               foreach (var productMappingId in affectedProductMappingIds)
+               {
+                   var remainingVariants= await _variantStoreMappingRepository.Get_ProfcutStoreMapping_AllVariants(productMappingId);
+                   if (remainingVariants.Count > 0) continue;
+                   var productMapping=await _productStoreMappingRepository.GetProductStoreMapping(productMappingId);
+                   if (productMapping == null) continue;
+                   try
+                   {
+                       await _shopifyservice.DeleteProductFromShopifyAsync(productMapping.ExternalProductId);
+                       await _productStoreMappingRepository.DeleteProductStoreMapping(productMappingId);
+                       allAffectedSdataIds.Add(productMapping.ProductId);
+                   }
+                   catch (Exception ex)
+                   {
+                       _logger.LogError(ex,
+                           "Failed to delete product {ProductId} from Shopify",
+                           productMapping.ExternalProductId);
+                   }
+               }
+               
+               //last pass to clean the orphan products with no variants 
+               var orphanedMappings = await _productStoreMappingRepository
+                   .GetAllOrphanedProductStores(store.Id);
+
+               foreach (var orphan in orphanedMappings)
+               {
+                   try
+                   {
+                       await _shopifyservice.DeleteProductFromShopifyAsync(orphan.ExternalProductId);
+                       await _productStoreMappingRepository.DeleteProductStoreMapping(orphan.Id);
+                       allAffectedSdataIds.Add(orphan.ProductId);
+
+                       _logger.LogInformation(
+                           "Deleted orphaned product {Id} from {Store}",
+                           orphan.ExternalProductId, store.ShopName);
+                   }
+                   catch (Exception ex)
+                   {
+                       _logger.LogError(ex,
+                           "Failed to delete orphaned product {Id}",
+                           orphan.ExternalProductId);
+                   }
+               }
+               
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+
+    public async Task CleanupSourceDeletedFromShopify()
+    {
+        var stores = await GetallStoresconfigs();
+
+        foreach (var store in stores)
+        {
+            var staleVariants = await _sdataRepository.GetSourceDeletedVariantsForStore(store.Id);
+            var shopifyService = GetShopifyService(store);
+            if (staleVariants.Any())
+            {
+                _logger.LogInformation("No SourceDeleted variants for {Store}", store.ShopName);
+            
+
+                _logger.LogInformation("{Count} SourceDeleted variants to remove from {Store}", staleVariants.Count,
+                    store.ShopName);
+
+                
+
+                try
+                {
+                    await shopifyService.DeleteVariantsFromShopifyAsync(staleVariants);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Shopify deletion failed for {Store}", store.ShopName);
+                    continue;
+                }
+
+                // Clean up variant mappings
+                var vsmIds = staleVariants.Select(v => v.VariantStoreMappingId).ToList();
+                await _variantStoreMappingRepository.DeleteAllVariants(vsmIds);
+
+                // Clean up empty product mappings
+                var affectedPsmIds = staleVariants.Select(v => v.ProductStoreMappingId).Distinct().ToList();
+
+                foreach (var psmId in affectedPsmIds)
+                {
+                    var remaining = await _variantStoreMappingRepository.Get_ProfcutStoreMapping_AllVariants(psmId);
+
+                    if (remaining.Count > 0) continue;
+
+                    var psm = await _productStoreMappingRepository.GetProductStoreMapping(psmId);
+
+                    if (psm == null) continue;
+
+                    try
+                    {
+                        await shopifyService.DeleteProductFromShopifyAsync(psm.ExternalProductId);
+                        await _productStoreMappingRepository.DeleteProductStoreMapping(psmId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to delete product {Id} from Shopify", psm.ExternalProductId);
+                    }
+                }
+
+            }
+
+            var orphanedMappings = await _productStoreMappingRepository
+                .GetAllOrphanedProductStores(store.Id);
+            foreach (var orphan in orphanedMappings)
+            {
+                try
+                {
+                    await shopifyService.DeleteProductFromShopifyAsync(orphan.ExternalProductId);
+                    await _productStoreMappingRepository.DeleteProductStoreMapping(orphan.Id);
+                  
+
+                    _logger.LogInformation(
+                        "Deleted orphaned product {Id} from {Store}",
+                        orphan.ExternalProductId, store.ShopName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Failed to delete orphaned product {Id}",
+                        orphan.ExternalProductId);
+                }
+            }
+        }
+
+        _logger.LogInformation("SourceDeleted Shopify cleanup complete");
+    }
     
     
 

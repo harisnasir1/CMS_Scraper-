@@ -129,7 +129,7 @@ builder.Services.AddHostedService<UpdateShopifyWorkerService>();
 
 //conjobs
 builder.Services.AddHostedService<Scrappingjob>();
-
+builder.Services.AddHostedService<SourceDeletedCleanupJob>();
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();

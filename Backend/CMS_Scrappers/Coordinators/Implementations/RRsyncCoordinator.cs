@@ -142,6 +142,79 @@ public class RRsyncCoordinator : IRRsyncCoordinator
 
         return true;
     }
+    
+    public async Task DeleteStaleFromRRSync()
+{
+    try
+    {
+        var threshold = DateTime.UtcNow.AddHours(-24);
+
+        var staleVariantMaps = await _variantMapRepository
+            .GetStaleVariantMaps(threshold);
+
+        if (!staleVariantMaps.Any())
+        {
+            _logger.LogInformation("No stale RRSync variant maps found");
+            return;
+        }
+
+        _logger.LogInformation(
+            "{Count} stale RRSync variant maps found", staleVariantMaps.Count);
+
+        var deletedMapIds = new List<Guid>();
+        var affectedProductMapIds = new HashSet<Guid>();
+
+        foreach (var vm in staleVariantMaps)
+        {
+            try
+            {
+                var response = await _syncService.DeleteVariantAsync(vm.RRSyncVariantId);
+
+                if (!response.IsSuccess)
+                {
+                    _logger.LogError(
+                        "RRSync delete failed for {Id}: {Msg}",
+                        vm.RRSyncVariantId, response.Message);
+                    continue;
+                }
+
+                deletedMapIds.Add(vm.Id);
+                affectedProductMapIds.Add(vm.RRSyncProductMapId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Exception deleting {Id} from RRSync", vm.RRSyncVariantId);
+            }
+        }
+
+        if (deletedMapIds.Any())
+        {
+            await _variantMapRepository.MarkAsDeleted(deletedMapIds);
+            _logger.LogInformation(
+                "{Count} variant maps marked Deleted", deletedMapIds.Count);
+        }
+        // In here we see if the product got no varaints acitve then just mark the product deleted. 
+        foreach (var productMapId in affectedProductMapIds)
+        {
+            var remaining = await _variantMapRepository
+                .GetActiveByProductMapId(productMapId);
+
+            if (!remaining.Any())
+            {
+                await _productMapRepository.Update(productMapId, "Deleted");
+                _logger.LogInformation(
+                    "Product map {Id} marked Deleted — no active variants", productMapId);
+            }
+        }
+        _logger.LogInformation("RRSync cleanup complete");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "RRSync cleanup failed");
+        throw;
+    }
+}
 
     #region New Product Flow
 

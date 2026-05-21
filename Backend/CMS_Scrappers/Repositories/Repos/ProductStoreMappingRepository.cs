@@ -47,4 +47,57 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
            
        }
    }
+
+   public async Task<ProductStoreMapping> GetProductStoreMapping(Guid id)
+   {
+       try
+       {
+           if (id == Guid.Empty) return null;
+           var k= await _context.ProductStoreMapping.FirstOrDefaultAsync(s => s.Id == id);
+           return k;
+       }
+       catch (Exception e)
+       {
+           _logger.LogError(e, "Error Getting ProductStoreMapping {Id}", id);
+           throw;
+       }
+   }
+
+   public async Task DeleteProductStoreMapping(Guid id)
+   {
+       try
+       {
+           if (id == Guid.Empty) return;
+           var k= await _context.ProductStoreMapping.FirstOrDefaultAsync(s => s.Id == id);
+           if (k == null) return;
+           _context.ProductStoreMapping.Remove(k);
+           
+           await _context.SaveChangesAsync();
+           
+       }
+       catch (Exception e)
+       {
+           _logger.LogError(e, "Error deleting ProductStoreMapping {Id}", id);
+           throw;
+       }
+   }
+
+   public async Task<List<ProductStoreMapping>> GetAllOrphanedProductStores(Guid storeId)
+   {
+       try
+       {
+           return await _context.ProductStoreMapping
+               .Where(psm => psm.ShopifyStoreId == storeId
+                             && !_context.VariantStoreMapping
+                                 .Any(vsm => vsm.ProductStoreMappingId == psm.Id))
+               .ToListAsync();
+       }
+       catch (Exception e)
+       {
+           _logger.LogError(e, "Error Getting Orphan products for store with id =  {Id}", storeId);
+           throw;
+       }
+   }
+
+ 
 }

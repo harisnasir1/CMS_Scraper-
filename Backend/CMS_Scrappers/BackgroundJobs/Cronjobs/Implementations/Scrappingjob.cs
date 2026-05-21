@@ -26,7 +26,7 @@ public class Scrappingjob:BackgroundService
                     using var scope = serviceProvider.CreateScope();
                     var Shopifyscrfactory = scope.ServiceProvider.GetRequiredService<IShopifyScrapperFact>();
                     var scraper = Shopifyscrfactory.CreateScraper("savonches");
-                    await scraper.ScrapeAsync();
+                   await scraper.ScrapeAsync();
                 });
             }
             catch (Exception ex)

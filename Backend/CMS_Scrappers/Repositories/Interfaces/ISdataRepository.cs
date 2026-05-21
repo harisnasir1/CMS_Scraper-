@@ -1,4 +1,6 @@
 ﻿
+    using CMS_Scrappers.Data.DTO;
+
     public interface ISdataRepository
     {
         Task Add(List<ShopifyFlatProduct> data, Guid _scraperId);
@@ -10,5 +12,10 @@
         Task<List<Sdata>> GiveBulkliveproductperstore(Guid storeid);
         Task<int> GiveBulkliveproductperstoreCount(Guid storeid);
         Task<Dictionary<string,Sdata>> GiveLiveDataToSync(DateTime scrapeStartedAt);
+        Task<List<StaleVariantInfo>> GiveStaleVariants( Guid shopifyStoreId, DateTime threshold);
+        Task<List<StaleVariantInfo>> GetSourceDeletedVariantsForStore(Guid shopifyStoreId);
+        Task  DelunseenData(Guid scraperId,DateTime threshold);
+        
+            
     }
 
