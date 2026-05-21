@@ -279,53 +279,76 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         foreach (var store in stores)
         {
             var staleVariants = await _sdataRepository.GetSourceDeletedVariantsForStore(store.Id);
-
-            if (!staleVariants.Any())
+            var shopifyService = GetShopifyService(store);
+            if (staleVariants.Any())
             {
                 _logger.LogInformation("No SourceDeleted variants for {Store}", store.ShopName);
-                continue;
-            }
+            
 
-            _logger.LogInformation("{Count} SourceDeleted variants to remove from {Store}", staleVariants.Count,
-                store.ShopName);
+                _logger.LogInformation("{Count} SourceDeleted variants to remove from {Store}", staleVariants.Count,
+                    store.ShopName);
 
-            var shopifyService = GetShopifyService(store);
-
-            try
-            {
-                await shopifyService.DeleteVariantsFromShopifyAsync(staleVariants);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Shopify deletion failed for {Store}", store.ShopName);
-                continue;
-            }
-
-            // Clean up variant mappings
-            var vsmIds = staleVariants.Select(v => v.VariantStoreMappingId).ToList();
-            await _variantStoreMappingRepository.DeleteAllVariants(vsmIds);
-
-            // Clean up empty product mappings
-            var affectedPsmIds = staleVariants.Select(v => v.ProductStoreMappingId).Distinct().ToList();
-
-            foreach (var psmId in affectedPsmIds)
-            {
-                var remaining = await _variantStoreMappingRepository.Get_ProfcutStoreMapping_AllVariants(psmId);
-
-                if (remaining.Count > 0) continue;
-
-                var psm = await _productStoreMappingRepository.GetProductStoreMapping(psmId);
-
-                if (psm == null) continue;
+                
 
                 try
                 {
-                    await shopifyService.DeleteProductFromShopifyAsync(psm.ExternalProductId);
-                    await _productStoreMappingRepository.DeleteProductStoreMapping(psmId);
+                    await shopifyService.DeleteVariantsFromShopifyAsync(staleVariants);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to delete product {Id} from Shopify", psm.ExternalProductId);
+                    _logger.LogError(ex, "Shopify deletion failed for {Store}", store.ShopName);
+                    continue;
+                }
+
+                // Clean up variant mappings
+                var vsmIds = staleVariants.Select(v => v.VariantStoreMappingId).ToList();
+                await _variantStoreMappingRepository.DeleteAllVariants(vsmIds);
+
+                // Clean up empty product mappings
+                var affectedPsmIds = staleVariants.Select(v => v.ProductStoreMappingId).Distinct().ToList();
+
+                foreach (var psmId in affectedPsmIds)
+                {
+                    var remaining = await _variantStoreMappingRepository.Get_ProfcutStoreMapping_AllVariants(psmId);
+
+                    if (remaining.Count > 0) continue;
+
+                    var psm = await _productStoreMappingRepository.GetProductStoreMapping(psmId);
+
+                    if (psm == null) continue;
+
+                    try
+                    {
+                        await shopifyService.DeleteProductFromShopifyAsync(psm.ExternalProductId);
+                        await _productStoreMappingRepository.DeleteProductStoreMapping(psmId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to delete product {Id} from Shopify", psm.ExternalProductId);
+                    }
+                }
+
+            }
+
+            var orphanedMappings = await _productStoreMappingRepository
+                .GetAllOrphanedProductStores(store.Id);
+            foreach (var orphan in orphanedMappings)
+            {
+                try
+                {
+                    await shopifyService.DeleteProductFromShopifyAsync(orphan.ExternalProductId);
+                    await _productStoreMappingRepository.DeleteProductStoreMapping(orphan.Id);
+                  
+
+                    _logger.LogInformation(
+                        "Deleted orphaned product {Id} from {Store}",
+                        orphan.ExternalProductId, store.ShopName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Failed to delete orphaned product {Id}",
+                        orphan.ExternalProductId);
                 }
             }
         }
