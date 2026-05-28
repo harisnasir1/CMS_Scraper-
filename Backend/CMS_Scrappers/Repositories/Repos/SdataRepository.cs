@@ -236,7 +236,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 .Where(s =>
                     // No map at all — never synced
                     (!_context.RRSyncProductMap.Any(m => m.SdataId == s.Id) 
-                     && s.Variants.Any(v => v.InStock))
+                     && s.Variants.Any(v => v.InStock && v.Price>=500))
                     // OR a variant has changed since its map was last touched
                     || s.Variants.Any(v =>
                         _context.RRSyncVariantMap.Any(m =>
