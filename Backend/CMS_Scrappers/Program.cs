@@ -40,6 +40,8 @@ builder.Services.AddSingleton(AiSettings);
 var RRSyncConfig = builder.Configuration.GetSection("RRSync").Get<RRSyncConfig>();
 builder.Services.AddSingleton(RRSyncConfig);
 
+var bgRemoveConfig = builder.Configuration.GetSection("bgRemove").Get<bgRemoveSettings>();
+builder.Services.AddSingleton(bgRemoveConfig);
 
 
 //var ShopifySettings=builder.Configuration.GetSection("ShopifyApi").Get<ShopifySettings>();
@@ -69,7 +71,8 @@ builder.Services.AddTransient<BackgroundRemover>(serviceProvider =>
     var httpClient = httpClientFactory.CreateClient();
     var config = serviceProvider.GetRequiredService<IConfiguration>();
     var apiToken = config["Removebg:ApiToken"];
-    return new BackgroundRemover(httpClient, apiToken);
+    var bgsettings=serviceProvider.GetRequiredService<bgRemoveSettings>();
+    return new BackgroundRemover(httpClient, apiToken,bgsettings);
 });
 builder.Services.AddCors(options =>
 {
