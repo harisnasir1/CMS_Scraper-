@@ -1,4 +1,6 @@
-﻿using SixLabors.ImageSharp;
+﻿using System.Text.Json.Nodes;
+using CMS_Scrappers.Utils;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -7,36 +9,47 @@ public class BackgroundRemover
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
     private const string ApiUrl = "https://rmizhq2lxoty3l-8000.proxy.runpod.net/image/";
+    private readonly bgRemoveSettings _bgRemoveSettings;
     private bool retry = false;
 
-    public BackgroundRemover(HttpClient httpClient, string apiKey)
+    public BackgroundRemover(HttpClient httpClient, string apiKey,bgRemoveSettings bgRemoveSettings)
     {
         _httpClient = httpClient;
         _apiKey = apiKey;
+        _bgRemoveSettings = bgRemoveSettings;
     }
 
     public async Task<Stream> RemoveBackgroundAsync(string imageUrl)
     {
-        using var formdata = new MultipartFormDataContent();
-        using var image_content= await _httpClient.GetAsync(imageUrl);
-        image_content.EnsureSuccessStatusCode();
-        var imagesource=await image_content.Content.ReadAsStreamAsync();
-        formdata.Add(new StreamContent(imagesource), "file","upload.png");
-        formdata.Add(new StringContent("auto"), "size");
-        using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
-        request.Content = formdata;     
+        using var formdata = new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("url", imageUrl)
+        });
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, _bgRemoveSettings.Baseurl);
+        request.Headers.Add("X-API-KEY", _bgRemoveSettings.Apikey);   // adjust property name to your DTO
+        request.Content = formdata;
+
         using var response = await _httpClient.SendAsync(request);
-        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && retry==false) 
+
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && retry == false)
         {
             await Task.Delay(2000);
             retry = true;
-            return await RemoveBackgroundAsync(imageUrl); 
+            return await RemoveBackgroundAsync(imageUrl);
         }
         response.EnsureSuccessStatusCode();
 
-        var imgaebytes=await response.Content.ReadAsByteArrayAsync();
+        var jsonResponse = await response.Content.ReadAsStringAsync();
+        var docRoot = JsonNode.Parse(jsonResponse)!.Root;
+        var imageNode = docRoot["results"]?[0]?["entities"]?[0]?["image"];
+        if (imageNode is null)
+        {
+            throw new InvalidOperationException($"API4AI returned no image. Body: {jsonResponse}");
+        }
 
-        return new MemoryStream(imgaebytes);
+        byte[] imageBytes = Convert.FromBase64String(imageNode.GetValue<string>());
+        return new MemoryStream(imageBytes);
     }
     public async Task<Stream> ResizeImageAsync(Stream instream, int boxWidth, int boxHeight, int margin, bool fillBox )
     {
