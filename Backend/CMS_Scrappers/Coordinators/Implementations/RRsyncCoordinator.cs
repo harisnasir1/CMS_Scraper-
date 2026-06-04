@@ -75,7 +75,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                     StockXId = ldata.Id.ToString(),
                     Category =string.IsNullOrEmpty(ldata.Category)?"Accessories":ldata.Category,
                     Subcategory = "", //need to investigate the subcategory part
-                    Gender = string.IsNullOrEmpty(ldata.Gender)?"Unisex":ldata.Category,
+                    Gender = string.IsNullOrEmpty(ldata.Gender)?"Unisex":ldata.Gender,
                     ProductType = ldata.ProductType,
                     UrlKey = ldata.ProductUrl,
                     ThumbnailImage = ldata.Image.OrderBy(i => i.Priority).FirstOrDefault()?.Url ?? "",
