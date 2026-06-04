@@ -75,7 +75,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                     StockXId = ldata.Id.ToString(),
                     Category =string.IsNullOrEmpty(ldata.Category)?"Accessories":ldata.Category,
                     Subcategory = "", //need to investigate the subcategory part
-                    Gender = string.IsNullOrEmpty(ldata.Gender)?"Unisex":ldata.Gender,
+                    Gender = FixGender(ldata.Gender),
                     ProductType = ldata.ProductType,
                     UrlKey = ldata.ProductUrl,
                     ThumbnailImage = ldata.Image.OrderBy(i => i.Priority).FirstOrDefault()?.Url ?? "",
@@ -522,5 +522,40 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         var random = new Random();
         var number = random.Next(0, 999999).ToString("D6");
         return prefix + number;
+    }
+
+    private string FixGender(string gender)
+    {
+        // Handle null or empty/whitespace strings safely upfront
+        if (string.IsNullOrWhiteSpace(gender))
+        {
+            return "Unisex"; // Or "Unknown", depending on how you want to categorize blanks
+        }
+
+        // Normalize the input to lowercase and remove extra spaces
+        switch (gender.Trim().ToLowerInvariant())
+        {
+            // Men Mappings
+            case "men":
+            case "male":
+            case "m":
+                return "Men";
+
+            // Women Mappings
+            case "women":
+            case "female":
+            case "femail": // Catching the typo just in case
+            case "f":
+                return "Women";
+
+            // Unisex Mappings
+            case "unisex":
+            case "uniseex":
+                return "Unisex";
+
+            // Fallback for anything else that doesn't match
+            default:
+                return "Unisex"; 
+        }
     }
 }
