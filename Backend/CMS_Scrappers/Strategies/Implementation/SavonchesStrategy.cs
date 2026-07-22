@@ -95,7 +95,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 }
                 else
                 {
-                    _looger.LogWarning($"rolling back from the {fullUrl}");
+                    //_looger.LogWarning($"rolling back from the {fullUrl}");
                     p.ProductUrl = fullUrl;
                     p.Description = skipResult.ExistingDescription; 
                     p.ScraperName = Scrappername;

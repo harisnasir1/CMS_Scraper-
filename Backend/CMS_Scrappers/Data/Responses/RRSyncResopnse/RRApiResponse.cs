@@ -10,5 +10,5 @@ public class RRApiResponse<T>
     public int PageNumber { get; set; }
     public int RowNumber { get; set; }
     public int Total { get; set; }
-    public int NextPage { get; set; }
+    public int? NextPage { get; set; }
 }
