@@ -47,7 +47,7 @@ public class ShoipfyScrapper:Scrap_shopify{
             pageNumber++;
            
 
-            await Task.Delay(3000);
+            await Task.Delay(6000);
         }
         return response;
     }
