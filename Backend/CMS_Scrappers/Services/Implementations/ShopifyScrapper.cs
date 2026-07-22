@@ -1,56 +1,73 @@
-
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+using System.Net;
+using System.Net.Http.Json;
+using CMS_Scrappers.Services.Interfaces;
 
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 
-public class ShoipfyScrapper:Scrap_shopify{
+public class ShoipfyScrapper : Scrap_shopify
+{
+    private readonly IProxyManager _proxyManager;
 
-    private readonly HttpClient _httpClient;
-
-    public ShoipfyScrapper()
+    public ShoipfyScrapper(IProxyManager proxyManager)
     {
-        _httpClient=new HttpClient();
-         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd( "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0");
+        _proxyManager = proxyManager;
     }
 
-  public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
-{
+    private HttpClient CreateClientForRequest()
+    {
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        };
+
+        // Pull next proxy abstraction
+        var proxy = _proxyManager.GetNextProxy();
+        if (proxy != null)
+        {
+            handler.Proxy = proxy;
+            handler.UseProxy = true;
+        }
+
+        var client = new HttpClient(handler);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0");
+        client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
+
+        return client;
+    }
+
+    public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
+    {
+        using var httpClient = CreateClientForRequest();
+        
         var response = new ShopifyGetAllProductsResponse();
         var pageNumber = 1;
+        var baseUrl = url.TrimEnd('/');
 
         while (true)
         {
-            var httpResponse =
-                await _httpClient.GetAsync($"{url}/products.json?limit=250&page={pageNumber}");
+            var requestUrl = $"{baseUrl}/products.json?limit=250&page={pageNumber}";
+            var httpResponse = await httpClient.GetAsync(requestUrl);
 
-            try
+            if (httpResponse.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
-                    throw new Exception(httpResponse.ToString());
+                var retryAfter = httpResponse.Headers.RetryAfter?.Delta?.Seconds ?? 60;
+                await Task.Delay(TimeSpan.FromSeconds(retryAfter));
+                continue;
             }
-            catch (HttpRequestException ex)
-            {
-                Console.WriteLine("Error occurred:");
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
-            }
+
+            if (!httpResponse.IsSuccessStatusCode) break;
 
             var productsResponse = await httpResponse.Content.ReadFromJsonAsync<ShopifyStoreProductsResponse>();
-            
-            if (productsResponse?.Products.Count == 0 || productsResponse==null )
-            {
-                break;
-            }
-            
-            response.Pages.Add(productsResponse);
+            if (productsResponse?.Products == null || productsResponse.Products.Count == 0) break;
 
+            response.Pages.Add(productsResponse);
             pageNumber++;
-           
+            break;
 
             await Task.Delay(6000);
         }
+
         return response;
     }
-
-
 }

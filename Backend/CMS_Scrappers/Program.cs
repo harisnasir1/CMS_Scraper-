@@ -121,6 +121,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 
 //Scrapers
+builder.Services.AddSingleton<IProxyManager, ProxyManager>();
 builder.Services.AddSingleton<ShoipfyScrapper>();
 //queues
 builder.Services.AddSingleton<IHighPriorityTaskQueue,HighPriorityTaskQueue>();

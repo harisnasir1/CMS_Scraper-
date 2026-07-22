@@ -49,3 +49,5 @@ appsettings.*.json
 .DS_Store
 Thumbs.db
 *.DS_Store
+
+prox.txt
