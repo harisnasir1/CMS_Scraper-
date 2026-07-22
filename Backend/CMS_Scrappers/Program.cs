@@ -25,6 +25,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 //settings
 builder.Configuration.AddEnvironmentVariables();
+
+var ProxySettings = builder.Configuration.GetSection("ProxySettings").Get<ProxySettings>();
+builder.Services.AddSingleton(ProxySettings);
+
 var googleSettings = builder.Configuration.GetSection("_thirdParties").Get<GoogleAPISettings>();
 builder.Services.AddSingleton(googleSettings);
 

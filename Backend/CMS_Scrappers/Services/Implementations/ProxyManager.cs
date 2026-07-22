@@ -1,5 +1,7 @@
 using System.Net;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Utils;
+using Microsoft.Extensions.Options;
 
 namespace CMS_Scrappers.Services.Implementations;
 public class ProxyModel
@@ -13,54 +15,70 @@ public class ProxyModel
 public class ProxyManager:IProxyManager
 {
     private readonly List<ProxyModel> _proxies = new();
+    private readonly HttpClient _httpClient;
     private int _currentIndex = 0;
     private readonly object _lock = new();
-
-    public ProxyManager(IConfiguration configuration, string localFilePath = "prox.txt")
+    private readonly ILogger<ProxyManager> _logger;
+    private readonly ProxySettings _settings;
+    public ProxyManager(HttpClient httpClient,  ILogger<ProxyManager> logger, ProxySettings settings)
+    {
+        _httpClient = httpClient;
+        _settings = settings;
+        _logger = logger;
+    }
+    public async Task RefreshProxiesAsync(CancellationToken cancellationToken = default)
     {
         
-        var envProxies = configuration["PROXY_LIST"];
-
-        if (!string.IsNullOrWhiteSpace(envProxies))
+        
+        if (!string.IsNullOrWhiteSpace(_settings.ApiUrl))
         {
-            
-            var lines = envProxies.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            LoadProxies(lines);
-            Console.WriteLine($"[ProxyManager] Loaded {_proxies.Count} proxies from Railway Environment.");
-        }
-      
-        else if (File.Exists(localFilePath))
-        {
-            var lines = File.ReadAllLines(localFilePath);
-            LoadProxies(lines);
-            Console.WriteLine($"[ProxyManager] Loaded {_proxies.Count} proxies from local file.");
-        }
-        else
-        {
-            Console.WriteLine("[Warning] No proxies found in Environment or Local File.");
-        }
-    }
-    private void LoadProxies(string[] lines)
-    {
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            var parts = line.Trim().Split(':');
-            if (parts.Length >= 2)
+            try
             {
-                var proxy = new ProxyModel
+                _logger.LogInformation("[ProxyManager] Fetching fresh proxies from API...");
+                var response = await _httpClient.GetStringAsync(_settings.ApiUrl, cancellationToken);
+                var lines = response.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                var loadedProxies = ParseProxyLines(lines);
+                if (loadedProxies.Count > 0)
                 {
-                    Address = parts[0],
-                    Port = int.Parse(parts[1]),
-                    Username = parts.Length >= 4 ? parts[2] : null,
-                    Password = parts.Length >= 4 ? parts[3] : null
-                };
-                _proxies.Add(proxy);
+                    lock (_lock)
+                    {
+                        _proxies.Clear();
+                        _proxies.AddRange(loadedProxies);
+                        _currentIndex = 0;
+                    }
+                    _logger.LogInformation($"[ProxyManager] Successfully loaded {_proxies.Count} proxies from API.");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[ProxyManager] Failed to fetch proxies from API. Falling back to alternative sources.");
             }
         }
-    }
 
+       
+        var envProxies =_settings.FallbackList;
+        if (!string.IsNullOrWhiteSpace(envProxies))
+        {
+            var lines = envProxies.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            LoadProxies(ParseProxyLines(lines));
+            _logger.LogWarning($"[ProxyManager] Loaded {_proxies.Count} fallback proxies from Railway Environment.");
+            return;
+        }
+
+        
+        if (File.Exists(_settings.LocalFilePath))
+        {
+            var lines = await File.ReadAllLinesAsync(_settings.LocalFilePath, cancellationToken);
+            LoadProxies(ParseProxyLines(lines));
+            _logger.LogWarning($"[ProxyManager] Loaded {_proxies.Count} fallback proxies from local proxies.txt file.");
+            return;
+        }
+
+        _logger.LogError("[ProxyManager] No valid proxies found from API, Environment, or Local File!");
+    }
+    
     public bool HasProxies => _proxies.Count > 0;
 
     public WebProxy? GetNextProxy()
@@ -84,6 +102,39 @@ public class ProxyManager:IProxyManager
             }
 
             return webProxy;
+        }
+    }
+    private List<ProxyModel> ParseProxyLines(string[] lines)
+    {
+        var parsedList = new List<ProxyModel>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) continue;
+
+            var parts = line.Split(':');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out int port))
+            {
+                parsedList.Add(new ProxyModel
+                {
+                    Address = parts[0],
+                    Port = port,
+                    Username = parts.Length >= 4 ? parts[2] : null,
+                    Password = parts.Length >= 4 ? parts[3] : null
+                });
+            }
+        }
+
+        return parsedList;
+    }
+    private void LoadProxies(List<ProxyModel> proxies)
+    {
+        lock (_lock)
+        {
+            _proxies.Clear();
+            _proxies.AddRange(proxies);
+            _currentIndex = 0;
         }
     }
 }
