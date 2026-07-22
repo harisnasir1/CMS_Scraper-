@@ -18,6 +18,7 @@ public class Scrappingjob:BackgroundService
         _logger = logger;
         _proxyManager = proxyManager;
     }
+    
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
