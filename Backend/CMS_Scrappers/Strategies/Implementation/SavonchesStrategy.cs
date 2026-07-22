@@ -4,6 +4,7 @@ using System.Text;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
+using CMS_Scrappers.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +17,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     private readonly IScrapperRepository _scrapperRepository;
     private readonly AppDbContext _context;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IProxyManager _proxyManager;
 
     public SavonchesStrategy(
         Scrap_shopify scrap_Shopify,
@@ -23,7 +25,8 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         IScrapperRepository scrapperRepository,
         ILogger<SavonchesStrategy> logger,
         AppDbContext context,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        IProxyManager proxyManager)
     {
         _looger = logger;
         _Scrap_shopify = scrap_Shopify;
@@ -32,6 +35,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         _client.Timeout = TimeSpan.FromSeconds(30);
         _context = context;
         _serviceProvider = serviceProvider;
+        _proxyManager = proxyManager;
     }
 
     private static readonly string[] agents = new[]
@@ -190,12 +194,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
     private async Task<HtmlDocument> LoadPage(string url)
     {
+        using var client = GetProxyClient();
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.UserAgent.ParseAdd(RandomUserAgent());
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
         req.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
 
-        var res = await _client.SendAsync(req);
+        var res = await client.SendAsync(req);
         res.EnsureSuccessStatusCode();
 
         var html = await res.Content.ReadAsStringAsync();
@@ -310,5 +315,20 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 sb.Append(child.InnerText.Trim());
         }
         return sb.ToString();
+    }
+    private HttpClient GetProxyClient()
+    {
+        var handler = new HttpClientHandler
+        {
+           
+            Proxy = _proxyManager.GetNextProxy(),
+            UseProxy = _proxyManager.HasProxies,
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+        };
+
+        return new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
     }
 }
