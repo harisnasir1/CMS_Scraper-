@@ -218,6 +218,7 @@ namespace CMS_Scrappers.Services.Implementations
             _logger.LogCritical("comming for ai description");
             return await _Ai.GenerateDescription(id);
         }
+        
 
         public async Task <bool> PushProductShopify(Guid id)
         {
