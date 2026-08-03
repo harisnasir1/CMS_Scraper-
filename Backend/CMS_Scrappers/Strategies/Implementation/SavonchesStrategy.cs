@@ -203,6 +203,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         try
         {
             var res = await client.SendAsync(req);
+            var body = await res.Content.ReadAsStringAsync();
+
+            _looger.LogError(
+                "Status: {StatusCode}\nHeaders: {Headers}\nBody: {Body}",
+                (int)res.StatusCode,
+                string.Join("\n", res.Headers.Select(h => $"{h.Key}: {string.Join(",", h.Value)}")),
+                body);
             res.EnsureSuccessStatusCode();
             var html = await res.Content.ReadAsStringAsync();
             var doc = new HtmlDocument();
