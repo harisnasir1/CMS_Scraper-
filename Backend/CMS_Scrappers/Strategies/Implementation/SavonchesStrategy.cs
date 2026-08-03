@@ -82,7 +82,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         }).ToList();
 
-        var sema = new SemaphoreSlim(5); 
+        var sema = new SemaphoreSlim(1); 
 
         var enrichmentTasks = initialProductList.Select(async p =>
         {
