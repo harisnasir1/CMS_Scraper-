@@ -1,3 +1,4 @@
+using System.Net;
 using ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 using HtmlAgilityPack;
 using System.Text;
@@ -94,7 +95,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 var skipResult = await ShouldSkip(fullUrl);
                 if (!skipResult.ShouldSkip)
                 {
-                    await Task.Delay(RandomDelay());
+                   // await Task.Delay(RandomDelay());
                     await Get_attributes(p, storeBaseUrl); 
                 }
                 else
@@ -165,65 +166,83 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
     public async Task<HtmlDocument> LoadPagewithRetry(string url, int maxtry = 4)
     {
-        int delay = 9000;
-
         for (int attempt = 1; attempt <= maxtry; attempt++)
         {
             try
             {
                 return await LoadPage(url);
             }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                if (attempt == maxtry)
+                    throw;
+
+                _looger.LogWarning(
+                    "429 received for {Url}. Waiting 60 seconds before retry {Attempt}/{Max}.",
+                    url, attempt, maxtry);
+
+                await Task.Delay(TimeSpan.FromSeconds(60));
+            }
             catch (Exception ex)
             {
-                if (attempt < maxtry)
-                {
-                    _looger.LogError(ex, $"Retrying loading page for {url} (attempt {attempt})");
-                    await Task.Delay(delay);
-                    delay *= 2;
-                }
-                else
-                {
-                    _looger.LogError(ex, $"Failed to load page after {attempt} attempts: {url}");
+                if (attempt == maxtry)
                     throw;
-                }
+
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 5);
+
+                _looger.LogWarning(
+                    ex,
+                    "Request failed for {Url}. Waiting {Delay}s before retry {Attempt}/{Max}.",
+                    url,
+                    delay.TotalSeconds,
+                    attempt,
+                    maxtry);
+
+                await Task.Delay(delay);
             }
         }
 
-        throw new Exception("Unreachable code: LoadPagewithRetry failed all retries.");
+        throw new Exception("Unreachable");
     }
 
     private async Task<HtmlDocument> LoadPage(string url)
     {
         using var client = GetProxyClient();
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.UserAgent.ParseAdd(RandomUserAgent());
-        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
-        req.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
-        await Task.Delay(3000);
-        try
-        {
-            var res = await client.SendAsync(req);
-            var body = await res.Content.ReadAsStringAsync();
 
-            _looger.LogError(
-                "Status: {StatusCode}\nHeaders: {Headers}\nBody: {Body}",
-                (int)res.StatusCode,
-                string.Join("\n", res.Headers.Select(h => $"{h.Key}: {string.Join(",", h.Value)}")),
-                body);
-            res.EnsureSuccessStatusCode();
-            var html = await res.Content.ReadAsStringAsync();
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-            return doc;
-        }
-        catch (HttpRequestException ex)
-        {
-            _looger.LogError(ex, "Request failed for {Url}", url);
-            throw;
-        }
-       
-        
+        req.Headers.UserAgent.ParseAdd(RandomUserAgent());
+        req.Headers.Accept.ParseAdd("text/html");
+        req.Headers.AcceptLanguage.ParseAdd("en-US");
+
       
+        await Task.Delay(Random.Shared.Next(2000, 5000));
+
+        var res = await client.SendAsync(req);
+
+        if (res.StatusCode == HttpStatusCode.MultiStatus)
+        {
+            var retry = res.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(60);
+
+            _looger.LogWarning(
+                "Cloudflare rate limit. Retry after {Retry}s",
+                retry.TotalSeconds);
+
+            await Task.Delay(retry);
+
+            throw new HttpRequestException(
+                "429 Too Many Requests",
+                null,
+                HttpStatusCode.TooManyRequests);
+        }
+
+        res.EnsureSuccessStatusCode();
+
+        var html = await res.Content.ReadAsStringAsync();
+
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+
+        return doc;
     }
 
     private static string RandomUserAgent()
