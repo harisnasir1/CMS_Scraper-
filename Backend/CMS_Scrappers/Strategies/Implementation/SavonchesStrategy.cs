@@ -210,7 +210,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
       
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
 
-        req.Headers.UserAgent.ParseAdd(RandomUserAgent());
+      
         req.Headers.Accept.ParseAdd("text/html");
         req.Headers.AcceptLanguage.ParseAdd("en-US");
 
