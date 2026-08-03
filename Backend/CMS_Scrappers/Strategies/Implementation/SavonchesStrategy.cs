@@ -199,7 +199,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         req.Headers.UserAgent.ParseAdd(RandomUserAgent());
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
         req.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
-        await Task.Delay(900);
+        await Task.Delay(3000);
         var res = await client.SendAsync(req);
         res.EnsureSuccessStatusCode();
         
