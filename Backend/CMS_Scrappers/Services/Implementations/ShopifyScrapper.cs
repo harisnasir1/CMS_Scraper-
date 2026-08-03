@@ -64,7 +64,7 @@ public class ShoipfyScrapper : Scrap_shopify
 
             response.Pages.Add(productsResponse);
             pageNumber++;
-           
+          
             await Task.Delay(6000);
         }
 

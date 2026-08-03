@@ -79,8 +79,8 @@ public class ShopifyStoreScraper : IScrappers
             i++;
         }
 
-        // await updateRrsyncData(TimeStart,"savonches");
-        // await Updateliveproducts(FullflatBatch);
+         await updateRrsyncData(TimeStart,"savonches");
+         await Updateliveproducts(FullflatBatch);
         
         TimeEnd = DateTime.UtcNow;
 

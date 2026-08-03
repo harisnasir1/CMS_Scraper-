@@ -83,7 +83,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         }).ToList();
 
-        var sema = new SemaphoreSlim(1); 
+        var sema = new SemaphoreSlim(3); 
 
         var enrichmentTasks = initialProductList.Select(async p =>
         {
@@ -211,11 +211,11 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
 
       
-        req.Headers.Accept.ParseAdd("text/html");
-        req.Headers.AcceptLanguage.ParseAdd("en-US");
+     
+    
 
       
-        await Task.Delay(Random.Shared.Next(2000, 5000));
+        await Task.Delay(Random.Shared.Next(500, 2000));
 
         var res = await client.SendAsync(req);
 
