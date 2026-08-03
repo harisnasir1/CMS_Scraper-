@@ -200,13 +200,23 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
         req.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
         await Task.Delay(3000);
-        var res = await client.SendAsync(req);
-        res.EnsureSuccessStatusCode();
+        try
+        {
+            var res = await client.SendAsync(req);
+            res.EnsureSuccessStatusCode();
+            var html = await res.Content.ReadAsStringAsync();
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+            return doc;
+        }
+        catch (HttpRequestException ex)
+        {
+            _looger.LogError(ex, "Request failed for {Url}", url);
+            throw;
+        }
+       
         
-        var html = await res.Content.ReadAsStringAsync();
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-        return doc;
+      
     }
 
     private static string RandomUserAgent()
