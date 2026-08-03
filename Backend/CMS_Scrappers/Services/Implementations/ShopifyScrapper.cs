@@ -39,7 +39,7 @@ public class ShoipfyScrapper : Scrap_shopify
     public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
     {
         using var httpClient = CreateClientForRequest();
-        var ip = await httpClient.GetStringAsync("https://api.ipify.org");
+      
        
         var response = new ShopifyGetAllProductsResponse();
         var pageNumber = 1;
@@ -64,7 +64,7 @@ public class ShoipfyScrapper : Scrap_shopify
 
             response.Pages.Add(productsResponse);
             pageNumber++;
-break;
+            if(pageNumber > 2) break;
             await Task.Delay(6000);
         }
 

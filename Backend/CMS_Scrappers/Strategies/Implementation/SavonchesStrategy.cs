@@ -49,7 +49,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, string storeBaseUrl)
     {
         var allRawProducts = rawProduct.Pages.SelectMany(page => page.Products);
-
+        using var client = GetProxyClient();
         var initialProductList = allRawProducts.Select(product =>
         {
             
@@ -96,7 +96,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 if (!skipResult.ShouldSkip)
                 {
                    // await Task.Delay(RandomDelay());
-                    await Get_attributes(p, storeBaseUrl); 
+                    await Get_attributes(p, storeBaseUrl,client); 
                 }
                 else
                 {
@@ -132,13 +132,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         return (shouldSkip, description);
     }
-    private async Task Get_attributes(ShopifyFlatProduct p, string url)
+    private async Task Get_attributes(ShopifyFlatProduct p, string url,HttpClient client)
     {
         try
         {
             var link = $"{url}products/{p.Handle}";
       
-            var doc = await LoadPagewithRetry(link);
+            var doc = await LoadPagewithRetry(link,client);
 
             // p.Sizes = Getsovanchesizes(doc);
             p.ProductUrl = link;
@@ -164,13 +164,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         return string.Empty;
     }
 
-    public async Task<HtmlDocument> LoadPagewithRetry(string url, int maxtry = 4)
+    public async Task<HtmlDocument> LoadPagewithRetry(string url,HttpClient client, int maxtry = 4)
     {
         for (int attempt = 1; attempt <= maxtry; attempt++)
         {
             try
             {
-                return await LoadPage(url);
+                return await LoadPage(url, client);
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
             {
@@ -205,9 +205,9 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         throw new Exception("Unreachable");
     }
 
-    private async Task<HtmlDocument> LoadPage(string url)
+    private async Task<HtmlDocument> LoadPage(string url,HttpClient client)
     {
-        using var client = GetProxyClient();
+      
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
 
         req.Headers.UserAgent.ParseAdd(RandomUserAgent());
@@ -219,7 +219,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         var res = await client.SendAsync(req);
 
-        if (res.StatusCode == HttpStatusCode.MultiStatus)
+        if (res.StatusCode == HttpStatusCode.TooManyRequests)
         {
             var retry = res.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(60);
 
@@ -356,15 +356,22 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     {
         var handler = new HttpClientHandler
         {
-           
-            Proxy = _proxyManager.GetNextProxy(),
-            UseProxy = _proxyManager.HasProxies,
-            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
         };
 
-        return new HttpClient(handler)
+        // Pull next proxy abstraction
+        var proxy = _proxyManager.GetNextProxy();
+        if (proxy != null)
         {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
+            handler.Proxy = proxy;
+            handler.UseProxy = true;
+        }
+
+        var client = new HttpClient(handler);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0");
+        client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
+
+        return client;
     }
 }
