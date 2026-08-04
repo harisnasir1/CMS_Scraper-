@@ -1,24 +1,18 @@
-
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-COPY . .
-
-
+COPY *.csproj .
 RUN dotnet restore
 
-
+COPY . .
 RUN dotnet publish -c Release -o /app
-
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 
-
 COPY --from=build /app .
 
-
-EXPOSE 80
-
+ENV ASPNETCORE_URLS=http://+:5201
+EXPOSE 5201
 
 ENTRYPOINT ["dotnet", "CMS_Scrappers.dll"]

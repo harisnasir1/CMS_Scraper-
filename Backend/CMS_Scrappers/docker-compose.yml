@@ -1,0 +1,14 @@
+services:
+  cms-scrappers:
+    container_name: cms-scrappers
+    build: .
+    ports:
+      - "5201:5201"
+    env_file:
+      - .env
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
