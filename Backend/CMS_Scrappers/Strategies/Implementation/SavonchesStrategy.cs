@@ -215,7 +215,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     
 
       
-        await Task.Delay(Random.Shared.Next(500, 2000));
+        await Task.Delay(Random.Shared.Next(2000, 4000));
 
         var res = await client.SendAsync(req);
 
