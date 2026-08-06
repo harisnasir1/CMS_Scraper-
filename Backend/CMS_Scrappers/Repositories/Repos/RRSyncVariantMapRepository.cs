@@ -83,7 +83,10 @@ public class RRSyncVariantMapRepository:IRRSyncVariantMapRepository
             .Where(vm => vm.SyncStatus == "Active"
                          && _context.ProductVariants
                              .Any(v => v.Id == vm.VariantId
-                                       && (v.LastViewed == null || v.LastViewed < threshold)))
+                                       && (v.LastViewed == null || v.LastViewed < threshold)
+                                       && _context.Sdata
+                                           .Any(s => s.Id == v.SdataId 
+                                                     && s.Status == "Live")))
             .ToListAsync();
     }
     public async Task MarkAsDeleted(List<Guid> ids)

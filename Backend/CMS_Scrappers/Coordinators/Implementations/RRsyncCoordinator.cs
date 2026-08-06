@@ -157,6 +157,13 @@ public class RRsyncCoordinator : IRRsyncCoordinator
             _logger.LogInformation("No stale RRSync variant maps found");
             return;
         }
+        if (staleVariantMaps.Count > 200)
+        {
+            _logger.LogError(
+                "ABORT: Would delete {Count} variants from RRSync — refusing",
+                staleVariantMaps.Count);
+            return;
+        }
 
         _logger.LogInformation(
             "{Count} stale RRSync variant maps found", staleVariantMaps.Count);

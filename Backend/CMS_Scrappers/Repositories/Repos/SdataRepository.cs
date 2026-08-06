@@ -16,10 +16,11 @@ namespace CMS_Scrappers.Repositories.Repos
         // but making it static readonly is better than 'new Guid()' in the constructor.
         private static readonly Guid _userId = new Guid("0b651c37-c448-42cd-a06e-e01144285502");
         private readonly AppDbContext _context;
-
-        public SdataRepository(AppDbContext context)
+        private  readonly ILogger<SdataRepository> _logger;
+        public SdataRepository(AppDbContext context, ILogger<SdataRepository> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public async Task Add(List<ShopifyFlatProduct> data, Guid scraperId)
@@ -303,14 +304,20 @@ namespace CMS_Scrappers.Repositories.Repos
                 var unseenProducts = await _context.Sdata
                     .Include(s => s.Variants)
                     .Where(s => s.Sid == scraperId
-                                && s.Status != "SourceDeleted"
-                                && s.Status != "Delisted"
+                                && s.Status == "Live"
                                 && s.LastViewed < threshold)
                     .ToListAsync();
 
                 if (!unseenProducts.Any())
                 {
                   
+                    return;
+                }
+                if (unseenProducts.Count > 200)                   
+                {
+                    _logger.LogError(
+                        "ABORT: Would mark {Count} products SourceDeleted — refusing",
+                        unseenProducts.Count);
                     return;
                 }
 
