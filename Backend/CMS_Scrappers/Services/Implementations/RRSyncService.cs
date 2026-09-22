@@ -36,7 +36,7 @@ public class RRSyncService:IRRSyncService
             Content = JsonContent.Create(batch)
         };
 
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        msg.Headers.Add("Cookie", $"access_token={token}");
 
         var response = await _http.SendAsync(msg);
         var rawBody = await response.Content.ReadAsStringAsync();
@@ -79,7 +79,7 @@ public class RRSyncService:IRRSyncService
             Content = JsonContent.Create(variantRequest)
         };
 
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        msg.Headers.Add("Cookie", $"access_token={token}");
 
         var response = await _http.SendAsync(msg);
         var rawBody = await response.Content.ReadAsStringAsync();
@@ -119,7 +119,7 @@ public class RRSyncService:IRRSyncService
             HttpMethod.Get,url);
        
 
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        msg.Headers.Add("Cookie", $"access_token={token}");
 
         var response = await _http.SendAsync(msg);
         var body = await response.Content.ReadFromJsonAsync<RRApiResponse<List<RRSyncVarinatDTO>>>()
@@ -144,7 +144,7 @@ public class RRSyncService:IRRSyncService
         {
             Content = JsonContent.Create(variantRequest)
         };
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        msg.Headers.Add("Cookie", $"access_token={token}");
         var response = await _http.SendAsync(msg);
         var body = await response.Content.ReadFromJsonAsync<RRApiResponse<object>>()
                    ?? throw new InvalidOperationException("Empty bulk create response");
@@ -165,7 +165,7 @@ public class RRSyncService:IRRSyncService
         using var msg = new HttpRequestMessage(
             HttpMethod.Delete,
             $"{_syncconfig.BaseURl}/api/Scrapper/DeleteVariant/{variantId}");
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        msg.Headers.Add("Cookie", $"access_token={token}");
         var response = await _http.SendAsync(msg);
         var body = await response.Content.ReadFromJsonAsync<RRApiResponse<object>>()
                    ?? throw new InvalidOperationException("Empty bulk create response");
@@ -188,7 +188,7 @@ public class RRSyncService:IRRSyncService
             HttpMethod.Get,url);
        
 
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        msg.Headers.Add("Cookie", $"access_token={token}");
 
         var response = await _http.SendAsync(msg);
         var body = await response.Content.ReadFromJsonAsync<RRApiResponse<RRSyncSourceResponse>>()
