@@ -10,8 +10,9 @@ import {
 import { ClipboardCheck,ExternalLink } from 'lucide-react';
 import {useProduct} from '@/contexts/products-context'
 import { Input } from '@/components/ui/input';
-
+import { Button } from "@/components/ui/button";
 import Pagination from '@/components/ui/paginations'
+import { useNavigate } from "react-router-dom";
 
 import { Sdata } from "@/types/Sdata";
 
@@ -20,7 +21,8 @@ type Props = {}
 function LiveFeed({}: Props) {
   
   const [tc,setc]=useState<number>(0)
-  const {getLiveProducts,LiveProducts,normalizeDateTime,GetProductCount,Checkifoutofstock}=useProduct()
+  const navigate=useNavigate()
+  const {getLiveProducts,LiveProducts,normalizeDateTime,GetProductCount,Checkifoutofstock,Addselectedproduct}=useProduct()
   const getproducts=async()=>{
    await getLiveProducts(1,10);
   }
@@ -58,8 +60,8 @@ function LiveFeed({}: Props) {
               <TableHead className="hidden sm:table-cell">Last Update</TableHead>
               <TableHead className="hidden sm:table-cell">Availability</TableHead>
               <TableHead className="hidden sm:table-cell">Source</TableHead>
-              <TableHead className="hidden sm:table-cell"></TableHead>
-             
+              <TableHead></TableHead>
+
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -85,6 +87,12 @@ function LiveFeed({}: Props) {
                 <TableCell className="hidden sm:table-cell">
                   <a href={product.productUrl} target="_blank">{<ExternalLink size={20} />}</a>
                 </TableCell>
+                <TableCell ><Button
+                         onClick={()=>{
+                              Addselectedproduct(product)
+                              navigate("/LiveFeed/Product")
+                         }}
+                         className='bg-[#1D7DBD] hover:bg-blue-500'> View </Button> </TableCell>
               </TableRow>
             ))}
           </TableBody>

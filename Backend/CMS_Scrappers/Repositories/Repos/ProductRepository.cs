@@ -49,6 +49,41 @@ namespace CMS_Scrappers.Repositories.Repos
                 .CountAsync();
 
         }
+        public async Task<List<Guid>> GiveAutoApproveCandidateIds(Guid scrapper, int? limit, decimal minVariantPrice, List<string> excludedBrands, int minImages)
+        {
+            var brands = excludedBrands ?? new List<string>();
+            var query = _context.Sdata
+                .AsNoTracking()
+                .Where(s => s.Sid == scrapper
+                            && s.Status == "Categorized"
+                            && !brands.Contains(s.Brand)
+                            && (s.ProductType != "" || s.Category != "")
+                            && s.Variants.Any(v => v.InStock && v.Price >= minVariantPrice)
+                            && s.Image.Count >= minImages)
+                .OrderByDescending(s => s.CreatedAt) // newest arrivals first, same order as the review page
+                .Select(s => s.Id);
+
+            if (limit.HasValue && limit.Value > 0)
+                query = query.Take(limit.Value);
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<int> DeleteImages(Guid productId, List<long> imageIds)
+        {
+            if (imageIds == null || imageIds.Count == 0) return 0;
+
+            var images = await _context.ProductImages
+                .Where(i => i.SdataId == productId && imageIds.Contains(i.Id))
+                .ToListAsync();
+
+            if (images.Count == 0) return 0;
+
+            _context.ProductImages.RemoveRange(images);
+            await _context.SaveChangesAsync();
+            return images.Count;
+        }
+
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
            return await _context.Sdata
@@ -80,7 +115,7 @@ namespace CMS_Scrappers.Repositories.Repos
                 .FirstOrDefaultAsync(s => s.Id == productid);
         }
 
-        public async Task UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages)
+        public async Task<bool> UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages)
         {
             try
             {
@@ -129,11 +164,12 @@ namespace CMS_Scrappers.Repositories.Repos
                 finalimages=finalimages.OrderBy(o=>o.Priority).ToList();
                 data.Image= finalimages;
                await _context.SaveChangesAsync();
+               return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating product details.");
-
+                _logger.LogError(ex, "Error updating product images.");
+                return false;
             }
         }
 
@@ -190,6 +226,7 @@ namespace CMS_Scrappers.Repositories.Repos
                         ("Processing", "Failed") => true,
                         ("Sync_ready", "Live") => true,
                         ("Sync_ready", "Failed") => true,
+                        ("Sync_ready", "Categorized") => true, // auto-approve gave up; back to manual review
                         _ => false
                     };
 
@@ -226,7 +263,9 @@ namespace CMS_Scrappers.Repositories.Repos
                 product.UpdatedAt = DateTime.UtcNow;
                 product.Sku = sku;
 
-                _context.Sdata.Update(product);
+                // The entity is already tracked, so SaveChanges writes only the columns set above.
+                // Calling Update() here marked the whole graph (variants, images) as modified and
+                // could overwrite stock changes written by a concurrent scrape with stale values.
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation($"Product with SKU '{id}' updated successfully.");

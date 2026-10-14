@@ -6,7 +6,7 @@
         Task<List<Sdata>> GiveInstockProducts(Guid scrapper,int PageNumber,int PageSize);
         Task<int> GiveProducts_Count(Guid scrapper);
         Task<List<Sdata>> GetPendingReviewproducts(int PageNumber,int PageSize);
-        Task UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages);
+        Task<bool> UpdateImages(Guid id,List<ProductImageRecordDTO> updatedImages);
         Task<Sdata> Getproductbyid(Guid productid);
         Task UpdateDescription(Guid id, string desc);
         Task<bool> AddShopifyproductid(Sdata data, string Shopifyid);
@@ -14,6 +14,8 @@
         Task<bool> UpdateProductDetailsAsync(Guid id, string sku, string title, string description, int price);
         Task<int> TotalStatusProdcuts(string status);
         Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize);
-        
+        Task<List<Guid>> GiveAutoApproveCandidateIds(Guid scrapper, int? limit, decimal minVariantPrice, List<string> excludedBrands, int minImages);
+        Task<int> DeleteImages(Guid productId, List<long> imageIds);
+
     }
 }

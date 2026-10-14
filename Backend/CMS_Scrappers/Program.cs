@@ -47,6 +47,12 @@ builder.Services.AddSingleton(RRSyncConfig);
 var bgRemoveConfig = builder.Configuration.GetSection("bgRemove").Get<bgRemoveSettings>();
 builder.Services.AddSingleton(bgRemoveConfig);
 
+var autoApproveConfig = builder.Configuration.GetSection("AutoApprove").Get<AutoApproveSettings>() ?? new AutoApproveSettings();
+builder.Services.AddSingleton(autoApproveConfig);
+
+var stockReconcileConfig = builder.Configuration.GetSection("StockReconcile").Get<StockReconcileSettings>() ?? new StockReconcileSettings();
+builder.Services.AddSingleton(stockReconcileConfig);
+
 
 //var ShopifySettings=builder.Configuration.GetSection("ShopifyApi").Get<ShopifySettings>();
 //builder.Services.AddSingleton(ShopifySettings);
@@ -131,13 +137,24 @@ builder.Services.AddSingleton<ShoipfyScrapper>();
 builder.Services.AddSingleton<IHighPriorityTaskQueue,HighPriorityTaskQueue>();
 builder.Services.AddSingleton<ILowPriorityTaskQueue,LowPriorityTaskQueue>();
 builder.Services.AddSingleton<IUpdateShopifyTaskQueue,UpdateShopifyTaskQueue>();
-builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
-builder.Services.AddHostedService<LowPriorityWorkerService>();
-builder.Services.AddHostedService<UpdateShopifyWorkerService>();
+// DISABLE_BACKGROUND_JOBS=true lets you run locally against prod config without starting scrapes/syncs
+var backgroundJobsDisabled = builder.Configuration.GetValue<bool>("DISABLE_BACKGROUND_JOBS");
+if (!backgroundJobsDisabled)
+{
+    builder.Services.AddHostedService<QueuedProcessorBackgroundService>();
+    builder.Services.AddHostedService<LowPriorityWorkerService>();
+    builder.Services.AddHostedService<UpdateShopifyWorkerService>();
 
-//conjobs
-builder.Services.AddHostedService<Scrappingjob>();
-builder.Services.AddHostedService<SourceDeletedCleanupJob>();
+    //conjobs
+    builder.Services.AddHostedService<Scrappingjob>();
+    builder.Services.AddHostedService<SourceDeletedCleanupJob>();
+    builder.Services.AddHostedService<AutoApproveJob>();
+    builder.Services.AddHostedService<StockReconcileJob>();
+}
+else
+{
+    Console.WriteLine("DISABLE_BACKGROUND_JOBS=true: queue workers and cron jobs are NOT running");
+}
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -157,6 +174,7 @@ builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
+builder.Services.AddSingleton<IAutoApproveRunner, AutoApproveRunner>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<IAi, AI>();
 builder.Services.AddScoped<IRRSyncService, RRSyncService>();
@@ -164,6 +182,7 @@ builder.Services.AddHttpClient<IRRSyncAuthService, RRSyncAuthService>();
 //builder.Services.AddScoped<IShopifyService, ShopifyService>();
 //Coordinators
 builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
+builder.Services.AddScoped<IStockReconciler, StockReconciler>();
 builder.Services.AddScoped<IRRsyncCoordinator, RRsyncCoordinator>();
 builder.Services.AddScoped<ISavonchesSyncSize, SavonchesSyncSize>();
 builder.Services.AddControllers();

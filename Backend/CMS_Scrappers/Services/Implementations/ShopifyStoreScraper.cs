@@ -60,6 +60,13 @@ public class ShopifyStoreScraper : IScrappers
         var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
         var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
         var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
+        if (rawProduct.Pages.Count == 0)
+        {
+            // Nothing fetched means the supplier or proxies are blocked, not an empty catalogue; don't sync anything off it
+            _logger.LogError("Scrape for {Name} fetched 0 pages from {Url}; skipping DB/RRSync/Shopify updates for this run", _scraperName, _storeBaseUrl);
+            await _scrapperRepository.Stoprun("00:00:00", "Savonches");
+            return;
+        }
         int i = 0;
         foreach (var page in rawProduct.Pages)
         {

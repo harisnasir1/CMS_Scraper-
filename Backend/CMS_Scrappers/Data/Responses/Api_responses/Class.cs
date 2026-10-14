@@ -33,7 +33,7 @@
     }
     public class Requestimages
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
         public int Priority { get; set; }
         public string Url { get; set; } = "";
         public bool? Bgremove { get; set; } = false;

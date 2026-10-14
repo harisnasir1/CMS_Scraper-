@@ -162,9 +162,23 @@ namespace CMS_Scrappers.Controller
             if (string.IsNullOrEmpty(status) || status != "active")
                 return BadRequest("Scraper is not active.");
 
-            await _ProductSerivce.PushAllScraperProductsLive(id, limit);
+            // Manual trigger of the same work the daily AutoApproveJob does. Queued so the
+            // request returns immediately; progress is in the logs.
+            _LowtaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>
+            {
+                var runner = serviceProvider.GetRequiredService<IAutoApproveRunner>();
+                try
+                {
+                    var approved = await runner.RunAsync(id, limit, token);
+                    _logger.LogInformation("Manual auto-approve finished: {Count} products went Live", approved);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Manual auto-approve failed for scraper {Id}", id);
+                }
+            });
 
-            return Ok("ok");
+            return Ok(new { message = "Auto-approve queued", scraperId = id, limit });
         }
 
         [HttpGet("Sync_inventory")]
