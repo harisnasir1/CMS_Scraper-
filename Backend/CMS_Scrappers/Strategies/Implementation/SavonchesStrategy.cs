@@ -20,6 +20,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     private readonly IServiceProvider _serviceProvider;
     private readonly IProxyManager _proxyManager;
 
+    // Proxy client shared by the enrichment tasks of the current page; swapped for a fresh proxy on 429/403
+    private HttpClient _enrichClient = null!;
+    private readonly object _enrichClientLock = new();
+    // The supplier's per-IP limit is low; move to the next proxy every few requests so no single IP ever reaches it
+    private int _requestsOnCurrentClient;
+    private const int RequestsPerProxy = 20;
+
     public SavonchesStrategy(
         Scrap_shopify scrap_Shopify,
         IHttpClientFactory clientFactory,
@@ -49,7 +56,10 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, string storeBaseUrl)
     {
         var allRawProducts = rawProduct.Pages.SelectMany(page => page.Products);
-        using var client = GetProxyClient();
+        lock (_enrichClientLock)
+        {
+            _enrichClient = GetProxyClient();
+        }
         var initialProductList = allRawProducts.Select(product =>
         {
             
@@ -96,7 +106,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 if (!skipResult.ShouldSkip)
                 {
                    // await Task.Delay(RandomDelay());
-                    await Get_attributes(p, storeBaseUrl,client); 
+                    await Get_attributes(p, storeBaseUrl);
                 }
                 else
                 {
@@ -132,13 +142,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         return (shouldSkip, description);
     }
-    private async Task Get_attributes(ShopifyFlatProduct p, string url,HttpClient client)
+    private async Task Get_attributes(ShopifyFlatProduct p, string url)
     {
         try
         {
             var link = $"{url}products/{p.Handle}";
       
-            var doc = await LoadPagewithRetry(link,client);
+            var doc = await LoadPagewithRetry(link);
 
             // p.Sizes = Getsovanchesizes(doc);
             p.ProductUrl = link;
@@ -164,24 +174,47 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         return string.Empty;
     }
 
-    public async Task<HtmlDocument> LoadPagewithRetry(string url,HttpClient client, int maxtry = 4)
+    private HttpClient CurrentEnrichClient()
+    {
+        lock (_enrichClientLock) return _enrichClient;
+    }
+
+    // Swap to the next proxy. The old client is not disposed because other enrichment tasks may still be mid-request on it.
+    private HttpClient RotateEnrichClient(HttpClient failed, string reason)
+    {
+        lock (_enrichClientLock)
+        {
+            if (!ReferenceEquals(_enrichClient, failed)) return _enrichClient; // another task already rotated
+            _enrichClient = GetProxyClient();
+            _requestsOnCurrentClient = 0;
+            _looger.LogInformation("Enrichment switched proxy ({Reason})", reason);
+            return _enrichClient;
+        }
+    }
+
+    public async Task<HtmlDocument> LoadPagewithRetry(string url, int maxtry = 4)
     {
         for (int attempt = 1; attempt <= maxtry; attempt++)
         {
+            var client = CurrentEnrichClient();
+            if (Interlocked.Increment(ref _requestsOnCurrentClient) > RequestsPerProxy)
+            {
+                client = RotateEnrichClient(client, $"{RequestsPerProxy} requests sent");
+            }
             try
             {
                 return await LoadPage(url, client);
             }
-            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+            catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
             {
                 if (attempt == maxtry)
                     throw;
 
-                _looger.LogWarning(
-                    "429 received for {Url}. Waiting 60 seconds before retry {Attempt}/{Max}.",
-                    url, attempt, maxtry);
-
-                await Task.Delay(TimeSpan.FromSeconds(60));
+                // The limit/ban is per IP, so move to a fresh proxy instead of sleeping a minute on the same one
+                _looger.LogWarning("{Status} for {Url}; retry {Attempt}/{Max} on next proxy",
+                    (int)ex.StatusCode!, url, attempt, maxtry);
+                RotateEnrichClient(client, $"HTTP {(int)ex.StatusCode}");
+                await Task.Delay(TimeSpan.FromSeconds(5));
             }
             catch (Exception ex)
             {
@@ -221,14 +254,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         if (res.StatusCode == HttpStatusCode.TooManyRequests)
         {
-            var retry = res.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(60);
-
-            _looger.LogWarning(
-                "Cloudflare rate limit. Retry after {Retry}s",
-                retry.TotalSeconds);
-
-            await Task.Delay(retry);
-
+            // No sleep here: LoadPagewithRetry rotates to another proxy, which is faster than waiting out the limit
             throw new HttpRequestException(
                 "429 Too Many Requests",
                 null,
