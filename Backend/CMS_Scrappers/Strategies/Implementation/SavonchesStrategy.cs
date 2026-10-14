@@ -354,9 +354,11 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     }
     private HttpClient GetProxyClient()
     {
+        // Same as ShoipfyScrapper: since 2026-10-12 the supplier 403s requests carrying the
+        // Accept / Accept-Encoding combo, while a bare User-Agent request is accepted.
         var handler = new HttpClientHandler
         {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            AutomaticDecompression = DecompressionMethods.None
         };
 
         // Pull next proxy abstraction
@@ -369,8 +371,6 @@ public class SavonchesStrategy : IShopifyParsingStrategy
 
         var client = new HttpClient(handler);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0");
-        client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-        client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
 
         return client;
     }
