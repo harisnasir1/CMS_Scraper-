@@ -47,6 +47,9 @@ builder.Services.AddSingleton(RRSyncConfig);
 var bgRemoveConfig = builder.Configuration.GetSection("bgRemove").Get<bgRemoveSettings>();
 builder.Services.AddSingleton(bgRemoveConfig);
 
+var autoApproveConfig = builder.Configuration.GetSection("AutoApprove").Get<AutoApproveSettings>() ?? new AutoApproveSettings();
+builder.Services.AddSingleton(autoApproveConfig);
+
 
 //var ShopifySettings=builder.Configuration.GetSection("ShopifyApi").Get<ShopifySettings>();
 //builder.Services.AddSingleton(ShopifySettings);
@@ -138,6 +141,7 @@ builder.Services.AddHostedService<UpdateShopifyWorkerService>();
 //conjobs
 builder.Services.AddHostedService<Scrappingjob>();
 builder.Services.AddHostedService<SourceDeletedCleanupJob>();
+builder.Services.AddHostedService<AutoApproveJob>();
 //Services
 builder.Services.AddScoped<S3Interface, S3Service>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -157,6 +161,7 @@ builder.Services.AddScoped<SavonchesCategoryMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
+builder.Services.AddSingleton<IAutoApproveRunner, AutoApproveRunner>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<IAi, AI>();
 builder.Services.AddScoped<IRRSyncService, RRSyncService>();

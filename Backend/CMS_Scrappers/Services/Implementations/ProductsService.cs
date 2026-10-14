@@ -5,6 +5,7 @@ using CMS_Scrappers.Data.Responses.Api_responses;
 using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Utils;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore.Query;
 namespace CMS_Scrappers.Services.Implementations
@@ -21,15 +22,18 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly IAi _Ai;
         private readonly IProductSyncCoordinator _productSyncCoordinator;
         private readonly IProductStoreMappingRepository _productStoreMappingRepository;
+        private readonly AutoApproveSettings _autoApprove;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
             IGoogleImageService googleservice,
             BackgroundRemover backgroundRemover, HttpClient httpClient, S3Interface s3service,
             IAi Ai,
             IProductStoreMappingRepository productStoreMappingRepository,
-            IProductSyncCoordinator productsyncCoordinator
+            IProductSyncCoordinator productsyncCoordinator,
+            AutoApproveSettings autoApprove
             )
         {
+            _autoApprove = autoApprove;
             _repository = repository;
             _googleImageService = googleservice;
             _scrapperRepository = scrapperRepository;
@@ -63,19 +67,19 @@ namespace CMS_Scrappers.Services.Implementations
             string query = $"{data.Brand + data.Title}";
             return await _googleImageService.SearchImagesAsync(query, start);
         }
-        public async Task RemovingBackgroundimages(Guid id, List<Requestimages> Imgs)
+        public async Task<int> RemovingBackgroundimages(Guid id, List<Requestimages> Imgs)
         {
-            if (Imgs == null || Imgs.Count == 0) 
+            if (Imgs == null || Imgs.Count == 0)
             {
                 Console.WriteLine($"[RAILWAY_DEBUG] No images to process for product {id}");
-                return;
+                return 0;
             }
 
             var existingData = await _repository.Getproductbyid(id);
-            if (existingData == null) 
+            if (existingData == null)
             {
                 Console.WriteLine($"[RAILWAY_DEBUG] Product {id} not found in database");
-                return;
+                return 0;
             }
 
             Console.WriteLine($"[RAILWAY_DEBUG] Starting image processing for product {id}. Total images: {Imgs.Count}");
@@ -195,7 +199,12 @@ namespace CMS_Scrappers.Services.Implementations
                 try
                 {
                     Console.WriteLine($"[RAILWAY_DEBUG] Updating database with {processedImages.Count} images");
-                    await _repository.UpdateImages(id, processedImages);
+                    var saved = await _repository.UpdateImages(id, processedImages);
+                    if (!saved)
+                    {
+                        _logger.LogError($"Failed to update images in database for product {id}");
+                        return 0;
+                    }
                     Console.WriteLine($"[RAILWAY_SUCCESS] Database update successful for product {id}");
                     _logger.LogInformation($"Successfully updated {processedImages.Count} images for product {id}");
                 }
@@ -204,6 +213,7 @@ namespace CMS_Scrappers.Services.Implementations
                     Console.WriteLine($"[RAILWAY_ERROR] Database update failed for product {id}: {ex.Message}");
                     Console.WriteLine($"[RAILWAY_ERROR] Database stack trace: {ex.StackTrace}");
                     _logger.LogError(ex, $"Failed to update images in database for product {id}: {ex.Message}");
+                    return 0;
                 }
             }
             else
@@ -211,6 +221,8 @@ namespace CMS_Scrappers.Services.Implementations
                 Console.WriteLine($"[RAILWAY_WARNING] No images were successfully processed for product {id}");
                 _logger.LogWarning($"No images were successfully processed for product {id}");
             }
+
+            return successCount;
         }
 
         public async Task<string> AIGeneratedDescription(Guid id)
@@ -254,75 +266,141 @@ namespace CMS_Scrappers.Services.Implementations
             return await _repository.GiveProducts_Count(id);
         }
 
-        public async Task<bool> PushAllScraperProductsLive(Guid sid,int? limit)
+        public Task<List<Guid>> GetAutoApproveCandidates(Guid sid, int? limit)
         {
-            //step 1 to check if any scrapper is running or syncing. can do later have to do . make scrapper running if product is syncing.
-            
-            //step 2 to get the count of categorized product for each scraper.
-            int batch_size = 1;
-            int total_d = limit ?? (await _repository.GiveProducts_Count(sid));
+            return _repository.GiveAutoApproveCandidateIds(
+                sid,
+                limit,
+                _autoApprove.MinVariantPrice,
+                _autoApprove.ExcludedBrands,
+                _autoApprove.MinImages);
+        }
 
-            int Spcount = (int)Math.Ceiling(total_d / (double)batch_size);
-         
-            for (int i = 0; i < Spcount; i++)
+        public async Task<bool> AutoApproveProduct(Guid id)
+        {
+            // Claim the product so a concurrent manual Push cannot grab it mid-way.
+            if (!await _repository.UpdateStatus(id, "Sync_ready"))
             {
-                try 
+                _logger.LogInformation("AutoApprove: {Id} is no longer Categorized, skipping", id);
+                return false;
+            }
+
+            try
+            {
+                var data = await _repository.Getproductbyid(id);
+                if (data == null)
                 {
-                    var sdata = await _repository.GiveInstockProducts(sid, i+1, batch_size);
-                    _logger.LogInformation($"Successfully retrieved {sdata.Count} products");
-                    foreach (var data in sdata)
-                    {
-                        var ai_des=await _Ai.GenerateDescription(data.Id);
-                        await _repository.UpdateProductDetailsAsync(data.Id,  Gen_Sku(data.Brand), data.Title, ai_des, data.Price);
-                    
-                        var images = new List<Requestimages>();
-                        var allImages = data.Image.ToList();
-                        int total = allImages.Count;
+                    _logger.LogWarning("AutoApprove: {Id} not found", id);
+                    return false;
+                }
 
-                        int removeCount = 0;
-                    
-                        if (total > 6)
-                        {
-                            removeCount = 3;
-                        }
-                        else if (total > 5)  
-                        {
-                            removeCount = 2;
-                        }
-                        else if (total > 1)  
-                        {
-                            removeCount = 1;
-                        }
-                       
-
-                        for (int k = 0; k < total; k++)
-                        {
-                            bool bgRemoveValue = k < removeCount;   
-
-                            images.Add(new Requestimages
-                            {
-                                Id = unchecked((int)allImages[k].Id),
-                                Url = allImages[k].Url,
-                                Priority=k,
-                                Bgremove = bgRemoveValue,
-                            });
-                        }
-                        await this.RemovingBackgroundimages(data.Id, images);
-                        await _repository.UpdateStatus(data.Id, "Sync_ready");
-                        
-                    }
-
+                string description;
+                try
+                {
+                    description = await _Ai.GenerateDescription(id);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to get products. SID: {ScraperId}", sid);
-                    throw;
+                    _logger.LogWarning(ex, "AutoApprove: AI description failed for {Id}, leaving in review", id);
+                    await RevertToReview(id);
+                    return false;
                 }
-         
+
+                if (string.IsNullOrWhiteSpace(description) || description.Length < CMS_Scrappers.Ai.Implementation.AI.MinDescriptionLength)
+                {
+                    _logger.LogWarning("AutoApprove: AI description too short ({Length} chars) for {Id}, leaving in review", description?.Length ?? 0, id);
+                    await RevertToReview(id);
+                    return false;
+                }
+
+                if (!await _repository.UpdateProductDetailsAsync(id, Gen_Sku(data.Brand), data.Title, description, data.Price))
+                {
+                    _logger.LogWarning("AutoApprove: could not save details for {Id}, leaving in review", id);
+                    await RevertToReview(id);
+                    return false;
+                }
+
+                var (keep, drop) = BuildImagePlan(data.Image);
+
+                var processed = await RemovingBackgroundimages(id, keep);
+                if (processed == 0)
+                {
+                    _logger.LogWarning("AutoApprove: no images processed for {Id}, leaving in review", id);
+                    await RevertToReview(id);
+                    return false;
+                }
+
+                if (drop.Count > 0)
+                {
+                    var deleted = await _repository.DeleteImages(id, drop);
+                    _logger.LogInformation("AutoApprove: dropped {Deleted} trailing images for {Id}", deleted, id);
+                }
+
+                if (!await _repository.UpdateStatus(id, "Live"))
+                {
+                    _logger.LogError("AutoApprove: could not set Live for {Id}", id);
+                    await RevertToReview(id);
+                    return false;
+                }
+
+                _logger.LogInformation("AutoApprove: {Id} is Live ({Kept} images, {BgRemoved} bg-removed, {Dropped} dropped)",
+                    id, keep.Count, keep.Count(k => k.Bgremove == true), drop.Count);
+                return true;
             }
-            
-            return true;
-            
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AutoApprove: unexpected failure for {Id}, leaving in review", id);
+                await RevertToReview(id);
+                return false;
+            }
+        }
+
+        private async Task RevertToReview(Guid id)
+        {
+            try
+            {
+                await _repository.UpdateStatus(id, "Categorized");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AutoApprove: failed to revert {Id} to Categorized", id);
+            }
+        }
+
+        /// <summary>
+        /// Splits a product's images into the ones to keep (with bg-removal flags) and the
+        /// trailing ones to delete, according to the configured image tiers.
+        /// Images are ordered by their scraped priority, so "last" means the closeups.
+        /// </summary>
+        private (List<Requestimages> keep, List<long> drop) BuildImagePlan(List<ProductImageRecord> images)
+        {
+            var ordered = images
+                .OrderBy(i => i.Priority ?? int.MaxValue)
+                .ThenBy(i => i.Id)
+                .ToList();
+
+            int total = ordered.Count;
+            var tier = _autoApprove.TierFor(total);
+
+            // Never drop below one image.
+            int dropCount = Math.Clamp(tier.DropLast, 0, Math.Max(0, total - 1));
+            int keepCount = total - dropCount;
+            int bgCount = Math.Clamp(tier.BgRemove, 0, keepCount);
+
+            var keep = new List<Requestimages>();
+            for (int k = 0; k < keepCount; k++)
+            {
+                keep.Add(new Requestimages
+                {
+                    Id = ordered[k].Id,
+                    Url = ordered[k].Url,
+                    Priority = k,
+                    Bgremove = k < bgCount,
+                });
+            }
+
+            var drop = ordered.Skip(keepCount).Select(i => i.Id).ToList();
+            return (keep, drop);
         }
 
         public async Task<bool> shiftallshopifyidstonew()
