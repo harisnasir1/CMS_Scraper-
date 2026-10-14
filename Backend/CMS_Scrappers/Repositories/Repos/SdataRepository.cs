@@ -25,8 +25,8 @@ namespace CMS_Scrappers.Repositories.Repos
 
         public async Task Add(List<ShopifyFlatProduct> data, Guid scraperId)
         {
-            var newProducts = data.Where(p => p.New).ToList();
-            var existingProducts = data.Where(p => !p.New).ToList();
+            var newProducts = data.Where(p => p.New && !string.IsNullOrEmpty(p.ProductUrl)).ToList();
+            var existingProducts = data.Where(p => !p.New && !string.IsNullOrEmpty(p.ProductUrl)).ToList();
 
           
             if (existingProducts.Any())

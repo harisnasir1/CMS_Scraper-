@@ -25,7 +25,13 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     private readonly object _enrichClientLock = new();
     // The supplier's per-IP limit is low; move to the next proxy every few requests so no single IP ever reaches it
     private int _requestsOnCurrentClient;
-    private const int RequestsPerProxy = 20;
+    private const int RequestsPerProxy = 5;
+
+    // Cap on product-page fetches per scrape run. New products beyond it are picked up on later runs;
+    // stock for everything already in the DB is updated regardless, since that comes from products.json.
+    private const int MaxEnrichmentsPerRun = 400;
+    private int _enrichmentsThisRun;
+    private int _deferredThisRun;
 
     public SavonchesStrategy(
         Scrap_shopify scrap_Shopify,
@@ -105,8 +111,19 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                 var skipResult = await ShouldSkip(fullUrl);
                 if (!skipResult.ShouldSkip)
                 {
-                   // await Task.Delay(RandomDelay());
-                    await Get_attributes(p, storeBaseUrl);
+                    if (Interlocked.Increment(ref _enrichmentsThisRun) > MaxEnrichmentsPerRun)
+                    {
+                        // Budget spent: defer this product to a later run so a big backlog cannot stretch one run to hours.
+                        // Not in DB -> nothing is written; already in DB -> its stock still updates via the URL match.
+                        p.ProductUrl = fullUrl;
+                        p.ScraperName = Scrappername;
+                        p.New = false;
+                        Interlocked.Increment(ref _deferredThisRun);
+                    }
+                    else
+                    {
+                        await Get_attributes(p, storeBaseUrl);
+                    }
                 }
                 else
                 {
@@ -124,6 +141,10 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         });
 
         await Task.WhenAll(enrichmentTasks);
+        if (_deferredThisRun > 0)
+        {
+            _looger.LogWarning("Enrichment budget ({Max}) spent; {Deferred} new products deferred to a later run so far", MaxEnrichmentsPerRun, _deferredThisRun);
+        }
         return initialProductList;
     }
 
@@ -144,17 +165,17 @@ public class SavonchesStrategy : IShopifyParsingStrategy
     }
     private async Task Get_attributes(ShopifyFlatProduct p, string url)
     {
+        
+        var link = $"{url}products/{p.Handle}";
+        p.ProductUrl = link;
+        p.ScraperName = Scrappername;
         try
         {
-            var link = $"{url}products/{p.Handle}";
-      
             var doc = await LoadPagewithRetry(link);
 
             // p.Sizes = Getsovanchesizes(doc);
-            p.ProductUrl = link;
             p.Description = Getdescription(doc);
             p.Retail_Price = GetRetail_Price(doc)??0;
-            p.ScraperName = Scrappername;
             p.New = true;
             p.Condition = GetCondition(doc);
             p.ConditionGrade = p.Condition=="New"?"New": GetConditionGrade(doc);
@@ -162,7 +183,9 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing product {p.Handle}: {ex.Message}");
+            p.New = false;
+            p.Enriched = false;
+            _looger.LogWarning("Enrichment failed for {Handle}: {Error}", p.Handle, ex.Message);
         }
     }
 
