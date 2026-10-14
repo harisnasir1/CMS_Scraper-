@@ -45,7 +45,8 @@ public class ProxyManager:IProxyManager
                     {
                         _proxies.Clear();
                         _proxies.AddRange(loadedProxies);
-                        _currentIndex = 0;
+                        // Keep rotating across refreshes; resetting to 0 made every scrape start on the same (bannable) proxy
+                        _currentIndex %= _proxies.Count;
                     }
                     _logger.LogInformation($"[ProxyManager] Successfully loaded {_proxies.Count} proxies from API.");
                     return;

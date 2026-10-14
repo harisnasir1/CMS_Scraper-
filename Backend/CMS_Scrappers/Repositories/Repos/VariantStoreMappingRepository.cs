@@ -64,6 +64,40 @@ public class VariantStoreMappingRepository:IVariantStoreMappingRepository
         return true;
     }
 
+    public async Task<List<VariantStoreMapping>> GetAllForStore(Guid storeId)
+    {
+        return await _context.VariantStoreMapping
+            .AsNoTracking()
+            .Include(v => v.Variant)
+            .Include(v => v.ProductStoreMapping).ThenInclude(p => p.Product)
+            .Where(v => v.ProductStoreMapping.ShopifyStoreId == storeId)
+            .ToListAsync();
+    }
+
+    public async Task<int> UpdateInStockFlags(List<(Guid mappingId, bool inStock)> states)
+    {
+        if (states.Count == 0) return 0;
+
+        var wanted = new Dictionary<Guid, bool>();
+        foreach (var s in states) wanted[s.mappingId] = s.inStock;
+
+        var changed = 0;
+        foreach (var chunk in wanted.Keys.Chunk(1000))
+        {
+            var rows = await _context.VariantStoreMapping.Where(v => chunk.Contains(v.Id)).ToListAsync();
+            foreach (var row in rows)
+            {
+                var want = wanted[row.Id];
+                if (row.InStock == want) continue;
+                row.InStock = want;
+                row.UpdatedAt = DateTime.UtcNow;
+                changed++;
+            }
+        }
+        if (changed > 0) await _context.SaveChangesAsync();
+        return changed;
+    }
+
     public async Task<bool> Exist_VariantVariantMapping_BY_variantid(long id,Guid pmid)
     {
         try

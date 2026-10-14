@@ -694,6 +694,91 @@ namespace CMS_Scrappers.Services.Implementations
             _locationId = data.GetProperty("locations").GetProperty("edges")[0].GetProperty("node").GetProperty("id").GetString();
             return _locationId;
         }
+
+        public async Task<string> GetLocationIdAsync()
+        {
+            if (!string.IsNullOrEmpty(_locationId)) return _locationId;
+            var data = await ExecuteGraphQLWithRetryAsync(new { query = "query { locations(first: 1) { edges { node { id } } } }" });
+            _locationId = data.GetProperty("locations").GetProperty("edges")[0].GetProperty("node").GetProperty("id").GetString();
+            return _locationId;
+        }
+
+        // Real "available" quantity per inventory item (numeric id as stored in VariantStoreMapping).
+        // null = Shopify knows the item but it has no level at this location; absent = Shopify does not know the item.
+        public async Task<Dictionary<string, int?>> GetAvailableQuantitiesAsync(List<string> inventoryItemIds, string locationId)
+        {
+            var query = @"
+                query($ids: [ID!]!, $locationId: ID!) {
+                    nodes(ids: $ids) {
+                        ... on InventoryItem {
+                            id
+                            inventoryLevel(locationId: $locationId) {
+                                quantities(names: [""available""]) { quantity }
+                            }
+                        }
+                    }
+                }";
+            var variables = new
+            {
+                ids = inventoryItemIds.Select(id => $"gid://shopify/InventoryItem/{id}").ToList(),
+                locationId
+            };
+            var data = await ExecuteGraphQLWithRetryAsync(new { query, variables });
+
+            var result = new Dictionary<string, int?>();
+            foreach (var node in data.GetProperty("nodes").EnumerateArray())
+            {
+                if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty("id", out var idEl)) continue;
+                var gid = idEl.GetString() ?? "";
+                var id = gid[(gid.LastIndexOf('/') + 1)..];
+                int? qty = null;
+                if (node.TryGetProperty("inventoryLevel", out var level) && level.ValueKind == JsonValueKind.Object &&
+                    level.TryGetProperty("quantities", out var quantities))
+                {
+                    foreach (var q in quantities.EnumerateArray())
+                    {
+                        qty = q.GetProperty("quantity").GetInt32();
+                    }
+                }
+                result[id] = qty;
+            }
+            return result;
+        }
+
+        // Sets quantities for the given inventory items; returns Shopify's errors (empty = applied)
+        public Task<List<string>> SetQuantitiesAsync(List<(string inventoryItemId, int quantity)> items, string locationId)
+        {
+            var payload = items.Select(i => (object)new
+            {
+                inventoryItemId = $"gid://shopify/InventoryItem/{i.inventoryItemId}",
+                locationId,
+                quantity = i.quantity
+            }).ToList();
+            return Update_Variant_Quantites_batch(payload, 0);
+        }
+
+        private async Task<JsonElement> ExecuteGraphQLWithRetryAsync(object payload, int maxAttempts = 4)
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return await ExecuteGraphQLAsync(payload);
+                }
+                catch (Exception ex) when (attempt < maxAttempts && IsTransient(ex))
+                {
+                    _logger.LogWarning($"Shopify transient error ({ex.Message}), retry {attempt}/{maxAttempts - 1}");
+                    await Task.Delay(1500 * attempt);
+                }
+            }
+
+            static bool IsTransient(Exception ex)
+            {
+                if (ex.Message.Contains("THROTTLED")) return true;
+                return ex is HttpRequestException { StatusCode: HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway
+                    or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout };
+            }
+        }
         
         private async Task<JsonElement> ExecuteGraphQLAsync(object payload)
         {
