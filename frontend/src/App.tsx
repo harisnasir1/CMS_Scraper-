@@ -20,6 +20,7 @@ import UsersPage from './pages/users';
 import Scraperspage from './pages/Scrapers';
 import ScrapedProducts from './pages/Scrapers/Product'
 import LiveFeed from './pages/LiveFeed';
+import LiveProduct from './pages/LiveFeed/Product';
 import SettingsPage from './pages/settings';
 import Shops from './pages/Shops/Shops';
 
@@ -74,6 +75,7 @@ function App() {
                 <Route path="Scrapers/products" element={<ScrapedProducts />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="LiveFeed" element={<LiveFeed/>}/>
+                <Route path="LiveFeed/Product" element={<LiveProduct />} />
                 <Route path="Shops" element={<Shops/>}/>
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Route>
