@@ -57,47 +57,51 @@ public class ShopifyStoreScraper : IScrappers
 
         TimeStart = DateTime.UtcNow;
         
-        var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
-        var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
-        var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
-        if (rawProduct.Pages.Count == 0)
+        try
         {
-            // Nothing fetched means the supplier or proxies are blocked, not an empty catalogue; don't sync anything off it
-            _logger.LogError("Scrape for {Name} fetched 0 pages from {Url}; skipping DB/RRSync/Shopify updates for this run", _scraperName, _storeBaseUrl);
-            await _scrapperRepository.Stoprun("00:00:00", "Savonches");
-            return;
-        }
-        int i = 0;
-        foreach (var page in rawProduct.Pages)
-        {
-            _logger.LogWarning($"Scrapping page {i} done! ");
-            var batchResponse = new ShopifyGetAllProductsResponse
+            var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
+            var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
+            var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
+            if (rawProduct.Pages.Count == 0)
             {
-                Pages = new List<ShopifyStoreProductsResponse> { page }
-            };
+                // Nothing fetched means the supplier or proxies are blocked, not an empty catalogue; don't sync anything off it
+                _logger.LogError("Scrape for {Name} fetched 0 pages from {Url}; skipping DB/RRSync/Shopify updates for this run", _scraperName, _storeBaseUrl);
+                return;
+            }
+            int i = 0;
+            foreach (var page in rawProduct.Pages)
+            {
+                _logger.LogWarning($"Scrapping page {i} done! ");
+                var batchResponse = new ShopifyGetAllProductsResponse
+                {
+                    Pages = new List<ShopifyStoreProductsResponse> { page }
+                };
 
-          
-            List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _storeBaseUrl);
-            
-            List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
+                List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _storeBaseUrl);
 
-            await _sdataRepository.Add(trendBatch, scrapperid);
-            FullflatBatch.AddRange(flatBatch);
-            i++;
+                List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
+
+                await _sdataRepository.Add(trendBatch, scrapperid);
+                FullflatBatch.AddRange(flatBatch);
+                i++;
+            }
+
+            await updateRrsyncData(TimeStart, "savonches");
+            await Updateliveproducts(FullflatBatch);
+
+            _logger.LogInformation($"Finished scraping for {_scraperName} in time {DateTime.UtcNow - TimeStart}");
         }
-
-         await updateRrsyncData(TimeStart,"savonches");
-         await Updateliveproducts(FullflatBatch);
-        
-        TimeEnd = DateTime.UtcNow;
-
-        TimeSpan Diff = TimeEnd - TimeStart;
-        await _scrapperRepository.Stoprun(Diff.ToString(), "Savonches");
-
-        _logger.LogInformation(
-            $"Finished scraping for {_scraperName} in time {Diff}"
-        );
-
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Scrape for {Name} failed after {Elapsed}", _scraperName, DateTime.UtcNow - TimeStart);
+            throw;
+        }
+        finally
+        {
+            // Always release the "Running" status, otherwise the reconcile/cleanup jobs wait on a scraper that is not running
+            TimeEnd = DateTime.UtcNow;
+            await _scrapperRepository.Stoprun((TimeEnd - TimeStart).ToString(), "Savonches");
+        }
     }
 
     public async Task MarkUnseenProductsAsSourceDeleted()
