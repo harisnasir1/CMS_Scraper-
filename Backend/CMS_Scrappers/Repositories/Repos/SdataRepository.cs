@@ -189,10 +189,10 @@ namespace CMS_Scrappers.Repositories.Repos
             var dbProductsDict = await _context.Sdata
                 .AsNoTracking()
                 .Include(s => s.Variants)
-                .Include(s => s.ProductStoreMapping.Where(m => m.ShopifyStore.Id == storeid))  // Filter mappings
-                .Where(s => productUrls.Contains(s.ProductUrl) 
+                .Include(s => s.ProductStoreMapping.Where(m => m.ShopifyStore.Id == storeid && m.SyncStatus != "Removed"))  // Filter mappings
+                .Where(s => productUrls.Contains(s.ProductUrl)
                             && s.Status == "Live"
-                            && s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid))  // Has mapping for this store
+                            && s.ProductStoreMapping.Any(m => m.ShopifyStore.Id == storeid && m.SyncStatus != "Removed"))  // Still on this store
                 .ToDictionaryAsync(s => s.ProductUrl);
 
             return dbProductsDict;
@@ -263,6 +263,7 @@ namespace CMS_Scrappers.Repositories.Repos
                     join v in _context.ProductVariants 
                         on vsm.VariantId equals v.Id
                     where psm.ShopifyStoreId == shopifyStoreId
+                          && psm.SyncStatus != "Removed"
                           && (v.LastViewed == null || v.LastViewed < threshold)
                     select new StaleVariantInfo()
                     {

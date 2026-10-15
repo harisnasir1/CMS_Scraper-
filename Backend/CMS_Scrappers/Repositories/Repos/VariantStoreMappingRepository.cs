@@ -70,7 +70,7 @@ public class VariantStoreMappingRepository:IVariantStoreMappingRepository
             .AsNoTracking()
             .Include(v => v.Variant)
             .Include(v => v.ProductStoreMapping).ThenInclude(p => p.Product)
-            .Where(v => v.ProductStoreMapping.ShopifyStoreId == storeId)
+            .Where(v => v.ProductStoreMapping.ShopifyStoreId == storeId && v.ProductStoreMapping.SyncStatus != "Removed")
             .ToListAsync();
     }
 
