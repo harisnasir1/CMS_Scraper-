@@ -82,12 +82,26 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
        }
    }
 
+   public async Task<int> MarkRemoved(List<Guid> ids)
+   {
+       if (ids.Count == 0) return 0;
+       var rows = await _context.ProductStoreMapping.Where(p => ids.Contains(p.Id)).ToListAsync();
+       foreach (var row in rows)
+       {
+           row.SyncStatus = "Removed";
+           row.UpdatedAt = DateTime.UtcNow;
+       }
+       await _context.SaveChangesAsync();
+       return rows.Count;
+   }
+
    public async Task<List<ProductStoreMapping>> GetAllOrphanedProductStores(Guid storeId)
    {
        try
        {
            return await _context.ProductStoreMapping
                .Where(psm => psm.ShopifyStoreId == storeId
+                             && psm.SyncStatus != "Removed"
                              && !_context.VariantStoreMapping
                                  .Any(vsm => vsm.ProductStoreMappingId == psm.Id))
                .ToListAsync();

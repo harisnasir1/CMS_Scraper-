@@ -197,25 +197,21 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
                     continue;
                 }
                 var _shopifyservice = this.GetShopifyService(store);
-                try
-                {
-                   await _shopifyservice.DeleteVariantsFromShopifyAsync(staleVariants);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex,
-                        "Shopify deletion failed for store {Store} — skipping CMS cleanup for this store",
-                        store.ShopName);
-                    continue;  
-                }
+                var outcome = await _shopifyservice.DeleteVariantsFromShopifyAsync(staleVariants);
+                // Only drop mapping rows for products Shopify confirmed deleted (or already gone), so the DB and the
+                // store never disagree; anything that failed keeps its rows and is retried next run.
+                var cleaned = staleVariants
+                    .Where(v => outcome.TryGetValue(v.ShopifyProductId, out var ok) && ok)
+                    .ToList();
                 _logger.LogInformation(
-                    "{Count} stale variants found for {Store}",
-                    staleVariants.Count, store.ShopName);
-                var variantStoreMappingIds = staleVariants
+                    "{Count} stale variants for {Store}: {Cleaned} cleaned, {Failed} kept for retry",
+                    staleVariants.Count, store.ShopName, cleaned.Count, staleVariants.Count - cleaned.Count);
+                if (cleaned.Count == 0) continue;
+                var variantStoreMappingIds = cleaned
                     .Select(v => v.VariantStoreMappingId)
                     .ToList();
                await _variantStoreMappingRepository.DeleteAllVariants(variantStoreMappingIds);
-               var affectedProductMappingIds = staleVariants
+               var affectedProductMappingIds = cleaned
                    .Select(v => v.ProductStoreMappingId)
                    .Distinct()
                    .ToList();

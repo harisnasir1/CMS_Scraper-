@@ -66,8 +66,9 @@ public class StockReconciler : IStockReconciler
         var shopify = new ShopifyService(ToSettings(store), _shopifyLogger, _productStoreMappingRepository, _variantStoreMappingRepository, _readWrite);
 
         // One row per Shopify inventory item; duplicates in the mapping table would otherwise double-push
+        var allRows = await _variantStoreMappingRepository.GetAllForStore(store.Id);
         var byInventoryId = new Dictionary<string, VariantStoreMapping>();
-        foreach (var m in await _variantStoreMappingRepository.GetAllForStore(store.Id))
+        foreach (var m in allRows)
         {
             if (string.IsNullOrWhiteSpace(m.ShopifyInventoryId) || m.Variant == null) continue;
             byInventoryId.TryAdd(m.ShopifyInventoryId, m);
@@ -95,11 +96,20 @@ public class StockReconciler : IStockReconciler
         // 2. Compare with what the supplier says
         var diffs = new List<(VariantStoreMapping mapping, int desired)>();
         var finalState = new List<(Guid mappingId, bool inStock)>();
+        var ghosts = new List<VariantStoreMapping>();
         foreach (var (inventoryId, mapping) in byInventoryId)
         {
-            if (!actual.TryGetValue(inventoryId, out var qty) || qty == null)
+            if (!actual.TryGetValue(inventoryId, out var qty))
             {
                 result.Missing++;
+                result.NotOnShopify++;
+                ghosts.Add(mapping);
+                continue;
+            }
+            if (qty == null)
+            {
+                result.Missing++;
+                result.NoLevelAtLocation++;
                 continue;
             }
             var shopifyInStock = qty.Value > 0;
@@ -136,8 +146,8 @@ public class StockReconciler : IStockReconciler
         // Missing items are mappings whose Shopify variant no longer exists; they cannot oversell, so only report them
         if (result.Missing > 0)
         {
-            _logger.LogWarning("Stock reconcile {Store}: {Missing} of {Checked} mapped inventory items no longer exist on Shopify (stale mapping rows)",
-                store.ShopName, result.Missing, result.Checked);
+            _logger.LogWarning("Stock reconcile {Store}: {Missing} of {Checked} mapped items could not be compared: {Gone} deleted on Shopify, {NoLevel} not stocked at location {Location}",
+                store.ShopName, result.Missing, result.Checked, result.NotOnShopify, result.NoLevelAtLocation, locationId);
         }
 
         // Guard: a broken scrape must not turn into a mass stock wipe
@@ -149,6 +159,9 @@ public class StockReconciler : IStockReconciler
         _logger.LogInformation(
             "Stock reconcile {Store}{Mode}: checked {Checked}, matched {Matched}, to-zero {ToZero}, to-one {ToOne}, missing {Missing}",
             store.ShopName, dryRun ? " (dry run)" : "", result.Checked, result.Matched, result.ToZero, result.ToOne, result.Missing);
+
+        // Ghost mappings: Shopify no longer has the inventory item. Retire them so they stop poisoning push batches.
+        await RetireGhostsAsync(shopify, ghosts, allRows, result, dryRun);
 
         if (dryRun) return result;
 
@@ -225,6 +238,54 @@ public class StockReconciler : IStockReconciler
             }
         }
     }
+
+    // A ghost is a mapping whose Shopify inventory item is gone. If the whole product is gone the product mapping is
+    // marked Removed (kept, so the product is never re-listed on that store) and all its variant rows are deleted;
+    // if the product still exists only the dead variant rows go.
+    private async Task RetireGhostsAsync(ShopifyService shopify, List<VariantStoreMapping> ghosts, List<VariantStoreMapping> allRows, StockReconcileResult result, bool dryRun)
+    {
+        if (ghosts.Count == 0) return;
+
+        var byProduct = ghosts.GroupBy(g => g.ProductStoreMappingId).ToList();
+        var externalIds = byProduct
+            .Select(g => g.First().ProductStoreMapping?.ExternalProductId ?? "")
+            .Where(id => id != "")
+            .Distinct()
+            .ToList();
+        var existing = await shopify.GetExistingProductIdsAsync(externalIds);
+
+        var removeProducts = new List<Guid>();
+        var deleteVariantRows = new HashSet<Guid>();
+        foreach (var group in byProduct)
+        {
+            var externalId = NumericId(group.First().ProductStoreMapping?.ExternalProductId ?? "");
+            if (externalId == "" || !existing.Contains(externalId))
+            {
+                removeProducts.Add(group.Key);
+                foreach (var row in allRows.Where(r => r.ProductStoreMappingId == group.Key)) deleteVariantRows.Add(row.Id);
+            }
+            else
+            {
+                foreach (var g in group) deleteVariantRows.Add(g.Id);
+            }
+        }
+        result.RetiredProducts = removeProducts.Count;
+        result.RetiredVariants = deleteVariantRows.Count;
+
+        if (dryRun)
+        {
+            _logger.LogInformation("Stock reconcile {Store} (dry run): would retire {Products} product mappings and {Variants} variant rows",
+                result.Store, result.RetiredProducts, result.RetiredVariants);
+            return;
+        }
+
+        await _variantStoreMappingRepository.DeleteAllVariants(deleteVariantRows.ToList());
+        await _productStoreMappingRepository.MarkRemoved(removeProducts);
+        _logger.LogInformation("Stock reconcile {Store}: retired {Products} product mappings (Removed) and deleted {Variants} variant rows",
+            result.Store, result.RetiredProducts, result.RetiredVariants);
+    }
+
+    private static string NumericId(string id) => id[(id.LastIndexOf('/') + 1)..];
 
     private StockReconcileResult Abort(StockReconcileResult result, string reason)
     {

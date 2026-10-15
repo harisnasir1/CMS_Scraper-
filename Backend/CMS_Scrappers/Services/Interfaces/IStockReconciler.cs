@@ -13,10 +13,18 @@ public class StockReconcileResult
     public int ToOne { get; set; }
     public int Fixed { get; set; }
     public int Failed { get; set; }
-    /// <summary>Inventory items Shopify no longer knows about (deleted variant/product or not stocked at the location).</summary>
+    /// <summary>Inventory items we could not compare: NotOnShopify + NoLevelAtLocation.</summary>
     public int Missing { get; set; }
+    /// <summary>Shopify does not know the inventory item at all (variant or product deleted).</summary>
+    public int NotOnShopify { get; set; }
+    /// <summary>The item exists but has no stock level at the location we sync (moved to / only stocked at another location).</summary>
+    public int NoLevelAtLocation { get; set; }
     /// <summary>Mapping rows whose InStock flag was corrected to match Shopify.</summary>
     public int DbRowsCorrected { get; set; }
+    /// <summary>Product mappings marked Removed because the product no longer exists on Shopify (would-be count in a dry run).</summary>
+    public int RetiredProducts { get; set; }
+    /// <summary>Variant mapping rows deleted because their Shopify variant no longer exists (would-be count in a dry run).</summary>
+    public int RetiredVariants { get; set; }
     public bool Aborted { get; set; }
     public string? AbortReason { get; set; }
     public List<string> Errors { get; set; } = new();

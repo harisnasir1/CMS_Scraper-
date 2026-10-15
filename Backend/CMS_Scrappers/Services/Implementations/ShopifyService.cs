@@ -194,8 +194,10 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
 
-        public async Task DeleteVariantsFromShopifyAsync(List<StaleVariantInfo> staleVariants)
+    
+        public async Task<Dictionary<string, bool>> DeleteVariantsFromShopifyAsync(List<StaleVariantInfo> staleVariants)
         {
+            var outcome = new Dictionary<string, bool>();
             var byProduct = staleVariants.GroupBy(v => v.ShopifyProductId).ToList();
 
             foreach (var group in byProduct)
@@ -228,28 +230,42 @@ namespace CMS_Scrappers.Services.Implementations
 
                 try
                 {
-                    var data = await ExecuteGraphQLAsync(payload);
+                    var data = await ExecuteGraphQLWithRetryAsync(payload);
 
                     // Check userErrors
                     var userErrors = data.GetProperty("productVariantsBulkDelete").GetProperty("userErrors");
 
                     if (userErrors.GetArrayLength() > 0)
                     {
-                        _logger.LogError("Shopify variant delete errors for product {ProductId}: {Errors}", productGid,
-                            userErrors.ToString());
+                        var text = userErrors.ToString();
+                        // Already gone, or Shopify refusing to delete a product's last variant (the caller then deletes
+                        // the product itself): both mean the mapping rows should go.
+                        var gone = text.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                                   || text.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+                                   || text.Contains("could not be found", StringComparison.OrdinalIgnoreCase)
+                                   || text.Contains("last variant", StringComparison.OrdinalIgnoreCase)
+                                   || text.Contains("at least one", StringComparison.OrdinalIgnoreCase);
+                        if (gone)
+                            _logger.LogWarning("Variants of product {ProductId} already gone / last variant: {Errors}", productGid, text);
+                        else
+                            _logger.LogError("Shopify variant delete errors for product {ProductId}: {Errors}", productGid, text);
+                        outcome[group.Key] = gone;
                     }
                     else
                     {
                         _logger.LogInformation("Deleted {Count} variants from product {ProductId} on {Store}",
                             variantGids.Count, productGid, _shopifySettings.SHOPIFY_STORE_DOMAIN);
+                        outcome[group.Key] = true;
                     }
                 }
                 catch (Exception ex)
                 {
+                    // One product failing must not abort the store; its rows stay and it is retried next run
                     _logger.LogError(ex, "Failed to delete variants from Shopify for product {ProductId}", productGid);
-                    throw;
+                    outcome[group.Key] = false;
                 }
             }
+            return outcome;
         }
 
         public async Task DeleteProductFromShopifyAsync(string shopifyProductId)
@@ -743,6 +759,25 @@ namespace CMS_Scrappers.Services.Implementations
                 result[id] = qty;
             }
             return result;
+        }
+
+        // Which of the given product ids (numeric or gid) still exist on Shopify; returned as numeric ids
+        public async Task<HashSet<string>> GetExistingProductIdsAsync(List<string> productIds)
+        {
+            var existing = new HashSet<string>();
+            foreach (var chunk in productIds.Chunk(100))
+            {
+                var query = "query($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id } } }";
+                var variables = new { ids = chunk.Select(id => id.StartsWith("gid://") ? id : $"gid://shopify/Product/{id}").ToList() };
+                var data = await ExecuteGraphQLWithRetryAsync(new { query, variables });
+                foreach (var node in data.GetProperty("nodes").EnumerateArray())
+                {
+                    if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty("id", out var idEl)) continue;
+                    var gid = idEl.GetString() ?? "";
+                    existing.Add(gid[(gid.LastIndexOf('/') + 1)..]);
+                }
+            }
+            return existing;
         }
 
         // Sets quantities for the given inventory items; returns Shopify's errors (empty = applied)
