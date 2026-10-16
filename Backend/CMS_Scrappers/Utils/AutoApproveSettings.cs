@@ -50,7 +50,7 @@ public class AutoApproveSettings
         new ImageTier { MinTotal = 2, DropLast = 0, BgRemove = 1 },
         new ImageTier { MinTotal = 4, DropLast = 0, BgRemove = 1 },
         new ImageTier { MinTotal = 6, DropLast = 0, BgRemove = 2 },
-        new ImageTier { MinTotal = 7, DropLast = 0, BgRemove = 3 },
+        new ImageTier { MinTotal = 7, DropLast = 0, BgRemove = 2 },
     };
 
     /// <summary>When true, every Shopify store is bulk-synced after a run that approved products.</summary>
