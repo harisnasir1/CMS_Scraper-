@@ -14,6 +14,4 @@ public interface IRRSyncService
     Task<RRApiResponse<object>> DeleteVariantAsync(string variantId);
     Task<RRApiResponse<object>> DeleteProductAsync(string rrProductId);
     Task<RRApiResponse<RRSyncSourceResponse>>GetSourceByname(string scrappername);
-    decimal Addmarkup(decimal price);
-    decimal ToGbp(decimal usd);
 }

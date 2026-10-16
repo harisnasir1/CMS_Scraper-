@@ -252,16 +252,5 @@ public class RRSyncService:IRRSyncService
             _                      => 5  // policy: unknown defaults to new
         };
     }
-    public decimal ToGbp(decimal usd) => Math.Round(usd * 0.8m, 2);
-    public decimal Addmarkup(decimal price)
-    {
-        if (price <= 0) return 0;
-    
-        decimal withMarkup = price * 1.2m;
-        decimal inPounds = withMarkup * 0.8m;
-        decimal rounded = Math.Round(inPounds / 5m, MidpointRounding.AwayFromZero) * 5m;
-        return rounded;
-    }
-    
-    
+    // Pricing lives in CMS_Scrappers.Pricing (IPricingPolicyResolver); this client only transports numbers.
 }

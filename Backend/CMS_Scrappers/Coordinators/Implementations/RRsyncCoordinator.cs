@@ -4,6 +4,9 @@ using CMS_Scrappers.Data.DTO.RR_Sync_DTO;
 using CMS_Scrappers.Data.Requests;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Data.Enums;
+using CMS_Scrappers.Pricing;
+using CMS_Scrappers.Pricing.Policies;
 using CreateRRSyncProductImage = CMS_Scrappers.Data.Requests.CreateRRSyncProductImage;
 
 namespace CMS_Scrappers.Coordinators.Implementations;
@@ -16,11 +19,12 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     private readonly IRRSyncVariantMapRepository _variantMapRepository;
     private readonly IRRSyncService _syncService;
     private readonly ISavonchesSyncSize _saveSize;
+    private readonly IPricingPolicyResolver _pricing;
     private readonly int RatelimitCount = 250;
 
     public RRsyncCoordinator(ILogger<RRsyncCoordinator> logger, IRRSyncProductMapRepository productMapRepository,
         IRRSyncVariantMapRepository variantMapRepository, ISdataRepository sdataRepository,
-        IRRSyncService syncService, ISavonchesSyncSize saveSize)
+        IRRSyncService syncService, ISavonchesSyncSize saveSize, IPricingPolicyResolver pricing)
     {
         _logger = logger;
         _productMapRepository = productMapRepository;
@@ -28,6 +32,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         _sdataRepository = sdataRepository;
         _syncService = syncService;
         _saveSize = saveSize;
+        _pricing = pricing;
     }
 
     public async Task<bool> Syncportal(DateTime scrapeStartedAt,string ScraperName)
@@ -356,13 +361,15 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                 variant.Id, variant.Size, product.Category, product.ProductType);
             return null;
         }
+       
+        var pricing = _pricing.For(product.ScraperName, PricingTarget.RRSync);
         var vareobj = new CreateRRSyncVariantRequest
         {
             Size = mappedSize,
             Color = "",
             Qty = variant.InStock ? 1 : 0,
-            SellPrice = _syncService.Addmarkup(variant.Price),
-            CostPrice = _syncService.ToGbp(variant.Price),
+            SellPrice = pricing.Sell(variant.Price),
+            CostPrice = pricing.Cost(variant.Price),
             Fees = 0,
             Profit = 0,
             sourcevariantid = variant.Id.ToString()
@@ -400,7 +407,8 @@ public class RRsyncCoordinator : IRRsyncCoordinator
             .Select(m => m.VariantId)
             .ToHashSet();
 
-        await UpdateChangedVariantsAsync(rrProductId, rrVariants, mapsByRRSyncId, cmsByVariantId);
+        var pricing = _pricing.For(ldata.ScraperName, PricingTarget.RRSync);
+        await UpdateChangedVariantsAsync(rrProductId, rrVariants, mapsByRRSyncId, cmsByVariantId, pricing);
         await CreateMissingVariantsAsync(rrProductId, ldata, cmsVariantIdsWithMaps, productMap.Id);
     }
 
@@ -408,7 +416,8 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         string rrProductId,
         List<RRSyncVarinatDTO> rrVariants,
         Dictionary<string, RRSyncVariantMap> mapsByRRSyncId,
-        Dictionary<long, ProductVariantRecord> cmsByVariantId)
+        Dictionary<long, ProductVariantRecord> cmsByVariantId,
+        IPricingPolicy pricing)
     {
         var updates = new List<UpdateRRSyncVariantRequest>();
 
@@ -436,7 +445,7 @@ public class RRsyncCoordinator : IRRsyncCoordinator
                 continue;
             }
 
-            var update = TryBuildVariantUpdate(rrVariant, cmsVariant);
+            var update = TryBuildVariantUpdate(rrVariant, cmsVariant, pricing);
             if (update != null) updates.Add(update);
         }
 
@@ -454,10 +463,13 @@ public class RRsyncCoordinator : IRRsyncCoordinator
 
     private UpdateRRSyncVariantRequest? TryBuildVariantUpdate(
         RRSyncVarinatDTO rrVariant,
-        ProductVariantRecord cmsVariant)
+        ProductVariantRecord cmsVariant,
+        IPricingPolicy pricing)
     {
-        var costChanged = _syncService.ToGbp(cmsVariant.Price) != rrVariant.CostPrice;
-        var sellChanged = _syncService.Addmarkup(cmsVariant.Price) != rrVariant.SellPrice;
+        var expectedCost = pricing.Cost(cmsVariant.Price);
+        var expectedSell = pricing.Sell(cmsVariant.Price);
+        var costChanged = expectedCost != rrVariant.CostPrice;
+        var sellChanged = expectedSell != rrVariant.SellPrice;
         var stockChanged = (cmsVariant.InStock && rrVariant.Quantity < 1)
                            || (!cmsVariant.InStock && rrVariant.Quantity > 0);
 
@@ -469,8 +481,8 @@ public class RRsyncCoordinator : IRRsyncCoordinator
             Size = rrVariant.Size,
             Color = rrVariant.Color,
             Qty = stockChanged ? (cmsVariant.InStock ? 1 : 0) : (rrVariant.Quantity ?? 0),
-            SellPrice = sellChanged ? _syncService.Addmarkup(cmsVariant.Price) : rrVariant.SellPrice,
-            CostPrice = costChanged ? _syncService.ToGbp(cmsVariant.Price) : rrVariant.CostPrice,
+            SellPrice = sellChanged ? expectedSell : rrVariant.SellPrice,
+            CostPrice = costChanged ? expectedCost : rrVariant.CostPrice,
             Fees = rrVariant.Fees,
             Profit = rrVariant.Profit
         };
