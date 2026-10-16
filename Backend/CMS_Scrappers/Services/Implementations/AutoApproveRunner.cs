@@ -1,5 +1,6 @@
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace CMS_Scrappers.Services.Implementations;
 
@@ -14,7 +15,7 @@ public class AutoApproveRunner : IAutoApproveRunner
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AutoApproveRunner> _logger;
     private readonly AutoApproveSettings _settings;
-
+    private  int _slot;
     public AutoApproveRunner(IServiceProvider serviceProvider, ILogger<AutoApproveRunner> logger, AutoApproveSettings settings)
     {
         _serviceProvider = serviceProvider;
@@ -24,7 +25,12 @@ public class AutoApproveRunner : IAutoApproveRunner
 
     public async Task<int> RunAsync(Guid scraperId, int? limit, CancellationToken token = default)
     {
-        // Hard ceiling lives in AutoApproveSettings; nothing can raise it from config or a request.
+        if (Volatile.Read(ref _slot) == 0)
+            throw new InvalidOperationException("Call TryReserve() before RunAsync()");
+        try
+        {
+
+       
         var effectiveLimit = _settings.EffectiveLimit(limit);
 
         List<Guid> ids;
@@ -60,5 +66,25 @@ public class AutoApproveRunner : IAutoApproveRunner
 
         _logger.LogInformation("AutoApprove: {Approved} live, {Skipped} left in review", approved, skipped);
         return approved;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        finally
+        {
+            this.tryEnd();
+        }
+    }
+
+    public bool tryBegin()
+    {
+        return Interlocked.CompareExchange(ref _slot, 1, 0) == 0;
+    }
+
+    public void tryEnd()
+    {
+         Interlocked.CompareExchange(ref _slot, 0, 1) ;
     }
 }
