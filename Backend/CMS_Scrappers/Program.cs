@@ -19,6 +19,7 @@ using CMS_Scrappers.BackgroundJobs.Implementations;
 using CMS_Scrappers.Coordinators.Implementations;
 using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Utils.variantMapperSync;
+using CMS_Scrappers.Pricing;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -185,6 +186,8 @@ builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
 builder.Services.AddScoped<IStockReconciler, StockReconciler>();
 builder.Services.AddScoped<IRRsyncCoordinator, RRsyncCoordinator>();
 builder.Services.AddScoped<ISavonchesSyncSize, SavonchesSyncSize>();
+//Pricing: the single place sell/cost prices are decided, per supplier and destination
+builder.Services.AddSingleton<IPricingPolicyResolver, PricingPolicyResolver>();
 builder.Services.AddControllers();
 var app = builder.Build();
 app.UseRouting();
