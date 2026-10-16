@@ -1,14 +1,43 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 import { useProduct } from '@/contexts/products-context';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {ImageGallery} from '@/components/ui/ImageGallery'
-import {ArrowBigLeft,ExternalLink} from "lucide-react"
-import { ISelectedImgs } from '@/types/Sdata';
+import {ArrowBigLeft,ExternalLink,Trash2} from "lucide-react"
+import { DeleteProductResult, ISelectedImgs } from '@/types/Sdata';
+import { productsapis } from '@/api/ProductApis';
+
+const api = new productsapis()
 
 const LiveProduct = () => {
   const navigate = useNavigate();
-  const { Selectedproduct, normalizeDateTime } = useProduct();
+  const { Selectedproduct, normalizeDateTime, ClearSelectedproduct, refreshLiveProducts } = useProduct();
+  const [deleting, setDeleting] = useState(false);
+
+  const DeleteAndRescrape=async(id:string)=>
+  {
+    if(!window.confirm("Delete this product from RRsync, the Shopify stores and the CMS? The scraper will re-add it on its next run.")) return;
+    setDeleting(true)
+    try{
+      const re=await api.deleteLiveProduct(id);
+      if(re.shopifyStoresFailed>0){
+        toast.error(re.message,{duration:8000})
+      }
+      else{
+        toast.success(re.message)
+      }
+      ClearSelectedproduct()
+      await refreshLiveProducts()
+      navigate("/LiveFeed")
+    }
+    catch(e){
+      const body=axios.isAxiosError<DeleteProductResult>(e)?e.response?.data:undefined;
+      toast.error(body?.message||"Failed to delete product, please try again.")
+      setDeleting(false)
+    }
+  }
 
   useEffect(() => {
     if (!Selectedproduct) {
@@ -42,6 +71,13 @@ const LiveProduct = () => {
         > <ArrowBigLeft/> back</Button>
         <div className="mx-5  sm:mx-14">Live Product</div>
         <div className="text-xs sm:text-lg font-normal truncate pr-4">{Selectedproduct.title}</div>
+        {Selectedproduct.status==="Live"&&
+        <Button
+          variant="destructive"
+          disabled={deleting}
+          onClick={()=>DeleteAndRescrape(Selectedproduct.id)}
+          className="ml-auto mr-4 shrink-0 flex items-center gap-2"
+        ><Trash2 size={16}/>{deleting?"Deleting…":"Delete & re-scrape"}</Button>}
       </div>
 
 

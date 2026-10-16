@@ -23,7 +23,9 @@ interface ProductContextType {
   normalizeDateTime:(dateString:string)=>string
   getReviewProducts : (PageNumber:number,PageSize:number)=>Promise<void>
   getLiveProducts : (PageNumber:number,PageSize:number)=>Promise<void>
+  refreshLiveProducts:()=>Promise<void>
   Addselectedproduct:(data:Sdata)=>void
+  ClearSelectedproduct:()=>void
   Setcurrentpage:(page:number)=>void
   GetSimilarImg:(id:string)=>void
   GetMoreSimilarImg:(id:string,PageSize:number)=>void
@@ -105,13 +107,23 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const refreshLiveProducts = async () => {
+    await getLiveProducts(currentPage?currentPage:1,10)
+  }
+
   const Addselectedproduct=(data:Sdata)=>
   {
 
     setselectedimg([])
     setsimilarimages([""])
        setSelectedproduct(data);
-      
+
+  }
+
+  const ClearSelectedproduct=()=>
+  {
+    setselectedimg([])
+    setSelectedproduct(null);
   }
 
   const Setcurrentpage=(page:number)=>
@@ -290,7 +302,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     <ProductContext.Provider value={{ products, isLoading, getScraperProducts,SelectedScraper,totalproducts,normalizedate,
      Normalizetime,normalizeDateTime,getReviewProducts,ReviewProducts,Addselectedproduct,Selectedproduct,
      currentPage,Setcurrentpage , similarimages ,GetSimilarImg,GetMoreSimilarImg,Submit,GetAiDescription,UpdateProductDetails,
-     GetProductCount,getLiveProducts,LiveProducts,selectedimg,AddSelectedimgs,ImgToggleBgflag, Checkifoutofstock
+     GetProductCount,getLiveProducts,refreshLiveProducts,ClearSelectedproduct,LiveProducts,selectedimg,AddSelectedimgs,ImgToggleBgflag, Checkifoutofstock
      }}>
       <Toaster/>
       {children}

@@ -39,6 +39,15 @@ export interface ProductImageRecord {
     createdAt: string
     updatedAt: string
   }
+  export interface DeleteProductResult {
+    success: boolean
+    rrSyncDeleted: boolean
+    hadRRSyncMapping: boolean
+    shopifyStoresDeleted: number
+    shopifyStoresFailed: number
+    localDeleted: boolean
+    message: string
+  }
   export interface ISelectedImgs{
     Id:string,
     Url:string,

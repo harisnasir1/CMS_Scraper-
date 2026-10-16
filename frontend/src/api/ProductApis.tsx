@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { ISelectedImgs, Sdata } from "@/types/Sdata";
+import { DeleteProductResult, ISelectedImgs, Sdata } from "@/types/Sdata";
 
 export class productsapis{
 
@@ -44,6 +44,12 @@ export class productsapis{
     async GetProductCount(status:string)
     {
         const response=await api.post<number>("Product/GetCount",{status:status});
+        return response.data
+    }
+    // non-2xx is thrown; the caller reads the body from err.response.data
+    async deleteLiveProduct(productid:string)
+    {
+        const response=await api.delete<DeleteProductResult>("Product/"+productid);
         return response.data
     }
 }

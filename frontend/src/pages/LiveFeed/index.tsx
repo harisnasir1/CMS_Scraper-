@@ -22,9 +22,9 @@ function LiveFeed({}: Props) {
   
   const [tc,setc]=useState<number>(0)
   const navigate=useNavigate()
-  const {getLiveProducts,LiveProducts,normalizeDateTime,GetProductCount,Checkifoutofstock,Addselectedproduct}=useProduct()
+  const {getLiveProducts,LiveProducts,normalizeDateTime,GetProductCount,Checkifoutofstock,Addselectedproduct,currentPage}=useProduct()
   const getproducts=async()=>{
-   await getLiveProducts(1,10);
+   await getLiveProducts(currentPage?currentPage:1,10);
   }
   const getcount=async()=>{
     const re=await GetProductCount("Live");
