@@ -1,4 +1,6 @@
-import  { useEffect } from 'react'
+import  { useEffect, useState } from 'react'
+import axios from 'axios';
+import toast from 'react-hot-toast';
 import {
     Table,
     TableBody,
@@ -13,9 +15,33 @@ import {
   import {useScrapper} from "@/contexts/Scrapper-context"
   import { useProduct } from '@/contexts/products-context';
   import { useNavigate } from 'react-router-dom';
-  
+  import { productsapis } from '@/api/ProductApis';
+  import { Scraper } from '@/types/Scrappertype';
+
+const api = new productsapis()
 
 const Scraperspage = () => {
+  const [runningId,setRunningId]=useState<string|null>(null);
+  const [queuedId,setQueuedId]=useState<string|null>(null);
+
+  const RunAutoApprove=async(scrap:Scraper)=>{
+    if(!window.confirm(`Auto-approve up to 100 products for ${scrap.name} now?`)) return;
+    setRunningId(scrap.id)
+    try{
+      await api.runAutoApprove(scrap.id)
+      toast.success("Auto-approve queued — progress is in the server logs.")
+      setQueuedId(scrap.id)
+      setTimeout(()=>setQueuedId(q=>q===scrap.id?null:q),3000)
+    }
+    catch(e){
+      const body=axios.isAxiosError(e)?e.response?.data:undefined;
+      toast.error(typeof body==="string"&&body?body:"Failed to start auto-approve, please try again.")
+    }
+    finally{
+      setRunningId(null)
+    }
+  }
+
   usePageTitle('Scrapers');
   const navigate=useNavigate();
   const {getScrappers}=useScrapper();
@@ -60,13 +86,22 @@ const Scraperspage = () => {
                          </TableCell>
                          <TableCell>{normalizeDateTime(scrap.lastrun.toString())}</TableCell>
                          <TableCell>{Normalizetime(scrap.runtime)}</TableCell>
-                         <TableCell className=' text-right'>{<Button 
+                         <TableCell className=' text-right'>
+                          <div className='flex justify-end gap-2'>
+                         <Button
+                         variant="secondary"
+                         disabled={scrap.status!=="active"||runningId===scrap.id||queuedId===scrap.id}
+                         onClick={()=>RunAutoApprove(scrap)}
+                         >{runningId===scrap.id?"Running…":queuedId===scrap.id?"Queued…":"Run auto-approve"}</Button>
+                         <Button
                          onClick={()=>{
                           getScraperProducts(scrap,1,10)
                           navigate(`/Scrapers/products/`)
                         }
                          }
-                         className='bg-blue-700 hover:bg-blue-500'>View products </Button>}</TableCell>
+                         className='bg-blue-700 hover:bg-blue-500'>View products </Button>
+                          </div>
+                         </TableCell>
                     </TableRow>
                 ))
             }

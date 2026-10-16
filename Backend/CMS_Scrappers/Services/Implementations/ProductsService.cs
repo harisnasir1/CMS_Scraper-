@@ -23,6 +23,8 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly IProductSyncCoordinator _productSyncCoordinator;
         private readonly IProductStoreMappingRepository _productStoreMappingRepository;
         private readonly AutoApproveSettings _autoApprove;
+        private readonly IRRSyncService _rrSyncService;
+        private readonly IRRSyncProductMapRepository _rrSyncProductMapRepository;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
             IGoogleImageService googleservice,
@@ -30,10 +32,14 @@ namespace CMS_Scrappers.Services.Implementations
             IAi Ai,
             IProductStoreMappingRepository productStoreMappingRepository,
             IProductSyncCoordinator productsyncCoordinator,
-            AutoApproveSettings autoApprove
+            AutoApproveSettings autoApprove,
+            IRRSyncService rrSyncService,
+            IRRSyncProductMapRepository rrSyncProductMapRepository
             )
         {
             _autoApprove = autoApprove;
+            _rrSyncService = rrSyncService;
+            _rrSyncProductMapRepository = rrSyncProductMapRepository;
             _repository = repository;
             _googleImageService = googleservice;
             _scrapperRepository = scrapperRepository;
@@ -401,6 +407,68 @@ namespace CMS_Scrappers.Services.Implementations
 
             var drop = ordered.Skip(keepCount).Select(i => i.Id).ToList();
             return (keep, drop);
+        }
+
+        public async Task<DeleteProductResult> DeleteLiveProduct(Guid id)
+        {
+            var result = new DeleteProductResult();
+
+            var product = await _repository.Getproductbyid(id);
+            if (product == null)
+            {
+                result.Message = "Product not found";
+                return result;
+            }
+            if (product.Status != "Live")
+            {
+                result.Message = $"Product is '{product.Status}', only Live products can be deleted this way";
+                return result;
+            }
+
+            _logger.LogInformation("DeleteLiveProduct: starting for {Id} ({Url})", id, product.ProductUrl);
+
+           var rrMap = await _rrSyncProductMapRepository.Get(id);
+            if (rrMap != null && rrMap.Id != Guid.Empty)
+            {
+                result.HadRRSyncMapping = true;
+                var rr = await _rrSyncService.DeleteProductAsync(rrMap.RRSyncProductId);
+                if (!rr.IsSuccess)
+                {
+                    result.Message = $"RRSync delete failed, nothing was deleted: {rr.Message}";
+                    _logger.LogError("DeleteLiveProduct: RRSync delete failed for {Id} (rr {RrId}): {Msg}", id, rrMap.RRSyncProductId, rr.Message);
+                    return result;
+                }
+                result.RRSyncDeleted = true;
+                _logger.LogInformation("DeleteLiveProduct: RRSync product {RrId} deleted for {Id} ({Status})", rrMap.RRSyncProductId, id, rr.Status);
+            }
+            else
+            {
+                result.RRSyncDeleted = true; // nothing to remove
+            }
+
+           
+            var (deleted, failed) = await _productSyncCoordinator.DeleteProductFromAllStores(id);
+            result.ShopifyStoresDeleted = deleted;
+            result.ShopifyStoresFailed = failed;
+            if (failed > 0)
+            {
+                _logger.LogWarning("DeleteLiveProduct: {Failed} store(s) still have product {Id}; their mappings were kept but the local row is being removed", failed, id);
+            }
+            
+            result.LocalDeleted = await _repository.DeleteProduct(id);
+            if (!result.LocalDeleted)
+            {
+                result.Message = "Product vanished before local delete";
+                return result;
+            }
+
+            result.Success = true;
+            result.Message = failed > 0
+                ? $"Deleted. {failed} Shopify store(s) failed and need manual cleanup. Scraper will re-add on its next run."
+                : "Deleted everywhere. Scraper will re-add on its next run.";
+            _logger.LogInformation("DeleteLiveProduct: done for {Id} (rrsync={Rr}, stores deleted={Del}, failed={Fail})",
+                id, result.RRSyncDeleted, deleted, failed);
+            return result;
         }
 
         public async Task<bool> shiftallshopifyidstonew()

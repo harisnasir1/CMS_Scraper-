@@ -63,6 +63,13 @@ public class ProductStoreMappingRepository:IProductStoreMappingRepository
        }
    }
 
+   public async Task<List<ProductStoreMapping>> GetByProductId(Guid productId)
+   {
+       return await _context.ProductStoreMapping
+           .Where(s => s.ProductId == productId)
+           .ToListAsync();
+   }
+
    public async Task DeleteProductStoreMapping(Guid id)
    {
        try

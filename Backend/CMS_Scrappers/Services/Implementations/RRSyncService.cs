@@ -180,6 +180,41 @@ public class RRSyncService:IRRSyncService
         return body;
     }
 
+    public async Task<RRApiResponse<object>> DeleteProductAsync(string rrProductId)
+    {
+        var token = await _syncauthService.GetTokenAsync();
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"{_syncconfig.BaseURl}/api/Product/DeleteProduct/{Uri.EscapeDataString(rrProductId)}");
+        msg.Headers.Add("Cookie", $"access_token={token}");
+
+        var response = await _http.SendAsync(msg);
+        
+        var rawBody = await response.Content.ReadAsStringAsync();
+
+        if (response.IsSuccessStatusCode)
+        {
+            return new RRApiResponse<object> { IsSuccess = true, Status = "Success", Message = rawBody };
+        }
+
+      
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            _logger.LogWarning("RRSync product {Id} had nothing left to delete: {Body}", rrProductId, rawBody);
+            return new RRApiResponse<object> { IsSuccess = true, Status = "AlreadyDeleted", Message = rawBody };
+        }
+
+        _logger.LogError("RRSync product delete failed for {Id}. HTTP {Status}: {Body}",
+            rrProductId, (int)response.StatusCode, rawBody);
+        return new RRApiResponse<object>
+        {
+            IsSuccess = false,
+            Status = "Fail",
+            Message = $"HTTP {(int)response.StatusCode}: {rawBody}",
+            ErrorCode = (int)response.StatusCode,
+        };
+    }
+
    public async Task<RRApiResponse<RRSyncSourceResponse>> GetSourceByname(string scrappername)
     {
         var token = await _syncauthService.GetTokenAsync();

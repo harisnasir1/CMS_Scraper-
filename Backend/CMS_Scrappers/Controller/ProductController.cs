@@ -19,8 +19,9 @@ namespace CMS_Scrappers.Controller
         private readonly ILogger<ProductController> _logger;
         private readonly IProducts _ProductSerivce;
         private readonly IScrapperRepository _scrapperRepository;
-        
-        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger,ISdataRepository sdataRepository,ILowPriorityTaskQueue lowtaskQueue)
+        private readonly IAutoApproveRunner _autoApproverunner;
+        public ProductController(IHighPriorityTaskQueue taskQueue,IProducts service,IServiceProvider serviceProvider,IScrapperRepository scrapperRepository, ILogger<ProductController> logger
+            ,ISdataRepository sdataRepository,ILowPriorityTaskQueue lowtaskQueue,IAutoApproveRunner autoApproverunner)
         {
             _ProductSerivce=service;
             _serviceProvider = serviceProvider;
@@ -28,6 +29,7 @@ namespace CMS_Scrappers.Controller
             _taskQueue = taskQueue;
             _scrapperRepository = scrapperRepository;
             _LowtaskQueue=lowtaskQueue;
+            _autoApproverunner=autoApproverunner;
         }
         
         [HttpPost("Readytoreview")]
@@ -162,6 +164,10 @@ namespace CMS_Scrappers.Controller
             if (string.IsNullOrEmpty(status) || status != "active")
                 return BadRequest("Scraper is not active.");
 
+            if (!_autoApproverunner.tryBegin())
+            {
+                return Conflict(new { message = "Auto-approve already queued or running" });
+            }
             // Manual trigger of the same work the daily AutoApproveJob does. Queued so the
             // request returns immediately; progress is in the logs.
             _LowtaskQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>
@@ -208,13 +214,17 @@ namespace CMS_Scrappers.Controller
         }
         
 
-      //  [HttpGet("live_product_store")]                           -> have to make it for frontend to show all the products a sotre has synced.
-      //  public async Task <IActionResult>   getlivestoredata()
-      //  {
-      //      var id = new Guid();
-      //      var data = await _sdataRepository.Giveliveproductperstore(id);
-      //      return Ok(data);
-      //  }
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeleteLiveProduct(Guid id)
+        {
+            var result = await _ProductSerivce.DeleteLiveProduct(id);
+            if (result.Success) return Ok(result);
+            if (result.Message == "Product not found") return NotFound(result);
+            if (result.Message.StartsWith("Product is '")) return Conflict(result);
+            return StatusCode(502, result);
+        }
+
+
         
     }
 

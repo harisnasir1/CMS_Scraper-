@@ -16,7 +16,7 @@ public class AutoApproveJob : BackgroundService
     private readonly AutoApproveSettings _settings;
 
     private const int ScraperWaitAttempts = 6;
-    private static readonly TimeSpan ScraperWaitInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan ScraperWaitInterval = TimeSpan.FromMinutes(15);
 
     public AutoApproveJob(
         IServiceProvider serviceProvider,
@@ -66,7 +66,7 @@ public class AutoApproveJob : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var scrapperRepository = scope.ServiceProvider.GetRequiredService<IScrapperRepository>();
         var runner = scope.ServiceProvider.GetRequiredService<IAutoApproveRunner>();
-
+       
         var scraperId = await scrapperRepository.Giveidbyname(_settings.ScraperName);
         if (scraperId == Guid.Empty)
         {
@@ -78,6 +78,13 @@ public class AutoApproveJob : BackgroundService
         {
             _logger.LogError("AutoApprove: scraper still running after {Minutes} min, skipping this run",
                 ScraperWaitAttempts * ScraperWaitInterval.TotalMinutes);
+            return;
+        }
+
+        // Reserve after the wait, not before, so a long scrape does not keep manual runs rejected for its whole duration
+        if (!runner.tryBegin())
+        {
+            _logger.LogWarning("AutoApprove: skipping scheduled run, a manual run is queued or running");
             return;
         }
 

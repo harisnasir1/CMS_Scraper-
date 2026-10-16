@@ -354,6 +354,44 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     
     
 
+    public async Task<(int Deleted, int Failed)> DeleteProductFromAllStores(Guid sdataId)
+    {
+        var mappings = await _productStoreMappingRepository.GetByProductId(sdataId);
+        if (mappings.Count == 0) return (0, 0);
+
+        int deleted = 0, failed = 0;
+        foreach (var mapping in mappings)
+        {
+            if (mapping.SyncStatus == "Removed" || string.IsNullOrEmpty(mapping.ExternalProductId))
+            {
+                await _productStoreMappingRepository.DeleteProductStoreMapping(mapping.Id);
+                continue;
+            }
+
+            var store = await _shopifyRepository.GiveStoreById(mapping.ShopifyStoreId);
+            if (store == null)
+            {
+                _logger.LogWarning("Store {StoreId} for product {Sdata} no longer exists; dropping its mapping", mapping.ShopifyStoreId, sdataId);
+                await _productStoreMappingRepository.DeleteProductStoreMapping(mapping.Id);
+                continue;
+            }
+
+            try
+            {
+                await GetShopifyService(store).DeleteProductFromShopifyAsync(mapping.ExternalProductId);
+                await _productStoreMappingRepository.DeleteProductStoreMapping(mapping.Id);
+                deleted++;
+                _logger.LogInformation("Deleted product {Sdata} (Shopify {External}) from {Store}", sdataId, mapping.ExternalProductId, store.ShopName);
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                _logger.LogError(ex, "Failed to delete product {Sdata} (Shopify {External}) from {Store}", sdataId, mapping.ExternalProductId, store.ShopName);
+            }
+        }
+        return (deleted, failed);
+    }
+
     private ShopifyService GetShopifyService(Shopify store)
     {
         var storesettings = this.Configtosettings(store);

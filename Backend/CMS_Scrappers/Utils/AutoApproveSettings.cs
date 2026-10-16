@@ -45,11 +45,12 @@ public class AutoApproveSettings
     /// </summary>
     public List<ImageTier> ImageTiers { get; set; } = new()
     {
+        // All images are kept (DropLast = 0); the tiers only decide how many get background removal
         new ImageTier { MinTotal = 1, DropLast = 0, BgRemove = 0 },
         new ImageTier { MinTotal = 2, DropLast = 0, BgRemove = 1 },
-        new ImageTier { MinTotal = 4, DropLast = 1, BgRemove = 1 },
-        new ImageTier { MinTotal = 6, DropLast = 2, BgRemove = 2 },
-        new ImageTier { MinTotal = 7, DropLast = 3, BgRemove = 3 },
+        new ImageTier { MinTotal = 4, DropLast = 0, BgRemove = 1 },
+        new ImageTier { MinTotal = 6, DropLast = 0, BgRemove = 2 },
+        new ImageTier { MinTotal = 7, DropLast = 0, BgRemove = 3 },
     };
 
     /// <summary>When true, every Shopify store is bulk-synced after a run that approved products.</summary>
