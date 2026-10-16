@@ -46,6 +46,11 @@ export class productsapis{
         const response=await api.post<number>("Product/GetCount",{status:status});
         return response.data
     }
+    async runAutoApprove(scraperId:string,limit:number=100)
+    {
+        const response=await api.post<{message:string;scraperId:string;limit:number}>("Product/Sync_non_live_inventory",{ScraperId:scraperId,PageNumber:0,PageSize:limit});
+        return response.data
+    }
     // non-2xx is thrown; the caller reads the body from err.response.data
     async deleteLiveProduct(productid:string)
     {
