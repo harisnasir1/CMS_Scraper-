@@ -4,6 +4,7 @@ using CMS_Scrappers.Services.Implementations;
 using CMS_Scrappers.Utils;
 using CMS_Scrappers.Models;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Pricing;
 
 namespace CMS_Scrappers.Coordinators.Implementations;
 
@@ -15,6 +16,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly ILogger<ShopifyService> _logger;
     private readonly ISdataRepository _sdataRepository;
     private readonly IFileReadWrite _readWrite;
+    private readonly IPricingPolicyResolver _pricing;
     private  int STORE_VARIANT_LIMIT;
     private readonly int VARIANT_THRESHOLD;
     public ProductSyncCoordinator(
@@ -23,9 +25,11 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         IShopifyRepository shopifyrepository,
         ILogger<ShopifyService> logger,
         ISdataRepository sdataRepository,
-        IFileReadWrite readWrite
+        IFileReadWrite readWrite,
+        IPricingPolicyResolver pricing
         )
     {
+        _pricing = pricing;
         _sdataRepository = sdataRepository;
         _logger=logger;
         _shopifyRepository = shopifyrepository;
@@ -395,7 +399,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private ShopifyService GetShopifyService(Shopify store)
     {
         var storesettings = this.Configtosettings(store);
-        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_variantStoreMappingRepository,_readWrite);
+        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_variantStoreMappingRepository,_readWrite,_pricing);
         return shopifyservice;
     }
 

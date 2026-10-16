@@ -9,6 +9,8 @@ using System.Net.Http.Headers;
 using CMS_Scrappers.Models;
 using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Repos;
+using CMS_Scrappers.Data.Enums;
+using CMS_Scrappers.Pricing;
 
 namespace CMS_Scrappers.Services.Implementations
 {
@@ -20,10 +22,12 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly IProductStoreMappingRepository _ProductMappingRepository;
         private readonly IVariantStoreMappingRepository _variantStoreMappingRepository;
         private IFileReadWrite _readWrite;
+        private readonly IPricingPolicyResolver _pricing;
         private string _locationId;
-        
-        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository, IVariantStoreMappingRepository variantStoreMappingRepository,IFileReadWrite readWrite) {
-            
+
+        public ShopifyService(ShopifySettings shopifysettings,ILogger<ShopifyService> logger, IProductStoreMappingRepository ProductMappingRepository, IVariantStoreMappingRepository variantStoreMappingRepository,IFileReadWrite readWrite, IPricingPolicyResolver pricing) {
+
+            _pricing = pricing;
             _ProductMappingRepository = ProductMappingRepository;
             _variantStoreMappingRepository = variantStoreMappingRepository;
             _shopifySettings = shopifysettings;
@@ -77,7 +81,7 @@ namespace CMS_Scrappers.Services.Implementations
                     variants = sdata.Variants.Select(v => new
                     {
                         option1 = v.Size,
-                        price = Addmarkup(v.Price).ToString("F2"),
+                        price = _pricing.For(sdata.ScraperName, PricingTarget.Shopify).Sell(v.Price).ToString("F2"),
                         sku = v.SKU,
                         inventory_management = "shopify",
                         inventory_quantity = v.InStock?1:0,
@@ -484,7 +488,7 @@ namespace CMS_Scrappers.Services.Implementations
                                     locationId = locationId,
                                     quantity = newQuantity
                                 });
-                                var inprice = Addmarkup(incomingvariant.Price);
+                                var inprice = _pricing.For(incomingProduct.ScraperName, PricingTarget.Shopify).Sell(incomingvariant.Price);
                                 if (db_c_variant!=null&&inprice !=details.sprice&&db_c_variant.InStock)
                                 {
                                     priceUpdate.Add(new
@@ -959,16 +963,6 @@ namespace CMS_Scrappers.Services.Implementations
             return errors;
         }
         
-        private decimal Addmarkup(decimal price)
-        {
-            if (price <= 0) return 0;
-    
-            decimal withMarkup = price * 1.2m;
-            decimal inPounds = withMarkup * 0.8m;
-            decimal rounded = Math.Round(inPounds / 5m, MidpointRounding.AwayFromZero) * 5m;
-            return rounded;
-        }
-
         private ProductVariantRecord? Get_Current_db_variant(List<ProductVariantRecord>? dbVariants, string? size)
         {
             
@@ -1507,7 +1501,7 @@ namespace CMS_Scrappers.Services.Implementations
                         },
                         variants = sdata.Variants.Select(v => new
                         {
-                            price = Addmarkup(v.Price).ToString("F2"),
+                            price = _pricing.For(sdata.ScraperName, PricingTarget.Shopify).Sell(v.Price).ToString("F2"),
                             sku = this.Givesku(v.SKU,v.Size,v.Id,"SAV"),
                             optionValues = new[]
                             {
