@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Folder Include="JSONL_files\" />
+    <Folder Include="Pricing\Policies\" />
   </ItemGroup>
 
 </Project>

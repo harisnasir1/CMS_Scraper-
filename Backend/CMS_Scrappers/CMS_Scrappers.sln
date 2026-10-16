@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CMS_Scrappers", "CMS_Scrappers.csproj", "{7E1C8075-C341-4F05-AABE-48EA5D541258}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CMS_Scrappers.Tests", "..\CMS_Scrappers.Tests\CMS_Scrappers.Tests.csproj", "{F240B0C5-918F-440D-956E-F2B9780B6EA3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{7E1C8075-C341-4F05-AABE-48EA5D541258}.Release|x64.Build.0 = Release|Any CPU
 		{7E1C8075-C341-4F05-AABE-48EA5D541258}.Release|x86.ActiveCfg = Release|Any CPU
 		{7E1C8075-C341-4F05-AABE-48EA5D541258}.Release|x86.Build.0 = Release|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Debug|x64.Build.0 = Debug|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Debug|x86.Build.0 = Debug|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Release|x64.ActiveCfg = Release|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Release|x64.Build.0 = Release|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Release|x86.ActiveCfg = Release|Any CPU
+		{F240B0C5-918F-440D-956E-F2B9780B6EA3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
