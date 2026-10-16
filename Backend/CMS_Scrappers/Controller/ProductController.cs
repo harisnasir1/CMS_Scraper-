@@ -208,13 +208,17 @@ namespace CMS_Scrappers.Controller
         }
         
 
-      //  [HttpGet("live_product_store")]                           -> have to make it for frontend to show all the products a sotre has synced.
-      //  public async Task <IActionResult>   getlivestoredata()
-      //  {
-      //      var id = new Guid();
-      //      var data = await _sdataRepository.Giveliveproductperstore(id);
-      //      return Ok(data);
-      //  }
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeleteLiveProduct(Guid id)
+        {
+            var result = await _ProductSerivce.DeleteLiveProduct(id);
+            if (result.Success) return Ok(result);
+            if (result.Message == "Product not found") return NotFound(result);
+            if (result.Message.StartsWith("Product is '")) return Conflict(result);
+            return StatusCode(502, result);
+        }
+
+
         
     }
 

@@ -84,6 +84,16 @@ namespace CMS_Scrappers.Repositories.Repos
             return images.Count;
         }
 
+        public async Task<bool> DeleteProduct(Guid productId)
+        {
+            var product = await _context.Sdata.FirstOrDefaultAsync(s => s.Id == productId);
+            if (product == null) return false;
+
+            _context.Sdata.Remove(product);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<List<Sdata>> GetPendingReviewproducts(int PageNumber, int PageSize)
         {
            return await _context.Sdata

@@ -16,7 +16,7 @@ public class AutoApproveJob : BackgroundService
     private readonly AutoApproveSettings _settings;
 
     private const int ScraperWaitAttempts = 6;
-    private static readonly TimeSpan ScraperWaitInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan ScraperWaitInterval = TimeSpan.FromMinutes(15);
 
     public AutoApproveJob(
         IServiceProvider serviceProvider,

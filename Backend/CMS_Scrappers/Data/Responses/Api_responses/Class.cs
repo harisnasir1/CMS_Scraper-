@@ -40,6 +40,18 @@
 
     }
 
+   
+    public class DeleteProductResult
+    {
+        public bool Success { get; set; }
+        public bool RRSyncDeleted { get; set; }
+        public bool HadRRSyncMapping { get; set; }
+        public int ShopifyStoresDeleted { get; set; }
+        public int ShopifyStoresFailed { get; set; }
+        public bool LocalDeleted { get; set; }
+        public string Message { get; set; } = "";
+    }
+
     public class CountRequest
     {
         public string status { get; set; }

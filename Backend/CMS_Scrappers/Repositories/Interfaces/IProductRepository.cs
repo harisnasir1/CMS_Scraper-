@@ -16,6 +16,7 @@
         Task<List<Sdata>> GetLiveproducts(int PageNumber, int PageSize);
         Task<List<Guid>> GiveAutoApproveCandidateIds(Guid scrapper, int? limit, decimal minVariantPrice, List<string> excludedBrands, int minImages);
         Task<int> DeleteImages(Guid productId, List<long> imageIds);
+        Task<bool> DeleteProduct(Guid productId);
 
     }
 }

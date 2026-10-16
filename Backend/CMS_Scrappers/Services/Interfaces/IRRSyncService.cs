@@ -12,6 +12,7 @@ public interface IRRSyncService
     Task<RRApiResponse<List<RRSyncVarinatDTO>>> GetAllSyncVarinats(string syncproductid);
     Task<RRApiResponse<object>> UpdateVariantBatchAsync(List<UpdateRRSyncVariantRequest> variantRequest,string Syncproductid);
     Task<RRApiResponse<object>> DeleteVariantAsync(string variantId);
+    Task<RRApiResponse<object>> DeleteProductAsync(string rrProductId);
     Task<RRApiResponse<RRSyncSourceResponse>>GetSourceByname(string scrappername);
     decimal Addmarkup(decimal price);
     decimal ToGbp(decimal usd);
