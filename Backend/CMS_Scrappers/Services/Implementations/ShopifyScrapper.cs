@@ -9,8 +9,14 @@ public class ShoipfyScrapper : Scrap_shopify
     private readonly IProxyManager _proxyManager;
     private readonly ILogger<ShoipfyScrapper> _logger;
 
-    // How many different proxies to try before giving up on a run
+  
     private const int MaxProxySwitches = 6;
+
+    
+    private const int MaxLoginsPerPage = 2;
+
+  
+    private const string StorefrontCookieName = "storefront_digest";
 
     public ShoipfyScrapper(IProxyManager proxyManager, ILogger<ShoipfyScrapper> logger)
     {
@@ -18,13 +24,24 @@ public class ShoipfyScrapper : Scrap_shopify
         _logger = logger;
     }
 
-    private HttpClient CreateClientForRequest()
+    /// <param name="cookies">
+    /// Shared across proxy switches so a storefront login survives them. Null keeps the
+    /// pre-password behaviour: no cookie jar and redirects followed automatically.
+    /// </param>
+    private HttpClient CreateClientForRequest(CookieContainer? cookies)
     {
-        
         var handler = new HttpClientHandler
         {
             AutomaticDecompression = DecompressionMethods.None
         };
+
+        if (cookies != null)
+        {
+            handler.UseCookies = true;
+            handler.CookieContainer = cookies;
+            // We must see the 302 to /password ourselves instead of silently landing on the login page
+            handler.AllowAutoRedirect = false;
+        }
 
         // Pull next proxy abstraction
         var proxy = _proxyManager.GetNextProxy();
@@ -40,13 +57,17 @@ public class ShoipfyScrapper : Scrap_shopify
         return client;
     }
 
-    public async Task<ShopifyGetAllProductsResponse> Getproducts(string url)
+    public async Task<ShopifyGetAllProductsResponse> Getproducts(string url, string? storefrontPassword = null, int? maxPages = null)
     {
-        var httpClient = CreateClientForRequest();
+        var baseUrl = url.TrimEnd('/');
+        var hasPassword = !string.IsNullOrWhiteSpace(storefrontPassword);
+        var cookies = hasPassword ? new CookieContainer() : null;
+
+        var httpClient = CreateClientForRequest(cookies);
         var response = new ShopifyGetAllProductsResponse();
         var pageNumber = 1;
-        var baseUrl = url.TrimEnd('/');
         var proxySwitches = 0;
+        var loginsThisPage = 0;
 
         // The supplier bans individual proxy IPs (403 block page); a failed page is retried through the next proxy
         // instead of silently ending the scrape with an empty catalogue.
@@ -62,9 +83,23 @@ public class ShoipfyScrapper : Scrap_shopify
             _logger.LogWarning("Supplier fetch page {Page} failed ({Reason}); switching proxy {Switch}/{Max}",
                 pageNumber, reason, proxySwitches, MaxProxySwitches);
             httpClient.Dispose();
-            httpClient = CreateClientForRequest();
+            httpClient = CreateClientForRequest(cookies);
             await Task.Delay(2000);
             return true;
+        }
+
+        // Logs in to the storefront password page. Returns false when the store rejected the password
+        // or the page cap is hit, so the caller can fall through to the proxy-switch path.
+        async Task<bool> TryLoginAsync(string reason)
+        {
+            if (loginsThisPage >= MaxLoginsPerPage)
+            {
+                _logger.LogWarning("Storefront login already tried {Count}x on page {Page} ({Reason})", loginsThisPage, pageNumber, reason);
+                return false;
+            }
+            loginsThisPage++;
+            _logger.LogInformation("Storefront password required on page {Page} ({Reason}); logging in (attempt {Attempt})", pageNumber, reason, loginsThisPage);
+            return await LoginToStorefrontAsync(httpClient, baseUrl, storefrontPassword!, cookies!);
         }
 
         try
@@ -91,6 +126,14 @@ public class ShoipfyScrapper : Scrap_shopify
                     continue;
                 }
 
+                // Password-protected store: Shopify answers 302 -> /password until the storefront_digest cookie is set
+                if (hasPassword && NeedsStorefrontLogin(httpResponse))
+                {
+                    if (await TryLoginAsync($"HTTP {(int)httpResponse.StatusCode}")) continue;
+                    if (await SwitchProxyAsync("storefront login failed")) continue;
+                    break;
+                }
+
                 if (!httpResponse.IsSuccessStatusCode)
                 {
                     if (await SwitchProxyAsync($"HTTP {(int)httpResponse.StatusCode}")) continue;
@@ -104,7 +147,12 @@ public class ShoipfyScrapper : Scrap_shopify
                 }
                 catch (Exception ex)
                 {
-                    // A 200 that is not product JSON is a bot-challenge page
+                    // A 200 that is not product JSON is either the password page (if we are not logged in yet)
+                    // or a bot-challenge page
+                    if (hasPassword && !HasStorefrontCookie(cookies!, baseUrl))
+                    {
+                        if (await TryLoginAsync("non-JSON body without session")) continue;
+                    }
                     if (await SwitchProxyAsync("non-JSON body: " + ex.Message)) continue;
                     break;
                 }
@@ -113,6 +161,9 @@ public class ShoipfyScrapper : Scrap_shopify
 
                 response.Pages.Add(productsResponse);
                 pageNumber++;
+                loginsThisPage = 0;
+
+                if (maxPages.HasValue && response.Pages.Count >= maxPages.Value) break;
 
                 await Task.Delay(3000);
             }
@@ -124,5 +175,55 @@ public class ShoipfyScrapper : Scrap_shopify
 
         _logger.LogInformation("Supplier fetch finished: {Pages} pages, {Switches} proxy switches", response.Pages.Count, proxySwitches);
         return response;
+    }
+
+    // Shopify signals "password required" two ways: HTML paths get 302 -> /password, .json paths get a bare 401
+    private static bool NeedsStorefrontLogin(HttpResponseMessage response)
+    {
+        if (response.StatusCode == HttpStatusCode.Unauthorized) return true;
+
+        var code = (int)response.StatusCode;
+        if (code < 300 || code > 399) return false;
+        var location = response.Headers.Location?.ToString() ?? "";
+        return location.Contains("/password", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasStorefrontCookie(CookieContainer cookies, string baseUrl)
+    {
+        return cookies.GetCookies(new Uri(baseUrl))[StorefrontCookieName] != null;
+    }
+
+    /// <summary>
+    /// Posts the storefront password the same way the browser form does. Success is judged by the
+    /// storefront_digest cookie appearing in the jar, not by the status code: Shopify answers 302 on
+    /// success and re-renders the form with 200 on a wrong password.
+    /// </summary>
+    private async Task<bool> LoginToStorefrontAsync(HttpClient client, string baseUrl, string password, CookieContainer cookies)
+    {
+        var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["form_type"] = "storefront_password",
+            ["utf8"] = "✓",
+            ["password"] = password,
+        });
+
+        try
+        {
+            using var loginResponse = await client.PostAsync($"{baseUrl}/password", form);
+            if (HasStorefrontCookie(cookies, baseUrl))
+            {
+                _logger.LogInformation("Storefront login accepted for {Base}", baseUrl);
+                return true;
+            }
+
+            _logger.LogError("Storefront login rejected for {Base} (HTTP {Status}); check Suppliers__<Name>__StorefrontPassword",
+                baseUrl, (int)loginResponse.StatusCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Storefront login request failed for {Base}", baseUrl);
+            return false;
+        }
     }
 }

@@ -71,6 +71,15 @@ public class ScrapperRepository : IScrapperRepository
         }
     }
 
+    public async Task<Scrapper?> GetByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var wanted = name.Trim().ToLower();
+        return await _context.Scrappers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Name.ToLower() == wanted);
+    }
+
     public async Task <Guid> Giveidbyname(string name)
     {
         try

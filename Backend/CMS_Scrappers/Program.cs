@@ -20,6 +20,7 @@ using CMS_Scrappers.Coordinators.Implementations;
 using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Utils.variantMapperSync;
 using CMS_Scrappers.Pricing;
+using CMS_Scrappers.Suppliers.VNDSWORLD;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -172,11 +173,16 @@ builder.Services.AddScoped<IGoogleImageService,GoogleImageService>();
 builder.Services.AddScoped<IFileReadWrite,ReadWriteFiles>();
 builder.Services.AddScoped<SavonchesStrategy>();
 builder.Services.AddScoped<SavonchesCategoryMapper>();
+// VNDSWORLD supplier (not yet selectable by the factory; wired in phase B)
+builder.Services.AddScoped<VndsWorldStrategy>();
+builder.Services.AddScoped<VndsWorldCategoryMapper>();
+builder.Services.AddScoped<VndsWorldSizeMapper>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
 builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
 builder.Services.AddSingleton<IAutoApproveRunner, AutoApproveRunner>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
+builder.Services.AddScoped<ICatalogDiscoveryService, CatalogDiscoveryService>();
 builder.Services.AddScoped<IAi, AI>();
 builder.Services.AddScoped<IRRSyncService, RRSyncService>();
 builder.Services.AddHttpClient<IRRSyncAuthService, RRSyncAuthService>();

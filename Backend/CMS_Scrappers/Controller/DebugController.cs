@@ -15,13 +15,35 @@ namespace CMS_Scrappers.Controller
         private readonly AppDbContext _context;
         private readonly IProductSyncCoordinator _productSyncCoordinator;
         private readonly ILogger<DebugController> _logger;
+        private readonly ICatalogDiscoveryService _catalogDiscovery;
 
-        public DebugController(IWebHostEnvironment env, AppDbContext context, IProductSyncCoordinator productSyncCoordinator, ILogger<DebugController> logger)
+        public DebugController(IWebHostEnvironment env, AppDbContext context, IProductSyncCoordinator productSyncCoordinator, ILogger<DebugController> logger, ICatalogDiscoveryService catalogDiscovery)
         {
             _env = env;
             _context = context;
             _productSyncCoordinator = productSyncCoordinator;
             _logger = logger;
+            _catalogDiscovery = catalogDiscovery;
+        }
+
+        // Dumps what a supplier's products.json contains (product types, tags, option values, prices)
+        // so the category and size mapping can be built before the scraper is enabled. Read-only.
+        // Example: GET api/Debug/catalog-summary?scraper=Savonches
+        [HttpGet("catalog-summary")]
+        public async Task<IActionResult> CatalogSummary([FromQuery] string scraper)
+        {
+            if (!_env.IsDevelopment()) return NotFound();
+            if (string.IsNullOrWhiteSpace(scraper)) return BadRequest("scraper (Scrappers.Name) is required");
+
+            try
+            {
+                var summary = await _catalogDiscovery.SummarizeAsync(scraper);
+                return Ok(summary);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         public class SyncStockRequest
