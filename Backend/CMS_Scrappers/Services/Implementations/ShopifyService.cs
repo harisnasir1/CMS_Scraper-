@@ -1502,7 +1502,7 @@ namespace CMS_Scrappers.Services.Implementations
                         variants = sdata.Variants.Select(v => new
                         {
                             price = _pricing.For(sdata.ScraperName, PricingTarget.Shopify).Sell(v.Price).ToString("F2"),
-                            sku = this.Givesku(v.SKU,v.Size,v.Id,"SAV"),
+                            sku = this.Givesku(v.SKU,v.Size,v.Id,SkuPrefixFor(sdata.ScraperName)),
                             optionValues = new[]
                             {
                                 new { optionName = "Size", name = v.Size }
@@ -1954,6 +1954,17 @@ namespace CMS_Scrappers.Services.Implementations
             }
         }
 
+        /// <summary>
+        /// Generated-SKU prefix per supplier: first three letters of the scraper name, upper-cased.
+        /// "Savonches" -> "SAV" (unchanged from the old hardcoded value), "VNDSWORLD" -> "VND".
+        /// Must be used at every site that builds or matches a generated SKU, or the SKU map will not match the push.
+        /// </summary>
+        private static string SkuPrefixFor(string? scraperName)
+        {
+            var letters = new string((scraperName ?? "").Where(char.IsLetter).Take(3).ToArray()).ToUpperInvariant();
+            return letters.Length == 3 ? letters : "CMS";
+        }
+
         private string Givesku(string sku,string size,long variantid,string prefix)
         {
             if (string.IsNullOrEmpty(sku))
@@ -1973,7 +1984,7 @@ namespace CMS_Scrappers.Services.Implementations
                 var sku_map=new Dictionary<string,long > ();
                 foreach (var variant in product.Variants)
                 {
-                    var sku = Givesku(variant.SKU, variant.Size, variant.Id, "SAV");
+                    var sku = Givesku(variant.SKU, variant.Size, variant.Id, SkuPrefixFor(product.ScraperName));
                     sku_map.Add(sku,variant.Id);
                 }
                 map.Add(product.Id,sku_map);
