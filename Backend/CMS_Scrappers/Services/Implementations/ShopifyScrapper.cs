@@ -16,7 +16,7 @@ public class ShoipfyScrapper : Scrap_shopify
     private const int MaxLoginsPerPage = 2;
 
   
-    private const string StorefrontCookieName = "storefront_digest";
+    private static readonly string[] SessionCookieNames = { "storefront_digest", "_shopify_essential" }; // legacy, current
 
     public ShoipfyScrapper(IProxyManager proxyManager, ILogger<ShoipfyScrapper> logger)
     {
@@ -149,7 +149,7 @@ public class ShoipfyScrapper : Scrap_shopify
                 {
                     // A 200 that is not product JSON is either the password page (if we are not logged in yet)
                     // or a bot-challenge page
-                    if (hasPassword && !HasStorefrontCookie(cookies!, baseUrl))
+                    if (hasPassword && !HasStorefrontSession(cookies!))
                     {
                         if (await TryLoginAsync("non-JSON body without session")) continue;
                     }
@@ -188,9 +188,11 @@ public class ShoipfyScrapper : Scrap_shopify
         return location.Contains("/password", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool HasStorefrontCookie(CookieContainer cookies, string baseUrl)
+    // Checked by name across the whole jar, not by URL: Shopify sets the cookie for the bare domain
+    // (vnds.world) while we request the www host, and a URL lookup misses it
+    private static bool HasStorefrontSession(CookieContainer cookies)
     {
-        return cookies.GetCookies(new Uri(baseUrl))[StorefrontCookieName] != null;
+        return cookies.GetAllCookies().Any(c => SessionCookieNames.Contains(c.Name));
     }
 
     /// <summary>
@@ -210,14 +212,22 @@ public class ShoipfyScrapper : Scrap_shopify
         try
         {
             using var loginResponse = await client.PostAsync($"{baseUrl}/password", form);
-            if (HasStorefrontCookie(cookies, baseUrl))
+            // Shopify answers a 3xx away from /password on success (and sets a session cookie); a wrong
+            // password re-renders the form with 200. The legacy storefront_digest cookie is a fallback signal.
+            var code = (int)loginResponse.StatusCode;
+            var location = loginResponse.Headers.Location?.ToString() ?? "";
+            var redirectedAway = code is >= 300 and <= 399 && !location.Contains("/password", StringComparison.OrdinalIgnoreCase);
+            var legacyCookie = cookies.GetAllCookies().Any(c => c.Name == "storefront_digest");
+            if (redirectedAway || legacyCookie)
             {
-                _logger.LogInformation("Storefront login accepted for {Base}", baseUrl);
+                _logger.LogInformation("Storefront login accepted for {Base} (HTTP {Status} -> {Location}, cookies [{Cookies}])",
+                    baseUrl, code, location == "" ? "-" : location, string.Join(",", cookies.GetAllCookies().Select(c => c.Name)));
                 return true;
             }
 
-            _logger.LogError("Storefront login rejected for {Base} (HTTP {Status}); check Suppliers__<Name>__StorefrontPassword",
-                baseUrl, (int)loginResponse.StatusCode);
+            var names = string.Join(",", cookies.GetAllCookies().Select(c => $"{c.Name}@{c.Domain}"));
+            _logger.LogError("Storefront login rejected for {Base} (HTTP {Status}, Location {Location}, jar [{Cookies}]); check Suppliers__<Name>__StorefrontPassword",
+                baseUrl, (int)loginResponse.StatusCode, loginResponse.Headers.Location?.ToString() ?? "-", names);
             return false;
         }
         catch (Exception ex)

@@ -227,17 +227,17 @@ namespace CMS_Scrappers.Repositories.Repos
             return dbProductsDict;
         }
 
-      public async Task<Dictionary<string,Sdata>> GiveLiveDataToSync(DateTime scrapeStartedAt)
+      public async Task<Dictionary<string,Sdata>> GiveLiveDataToSync(Guid scraperId, decimal minFirstPushPrice)
         {
             return await _context.Sdata
                 .AsNoTracking()
                 .Include(s => s.Variants)
                 .Include(s => s.Image)
-                .Where(s => s.Status == "Live"&& s.Description != "")
+                .Where(s => s.Sid == scraperId && s.Status == "Live" && s.Description != "")
                 .Where(s =>
-                    // No map at all — never synced
+                    // No map at all — never synced (threshold is in the supplier's currency)
                     (!_context.RRSyncProductMap.Any(m => m.SdataId == s.Id) 
-                     && s.Variants.Any(v => v.InStock && v.Price>=500))
+                     && s.Variants.Any(v => v.InStock && v.Price >= minFirstPushPrice))
                     // OR a variant has changed since its map was last touched
                     || s.Variants.Any(v =>
                         _context.RRSyncVariantMap.Any(m =>

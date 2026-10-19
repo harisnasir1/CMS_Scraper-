@@ -8,10 +8,12 @@ using System.Threading.Tasks;
 using CMS_Scrappers.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using CMS_Scrappers.Suppliers;
 
 public class SavonchesStrategy : IShopifyParsingStrategy
 {
-    private static readonly string Scrappername = "Savonches";
+    // Set per run from the supplier profile (the strategy is scoped: one instance per scrape)
+    private SupplierProfile _profile = null!;
     private readonly ILogger<SavonchesStrategy> _looger;
     private readonly HttpClient _client;
     private readonly Scrap_shopify _Scrap_shopify;
@@ -59,8 +61,10 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         "Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36"
     };
 
-    public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, string storeBaseUrl)
+    public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, SupplierProfile profile)
     {
+        _profile = profile;
+        var storeBaseUrl = profile.BaseUrl;
         var allRawProducts = rawProduct.Pages.SelectMany(page => page.Products);
         lock (_enrichClientLock)
         {
@@ -116,7 +120,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                         // Budget spent: defer this product to a later run so a big backlog cannot stretch one run to hours.
                         // Not in DB -> nothing is written; already in DB -> its stock still updates via the URL match.
                         p.ProductUrl = fullUrl;
-                        p.ScraperName = Scrappername;
+                        p.ScraperName = _profile.Name;
                         p.New = false;
                         Interlocked.Increment(ref _deferredThisRun);
                     }
@@ -130,7 +134,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
                     //_looger.LogWarning($"rolling back from the {fullUrl}");
                     p.ProductUrl = fullUrl;
                     p.Description = skipResult.ExistingDescription; 
-                    p.ScraperName = Scrappername;
+                    p.ScraperName = _profile.Name;
                     p.New = false;
                 }
             }
@@ -168,7 +172,7 @@ public class SavonchesStrategy : IShopifyParsingStrategy
         
         var link = $"{url}products/{p.Handle}";
         p.ProductUrl = link;
-        p.ScraperName = Scrappername;
+        p.ScraperName = _profile.Name;
         try
         {
             var doc = await LoadPagewithRetry(link);

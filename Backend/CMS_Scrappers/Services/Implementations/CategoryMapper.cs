@@ -1,10 +1,10 @@
 public class CategoryMapper : ICategoryMapper
 {
 
-    private readonly ILogger<CategoryMapperFactory> _logger;
+    private readonly ILogger<CategoryMapper> _logger;
 
     private readonly ICategoryMappingStrategy _ICategoryMappingStrategy;
-    public CategoryMapper(ILogger<CategoryMapperFactory> logger, ICategoryMappingStrategy CategoryMappingStrategy)
+    public CategoryMapper(ILogger<CategoryMapper> logger, ICategoryMappingStrategy CategoryMappingStrategy)
     {
         _logger = logger;
         _ICategoryMappingStrategy = CategoryMappingStrategy;

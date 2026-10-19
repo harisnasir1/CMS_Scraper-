@@ -30,14 +30,14 @@ namespace CMS_Scrappers.Controller
         // so the category and size mapping can be built before the scraper is enabled. Read-only.
         // Example: GET api/Debug/catalog-summary?scraper=Savonches
         [HttpGet("catalog-summary")]
-        public async Task<IActionResult> CatalogSummary([FromQuery] string scraper)
+        public async Task<IActionResult> CatalogSummary([FromQuery] string scraper, [FromQuery] int? maxPages = null)
         {
             if (!_env.IsDevelopment()) return NotFound();
             if (string.IsNullOrWhiteSpace(scraper)) return BadRequest("scraper (Scrappers.Name) is required");
 
             try
             {
-                var summary = await _catalogDiscovery.SummarizeAsync(scraper);
+                var summary = await _catalogDiscovery.SummarizeAsync(scraper, maxPages);
                 return Ok(summary);
             }
             catch (InvalidOperationException ex)

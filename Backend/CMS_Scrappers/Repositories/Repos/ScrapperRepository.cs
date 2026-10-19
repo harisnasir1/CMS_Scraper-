@@ -71,6 +71,11 @@ public class ScrapperRepository : IScrapperRepository
         }
     }
 
+    public async Task<List<Scrapper>> GetEnabled()
+    {
+        return await _context.Scrappers.AsNoTracking().Where(s => s.Enabled).ToListAsync();
+    }
+
     public async Task<Scrapper?> GetByName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;

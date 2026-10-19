@@ -9,5 +9,6 @@ public interface IScrapperRepository{
     Task<Scrapper> Getscrapeid(Guid id);
     /// <summary>Case-insensitive lookup by Scrappers.Name; null when absent.</summary>
     Task<Scrapper?> GetByName(string name);
+    Task<List<Scrapper>> GetEnabled();
 
 }

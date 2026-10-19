@@ -3,7 +3,7 @@ using CMS_Scrappers.Services.Interfaces;
 
 namespace CMS_Scrappers.Utils.variantMapperSync;
 
-public class SavonchesSyncSize:ISavonchesSyncSize
+public class SavonchesSyncSize:ISavonchesSyncSize, CMS_Scrappers.Strategies.Interface.ISizeMappingStrategy
 {
     
     /// <summary>

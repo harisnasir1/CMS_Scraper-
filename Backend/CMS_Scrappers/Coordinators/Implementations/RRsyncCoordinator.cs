@@ -7,6 +7,7 @@ using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Data.Enums;
 using CMS_Scrappers.Pricing;
 using CMS_Scrappers.Pricing.Policies;
+using CMS_Scrappers.Suppliers;
 using CreateRRSyncProductImage = CMS_Scrappers.Data.Requests.CreateRRSyncProductImage;
 
 namespace CMS_Scrappers.Coordinators.Implementations;
@@ -18,27 +19,31 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     private readonly IRRSyncProductMapRepository _productMapRepository;
     private readonly IRRSyncVariantMapRepository _variantMapRepository;
     private readonly IRRSyncService _syncService;
-    private readonly ISavonchesSyncSize _saveSize;
+    private readonly ISupplierRegistry _registry;
+    private readonly IServiceProvider _services;
     private readonly IPricingPolicyResolver _pricing;
     private readonly int RatelimitCount = 250;
 
     public RRsyncCoordinator(ILogger<RRsyncCoordinator> logger, IRRSyncProductMapRepository productMapRepository,
         IRRSyncVariantMapRepository variantMapRepository, ISdataRepository sdataRepository,
-        IRRSyncService syncService, ISavonchesSyncSize saveSize, IPricingPolicyResolver pricing)
+        IRRSyncService syncService, ISupplierRegistry registry, IServiceProvider services, IPricingPolicyResolver pricing)
     {
         _logger = logger;
         _productMapRepository = productMapRepository;
         _variantMapRepository = variantMapRepository;
         _sdataRepository = sdataRepository;
         _syncService = syncService;
-        _saveSize = saveSize;
+        _registry = registry;
+        _services = services;
         _pricing = pricing;
     }
 
-    public async Task<bool> Syncportal(DateTime scrapeStartedAt,string ScraperName)
+    public async Task<bool> Syncportal(DateTime scrapeStartedAt, SupplierProfile profile)
     {
-        var sourceLookupName = $"cms-{ScraperName}";
-        var allliveproducts = await _sdataRepository.GiveLiveDataToSync(scrapeStartedAt);
+        // Source name on RRSync is "cms-<name>" lower-cased; phase C moves this to ScraperSyncAccounts.SourceName
+        var sourceLookupName = $"cms-{profile.Key}";
+        // Only this supplier's products: a run must never push or re-price another supplier's catalogue
+        var allliveproducts = await _sdataRepository.GiveLiveDataToSync(profile.Id, profile.MinFirstPushPrice);
         var NewData = new List<CreateRRSyncProductRequest>();
         var SourceResponse = await _syncService.GetSourceByname(sourceLookupName);
         if (!SourceResponse.IsSuccess || SourceResponse.Payload == null)
@@ -348,7 +353,8 @@ public class RRsyncCoordinator : IRRsyncCoordinator
 
     private CreateRRSyncVariantRequest PrepareRRSyncvarinat(ProductVariantRecord variant,Sdata product)
     {
-        string mappedSize = _saveSize.GetMappedSizes(
+        var sizeMapper = _registry.Get(product.ScraperName).ResolveSizeMapper(_services);
+        string? mappedSize = sizeMapper.GetMappedSizes(
             product.Category, 
             product.ProductType, 
             variant.Size,

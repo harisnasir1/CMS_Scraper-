@@ -15,9 +15,6 @@ namespace CMS_Scrappers.Suppliers.VNDSWORLD;
 /// </summary>
 public class VndsWorldStrategy : IShopifyParsingStrategy
 {
-    // Must equal Scrappers.Name; phase B replaces this with the supplier profile
-    public const string ScraperName = "VNDSWORLD";
-
     private const string UsedTag = "Used";
     private const string DefaultGender = "Men";
     private const string UsedConditionGrade = "like new condition.";   // RRSyncService.MapConditionToRating -> 4
@@ -31,9 +28,9 @@ public class VndsWorldStrategy : IShopifyParsingStrategy
         _logger = logger;
     }
 
-    public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, string storeBaseUrl)
+    public async Task<List<ShopifyFlatProduct>> MapAndEnrichProductAsync(ShopifyGetAllProductsResponse rawProduct, SupplierProfile profile)
     {
-        var baseUrl = storeBaseUrl.TrimEnd('/') + "/";
+        var baseUrl = profile.BaseUrl;
         var products = rawProduct.Pages.SelectMany(p => p.Products).ToList();
         var result = new List<ShopifyFlatProduct>(products.Count);
         var droppedDubai = 0;
@@ -72,7 +69,7 @@ public class VndsWorldStrategy : IShopifyParsingStrategy
                 Title = product.Title ?? "",
                 Handle = product.Handle ?? "",
                 ProductUrl = productUrl,
-                ScraperName = ScraperName,
+                ScraperName = profile.Name,
                 Images = (product.Images ?? new List<Image>())
                     .Select(i => new ProductImageRecordDTO { Priority = i.Position, Url = i.Src ?? "" })
                     .ToList(),

@@ -72,13 +72,17 @@ public class StockReconcileJob : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var scrapperRepository = scope.ServiceProvider.GetRequiredService<IScrapperRepository>();
         var reconciler = scope.ServiceProvider.GetRequiredService<IStockReconciler>();
+        var profiles = scope.ServiceProvider.GetRequiredService<CMS_Scrappers.Suppliers.ISupplierProfileProvider>();
 
-        var scraperId = await scrapperRepository.Giveidbyname(_settings.ScraperName);
-        if (scraperId != Guid.Empty && !await WaitForScraperToFinish(scrapperRepository, scraperId))
+        // Stock on the stores is only trustworthy once no supplier is mid-scrape
+        foreach (var profile in await profiles.GetEnabledAsync())
         {
-            _logger.LogWarning("StockReconcile: scraper still running after {Minutes} min, skipping this run",
-                ScraperWaitAttempts * ScraperWaitInterval.TotalMinutes);
-            return;
+            if (!await WaitForScraperToFinish(scrapperRepository, profile.Id))
+            {
+                _logger.LogWarning("StockReconcile: {Name} still scraping after {Minutes} min, skipping this run",
+                    profile.Name, ScraperWaitAttempts * ScraperWaitInterval.TotalMinutes);
+                return;
+            }
         }
 
         _logger.LogInformation("StockReconcile run started");

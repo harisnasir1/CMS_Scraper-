@@ -28,7 +28,7 @@ public class CatalogDiscoveryService : ICatalogDiscoveryService
         _logger = logger;
     }
 
-    public async Task<CatalogSummary> SummarizeAsync(string scraperName)
+    public async Task<CatalogSummary> SummarizeAsync(string scraperName, int? maxPages = null)
     {
         var scraper = await _scrapperRepository.GetByName(scraperName)
                       ?? throw new InvalidOperationException($"No Scrappers row named '{scraperName}'");
@@ -42,7 +42,7 @@ public class CatalogDiscoveryService : ICatalogDiscoveryService
         _logger.LogInformation("Catalog discovery for {Name} at {Base} (storefront password: {HasPw})",
             scraper.Name, scraper.Baseurl, !string.IsNullOrEmpty(password));
 
-        var raw = await _fetcher.Getproducts(scraper.Baseurl, password);
+        var raw = await _fetcher.Getproducts(scraper.Baseurl, password, maxPages);
         var products = raw.Pages.SelectMany(p => p.Products).ToList();
 
         var summary = new CatalogSummary

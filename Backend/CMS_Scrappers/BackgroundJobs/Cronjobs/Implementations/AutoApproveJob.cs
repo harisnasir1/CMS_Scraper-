@@ -2,6 +2,7 @@ using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
+using CMS_Scrappers.Suppliers;
 
 namespace CMS_Scrappers.BackgroundJobs.Cronjobs.Implementations;
 
@@ -66,33 +67,39 @@ public class AutoApproveJob : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var scrapperRepository = scope.ServiceProvider.GetRequiredService<IScrapperRepository>();
         var runner = scope.ServiceProvider.GetRequiredService<IAutoApproveRunner>();
-       
-        var scraperId = await scrapperRepository.Giveidbyname(_settings.ScraperName);
-        if (scraperId == Guid.Empty)
+        var profiles = scope.ServiceProvider.GetRequiredService<ISupplierProfileProvider>();
+
+        var enabled = await profiles.GetEnabledAsync();
+        if (enabled.Count == 0)
         {
-            _logger.LogError("AutoApprove: scraper '{Name}' not found", _settings.ScraperName);
+            _logger.LogWarning("AutoApprove: no enabled suppliers");
             return;
         }
 
-        if (!await WaitForScraperToFinish(scrapperRepository, scraperId))
+        var totalApproved = 0;
+        foreach (var profile in enabled)
         {
-            _logger.LogError("AutoApprove: scraper still running after {Minutes} min, skipping this run",
-                ScraperWaitAttempts * ScraperWaitInterval.TotalMinutes);
-            return;
+            if (!await WaitForScraperToFinish(scrapperRepository, profile.Id))
+            {
+                _logger.LogError("AutoApprove: {Name} still scraping after {Minutes} min, skipping it this run",
+                    profile.Name, ScraperWaitAttempts * ScraperWaitInterval.TotalMinutes);
+                continue;
+            }
+
+            // Reserve after the wait, not before, so a long scrape does not keep manual runs rejected for its whole duration
+            if (!runner.tryBegin())
+            {
+                _logger.LogWarning("AutoApprove: skipping {Name}, a manual run is queued or running", profile.Name);
+                continue;
+            }
+
+            _logger.LogInformation("AutoApprove run started for scraper {Name}", profile.Name);
+            var approved = await runner.RunAsync(profile.Id, _settings.MaxProductsPerRun);
+            _logger.LogInformation("AutoApprove run finished for {Name}: {Count} products went Live", profile.Name, approved);
+            totalApproved += approved;
         }
 
-        // Reserve after the wait, not before, so a long scrape does not keep manual runs rejected for its whole duration
-        if (!runner.tryBegin())
-        {
-            _logger.LogWarning("AutoApprove: skipping scheduled run, a manual run is queued or running");
-            return;
-        }
-
-        _logger.LogInformation("AutoApprove run started for scraper {Name}", _settings.ScraperName);
-        var approved = await runner.RunAsync(scraperId, _settings.MaxProductsPerRun);
-        _logger.LogInformation("AutoApprove run finished: {Count} products went Live", approved);
-
-        if (_settings.SyncShopifyAfterApprove && approved > 0)
+        if (_settings.SyncShopifyAfterApprove && totalApproved > 0)
         {
             await SyncShopifyStores(scope.ServiceProvider);
         }
