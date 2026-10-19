@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<RRSyncVariantMap> RRSyncVariantMap { get; set; }
     public DbSet<Shopify> Shopify { get; set; }
     public DbSet<Scrapper> Scrappers { get; set; }
+    public DbSet<ScraperSyncAccount> ScraperSyncAccounts { get; set; }
     
     public DbSet<ProductImageRecord> ProductImages { get; set; }
     

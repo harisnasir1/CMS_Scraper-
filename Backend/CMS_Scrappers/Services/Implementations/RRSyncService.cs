@@ -4,6 +4,7 @@ using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Data.Requests;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Utils;
+using CMS_Scrappers.Suppliers;
 using ResellersTech.Backend.Scrapers.Shopify.Http.Responses.RRSyncResopnse;
 
 namespace CMS_Scrappers.Services.Implementations;
@@ -14,20 +15,22 @@ public class RRSyncService:IRRSyncService
     private readonly ILogger<RRSyncService> _logger;
     private readonly IRRSyncAuthService _syncauthService;
     private readonly RRSyncConfig _syncconfig;
-    
-    public RRSyncService(ILogger<RRSyncService> logger, RRSyncConfig syncconfig,IRRSyncAuthService syncauthService ,HttpClient http)
+    private readonly RRSyncAccount _account;
+
+    /// <summary>Built by IRRSyncClientFactory only; every call is made as <paramref name="account"/>.</summary>
+    public RRSyncService(ILogger<RRSyncService> logger, RRSyncConfig syncconfig, IRRSyncAuthService syncauthService, HttpClient http, RRSyncAccount account)
     {
         _logger = logger;
-      
         _syncauthService = syncauthService;
         _syncconfig = syncconfig;
         _http = http;
+        _account = account;
     }
     
     public async Task<RRApiResponse<Dictionary<string, string>>> PushNewProductBatchAsync(BulkCreateRRSyncProductRequest batch)
     {
         
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
 
         using var msg = new HttpRequestMessage(
             HttpMethod.Post,
@@ -71,7 +74,7 @@ public class RRSyncService:IRRSyncService
     public async Task<RRApiResponse<Dictionary<string, string>>>  PushNewVariantBatchAsync(string Syncproductid,
         List<CreateRRSyncVariantRequest> variantRequest)
     {
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
         using var msg = new HttpRequestMessage(
             HttpMethod.Post,
             $"{_syncconfig.BaseURl}/api/Scrapper/AddVariants/{Syncproductid}")
@@ -113,7 +116,7 @@ public class RRSyncService:IRRSyncService
 
   public  async Task<RRApiResponse<List<RRSyncVarinatDTO>>> GetAllSyncVarinats(string syncproductid)
     {
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
         var url = $"{_syncconfig.BaseURl}/api/Scrapper/GetMyProductVariants?productId={Uri.EscapeDataString(syncproductid)}";
         using var msg = new HttpRequestMessage(
             HttpMethod.Get,url);
@@ -137,7 +140,7 @@ public class RRSyncService:IRRSyncService
 
     public async Task<RRApiResponse<object>> UpdateVariantBatchAsync(List<UpdateRRSyncVariantRequest> variantRequest,string Syncproductid)
     {
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
         using var msg = new HttpRequestMessage(
             HttpMethod.Put,
             $"{_syncconfig.BaseURl}/api/Scrapper/UpdateVariant/{Syncproductid}")
@@ -161,7 +164,7 @@ public class RRSyncService:IRRSyncService
 
     public async Task<RRApiResponse<object>> DeleteVariantAsync(string variantId)
     {
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
         using var msg = new HttpRequestMessage(
             HttpMethod.Delete,
             $"{_syncconfig.BaseURl}/api/Scrapper/DeleteVariant/{variantId}");
@@ -182,7 +185,7 @@ public class RRSyncService:IRRSyncService
 
     public async Task<RRApiResponse<object>> DeleteProductAsync(string rrProductId)
     {
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
         using var msg = new HttpRequestMessage(
             HttpMethod.Delete,
             $"{_syncconfig.BaseURl}/api/Product/DeleteProduct/{Uri.EscapeDataString(rrProductId)}");
@@ -217,7 +220,7 @@ public class RRSyncService:IRRSyncService
 
    public async Task<RRApiResponse<RRSyncSourceResponse>> GetSourceByname(string scrappername)
     {
-        var token = await _syncauthService.GetTokenAsync();
+        var token = await _syncauthService.GetTokenAsync(_account);
         var url = $"{_syncconfig.BaseURl}/api/Source/GetSourceByName/{Uri.EscapeDataString(scrappername)}";
         using var msg = new HttpRequestMessage(
             HttpMethod.Get,url);

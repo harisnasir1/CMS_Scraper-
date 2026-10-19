@@ -18,7 +18,11 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     private readonly ILogger<RRsyncCoordinator> _logger;
     private readonly IRRSyncProductMapRepository _productMapRepository;
     private readonly IRRSyncVariantMapRepository _variantMapRepository;
-    private readonly IRRSyncService _syncService;
+    private readonly IRRSyncClientFactory _rrsyncClients;
+    // Bound to the supplier's account at the start of Syncportal; the coordinator is scoped, one supplier per run
+    private IRRSyncService? _boundClient;
+    private IRRSyncService _syncService =>
+        _boundClient ?? throw new InvalidOperationException("RRSync client is not bound to a supplier account; Syncportal(profile) must run first");
     private readonly ISupplierRegistry _registry;
     private readonly IServiceProvider _services;
     private readonly IPricingPolicyResolver _pricing;
@@ -26,13 +30,13 @@ public class RRsyncCoordinator : IRRsyncCoordinator
 
     public RRsyncCoordinator(ILogger<RRsyncCoordinator> logger, IRRSyncProductMapRepository productMapRepository,
         IRRSyncVariantMapRepository variantMapRepository, ISdataRepository sdataRepository,
-        IRRSyncService syncService, ISupplierRegistry registry, IServiceProvider services, IPricingPolicyResolver pricing)
+        IRRSyncClientFactory rrsyncClients, ISupplierRegistry registry, IServiceProvider services, IPricingPolicyResolver pricing)
     {
         _logger = logger;
         _productMapRepository = productMapRepository;
         _variantMapRepository = variantMapRepository;
         _sdataRepository = sdataRepository;
-        _syncService = syncService;
+        _rrsyncClients = rrsyncClients;
         _registry = registry;
         _services = services;
         _pricing = pricing;
@@ -41,7 +45,11 @@ public class RRsyncCoordinator : IRRsyncCoordinator
     public async Task<bool> Syncportal(DateTime scrapeStartedAt, SupplierProfile profile)
     {
         // Source name on RRSync is "cms-<name>" lower-cased; phase C moves this to ScraperSyncAccounts.SourceName
-        var sourceLookupName = $"cms-{profile.Key}";
+        // Account row (source + user) from ScraperSyncAccounts, password from configuration; refuses to run without both
+        var account = profile.RequireRRSync();
+        _boundClient = _rrsyncClients.For(account);
+        var sourceLookupName = account.SourceName;
+        _logger.LogInformation("RRSync sync for {Name} as {User}, source {Source}", profile.Name, account.UserName, account.SourceName);
         // Only this supplier's products: a run must never push or re-price another supplier's catalogue
         var allliveproducts = await _sdataRepository.GiveLiveDataToSync(profile.Id, profile.MinFirstPushPrice);
         var NewData = new List<CreateRRSyncProductRequest>();

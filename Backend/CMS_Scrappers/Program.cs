@@ -185,8 +185,9 @@ builder.Services.AddSingleton<IAutoApproveRunner, AutoApproveRunner>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
 builder.Services.AddScoped<ICatalogDiscoveryService, CatalogDiscoveryService>();
 builder.Services.AddScoped<IAi, AI>();
-builder.Services.AddScoped<IRRSyncService, RRSyncService>();
-builder.Services.AddHttpClient<IRRSyncAuthService, RRSyncAuthService>();
+// RRSync: one token cache per account (singleton), clients always bound to a supplier's account via the factory
+builder.Services.AddSingleton<IRRSyncAuthService, RRSyncAuthService>();
+builder.Services.AddSingleton<IRRSyncClientFactory, RRSyncClientFactory>();
 //builder.Services.AddScoped<IShopifyService, ShopifyService>();
 //Coordinators
 builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();

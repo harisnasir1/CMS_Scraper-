@@ -71,6 +71,13 @@ public class ScrapperRepository : IScrapperRepository
         }
     }
 
+    public async Task<CMS_Scrappers.Models.ScraperSyncAccount?> GetSyncAccount(Guid scraperId, string provider)
+    {
+        return await _context.ScraperSyncAccounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.ScraperId == scraperId && a.Provider == provider && a.IsActive);
+    }
+
     public async Task<List<Scrapper>> GetEnabled()
     {
         return await _context.Scrappers.AsNoTracking().Where(s => s.Enabled).ToListAsync();

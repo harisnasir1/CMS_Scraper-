@@ -10,5 +10,7 @@ public interface IScrapperRepository{
     /// <summary>Case-insensitive lookup by Scrappers.Name; null when absent.</summary>
     Task<Scrapper?> GetByName(string name);
     Task<List<Scrapper>> GetEnabled();
+    /// <summary>Active sync account of a supplier for one provider ("RRSync"); null when none is configured.</summary>
+    Task<CMS_Scrappers.Models.ScraperSyncAccount?> GetSyncAccount(Guid scraperId, string provider);
 
 }

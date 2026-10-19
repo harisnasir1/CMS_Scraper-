@@ -16,14 +16,61 @@ namespace CMS_Scrappers.Controller
         private readonly IProductSyncCoordinator _productSyncCoordinator;
         private readonly ILogger<DebugController> _logger;
         private readonly ICatalogDiscoveryService _catalogDiscovery;
+        private readonly CMS_Scrappers.Suppliers.ISupplierProfileProvider _profiles;
+        private readonly IRRSyncAuthService _rrsyncAuth;
 
-        public DebugController(IWebHostEnvironment env, AppDbContext context, IProductSyncCoordinator productSyncCoordinator, ILogger<DebugController> logger, ICatalogDiscoveryService catalogDiscovery)
+        public DebugController(IWebHostEnvironment env, AppDbContext context, IProductSyncCoordinator productSyncCoordinator, ILogger<DebugController> logger,
+            ICatalogDiscoveryService catalogDiscovery, CMS_Scrappers.Suppliers.ISupplierProfileProvider profiles, IRRSyncAuthService rrsyncAuth)
         {
             _env = env;
             _context = context;
             _productSyncCoordinator = productSyncCoordinator;
             _logger = logger;
             _catalogDiscovery = catalogDiscovery;
+            _profiles = profiles;
+            _rrsyncAuth = rrsyncAuth;
+        }
+
+        // Shows how a supplier resolves from its Scrappers row, ScraperSyncAccounts row and configuration. Secrets are masked.
+        // Example: GET api/Debug/supplier?scraper=VNDSWORLD
+        [HttpGet("supplier")]
+        public async Task<IActionResult> Supplier([FromQuery] string scraper)
+        {
+            if (!_env.IsDevelopment()) return NotFound();
+            if (string.IsNullOrWhiteSpace(scraper)) return BadRequest("scraper (Scrappers.Name) is required");
+
+            var p = await _profiles.GetByNameAsync(scraper);
+            if (p == null) return NotFound(new { message = $"No supplier named '{scraper}'" });
+
+            return Ok(new
+            {
+                p.Id, p.Name, p.Key, p.BaseUrl, p.Currency, p.Enabled, p.MinFirstPushPrice,
+                hasStorefrontPassword = p.StorefrontPassword != null,
+                rrsync = p.RRSync == null ? null : new { p.RRSync.SourceName, p.RRSync.UserName, hasPassword = p.RRSync.Password.Length > 0 },
+            });
+        }
+
+        // Performs only the RRSync login for the supplier's account and reports whether a token came back. Pushes nothing.
+        // Example: GET api/Debug/rrsync-login?scraper=VNDSWORLD
+        [HttpGet("rrsync-login")]
+        public async Task<IActionResult> RRSyncLogin([FromQuery] string scraper)
+        {
+            if (!_env.IsDevelopment()) return NotFound();
+            if (string.IsNullOrWhiteSpace(scraper)) return BadRequest("scraper (Scrappers.Name) is required");
+
+            var p = await _profiles.GetByNameAsync(scraper);
+            if (p == null) return NotFound(new { message = $"No supplier named '{scraper}'" });
+
+            try
+            {
+                var account = p.RequireRRSync();
+                var token = await _rrsyncAuth.GetTokenAsync(account);
+                return Ok(new { p.Name, account.UserName, account.SourceName, loggedIn = !string.IsNullOrEmpty(token), tokenLength = token?.Length ?? 0 });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(502, new { p.Name, loggedIn = false, error = ex.Message });
+            }
         }
 
         // Dumps what a supplier's products.json contains (product types, tags, option values, prices)
