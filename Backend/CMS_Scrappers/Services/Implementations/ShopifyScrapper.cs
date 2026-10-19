@@ -68,6 +68,7 @@ public class ShoipfyScrapper : Scrap_shopify
         var pageNumber = 1;
         var proxySwitches = 0;
         var loginsThisPage = 0;
+        var redirectsFollowed = 0;
 
         // The supplier bans individual proxy IPs (403 block page); a failed page is retried through the next proxy
         // instead of silently ending the scrape with an empty catalogue.
@@ -134,6 +135,20 @@ public class ShoipfyScrapper : Scrap_shopify
                     break;
                 }
 
+                // Canonical-host redirect (e.g. bare domain -> www) is neither a password challenge nor a blocked proxy:
+                // retry at the host the store names. Once per run.
+                if (hasPassword && IsRedirect(httpResponse) && httpResponse.Headers.Location != null && redirectsFollowed < 1)
+                {
+                    var location = httpResponse.Headers.Location;
+                    var target = location.IsAbsoluteUri ? location : new Uri(new Uri(baseUrl + "/"), location);
+                    var newBase = $"{target.Scheme}://{target.Host}";
+                    _logger.LogWarning("Supplier redirected {Old} -> {New}; following once. Set Scrappers.Baseurl to the new host to avoid this",
+                        baseUrl, newBase);
+                    baseUrl = newBase;
+                    redirectsFollowed++;
+                    continue;
+                }
+
                 if (!httpResponse.IsSuccessStatusCode)
                 {
                     if (await SwitchProxyAsync($"HTTP {(int)httpResponse.StatusCode}")) continue;
@@ -190,6 +205,12 @@ public class ShoipfyScrapper : Scrap_shopify
 
     // Checked by name across the whole jar, not by URL: Shopify sets the cookie for the bare domain
     // (vnds.world) while we request the www host, and a URL lookup misses it
+    private static bool IsRedirect(HttpResponseMessage response)
+    {
+        var code = (int)response.StatusCode;
+        return code >= 300 && code <= 399;
+    }
+
     private static bool HasStorefrontSession(CookieContainer cookies)
     {
         return cookies.GetAllCookies().Any(c => SessionCookieNames.Contains(c.Name));
