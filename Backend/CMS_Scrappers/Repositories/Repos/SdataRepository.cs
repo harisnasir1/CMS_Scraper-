@@ -301,6 +301,13 @@ namespace CMS_Scrappers.Repositories.Repos
                   })
               .ToListAsync();
       }
+        public async Task<int> CountActiveForScraper(Guid scraperId)
+        {
+            return await _context.Sdata
+                .AsNoTracking()
+                .CountAsync(s => s.Sid == scraperId && s.Status != "SourceDeleted");
+        }
+
         public async Task DelunseenData(Guid scraperId, DateTime threshold)
         {
             try

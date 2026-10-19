@@ -17,6 +17,8 @@
         Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold, Guid scraperId);
         Task<List<StaleVariantInfo>> GetSourceDeletedVariantsForStore(Guid shopifyStoreId);
         Task  DelunseenData(Guid scraperId,DateTime threshold);
+        /// <summary>How many of this supplier's products we hold that are not SourceDeleted. Used to spot a partial fetch.</summary>
+        Task<int> CountActiveForScraper(Guid scraperId);
         
             
     }

@@ -17,6 +17,9 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly ISdataRepository _sdataRepository;
     private readonly IFileReadWrite _readWrite;
     private readonly IPricingPolicyResolver _pricing;
+    // If more than this many variants of one supplier look stale on one store in a single run, something is wrong
+    // with the scrape, not the catalogue; refuse rather than delete.
+    private const int MaxStaleDeletesPerRun = 200;
     private  int STORE_VARIANT_LIMIT;
     private readonly int VARIANT_THRESHOLD;
     public ProductSyncCoordinator(
@@ -198,6 +201,13 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
                 if (!staleVariants.Any())
                 {
                     _logger.LogInformation("No stale variants for {Store}", store.ShopName);
+                    continue;
+                }
+                // Same safety cap as the RRSync path: a broken scrape must not be able to empty a store
+                if (staleVariants.Count > MaxStaleDeletesPerRun)
+                {
+                    _logger.LogError("ABORT: would delete {Count} variants from {Store} for scraper {Sid} (cap {Cap}); refusing this run",
+                        staleVariants.Count, store.ShopName, scraperId, MaxStaleDeletesPerRun);
                     continue;
                 }
                 var _shopifyservice = this.GetShopifyService(store);
