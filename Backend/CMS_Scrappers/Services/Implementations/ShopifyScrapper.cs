@@ -16,7 +16,6 @@ public class ShoipfyScrapper : Scrap_shopify
     private const int MaxLoginsPerPage = 2;
 
   
-    private static readonly string[] SessionCookieNames = { "storefront_digest", "_shopify_essential" }; // legacy, current
 
     public ShoipfyScrapper(IProxyManager proxyManager, ILogger<ShoipfyScrapper> logger)
     {
@@ -164,9 +163,11 @@ public class ShoipfyScrapper : Scrap_shopify
                 {
                     // A 200 that is not product JSON is either the password page (if we are not logged in yet)
                     // or a bot-challenge page
-                    if (hasPassword && !HasStorefrontSession(cookies!))
+                    // Always try the login here when a password is set: the jar cannot tell us whether we are logged in
+                    // (_shopify_essential is set on every response), and the per-page login cap prevents a loop.
+                    if (hasPassword)
                     {
-                        if (await TryLoginAsync("non-JSON body without session")) continue;
+                        if (await TryLoginAsync("non-JSON body")) continue;
                     }
                     if (await SwitchProxyAsync("non-JSON body: " + ex.Message)) continue;
                     break;
@@ -211,10 +212,6 @@ public class ShoipfyScrapper : Scrap_shopify
         return code >= 300 && code <= 399;
     }
 
-    private static bool HasStorefrontSession(CookieContainer cookies)
-    {
-        return cookies.GetAllCookies().Any(c => SessionCookieNames.Contains(c.Name));
-    }
 
     /// <summary>
     /// Posts the storefront password the same way the browser form does. Success is judged by the
