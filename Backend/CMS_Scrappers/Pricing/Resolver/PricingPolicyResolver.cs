@@ -15,13 +15,19 @@ public sealed class PricingPolicyResolver : IPricingPolicyResolver
 
     public PricingPolicyResolver()
     {
+        var passthrough = new PassthroughPolicy();
+
         _policies = new Dictionary<(string, PricingTarget), IPricingPolicy>
         {
+            // Savonches: USD store. RRSync gets plain conversion, our Shopify stores keep the markup.
             [(Key("Savonches"), PricingTarget.RRSync)] =
                 new UsdToGbpPolicy(SavonchesRules.UsdToGbp),
-
             [(Key("Savonches"), PricingTarget.Shopify)] =
                 new UsdMarkupToGbpPolicy(SavonchesRules.UsdToGbp, SavonchesRules.ShopifyMarkup, SavonchesRules.ShopifyRoundTo),
+
+            // VNDSWORLD: GBP store, no markup anywhere (decision 2026-10-18).
+            [(Key("VNDSWORLD"), PricingTarget.RRSync)] = passthrough,
+            [(Key("VNDSWORLD"), PricingTarget.Shopify)] = passthrough,
         };
     }
 
