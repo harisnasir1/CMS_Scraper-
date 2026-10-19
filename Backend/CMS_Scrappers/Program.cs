@@ -19,6 +19,10 @@ using CMS_Scrappers.BackgroundJobs.Implementations;
 using CMS_Scrappers.Coordinators.Implementations;
 using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Utils.variantMapperSync;
+using CMS_Scrappers.Pricing;
+using CMS_Scrappers.Suppliers;
+using CMS_Scrappers.Suppliers.Savonches;
+using CMS_Scrappers.Suppliers.VNDSWORLD;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -169,22 +173,28 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IGoogleImageService,GoogleImageService>();
 builder.Services.AddScoped<IFileReadWrite,ReadWriteFiles>();
-builder.Services.AddScoped<SavonchesStrategy>();
-builder.Services.AddScoped<SavonchesCategoryMapper>();
+//Suppliers: one module per supplier (strategy + mappers); config comes from the Scrappers row via the profile provider
+builder.Services.AddSupplier<SavonchesModule>();
+builder.Services.AddSupplier<VndsWorldModule>();
+builder.Services.AddSingleton<ISupplierRegistry, SupplierRegistry>();
+builder.Services.AddSingleton<CMS_Scrappers.Scraping.IScrapeOrchestrator, CMS_Scrappers.Scraping.ScrapeOrchestrator>();
+builder.Services.AddScoped<ISupplierProfileProvider, SupplierProfileProvider>();
 builder.Services.AddScoped<IShopifyScrapperFact,Shopify_Scrapper_factory>();
-builder.Services.AddScoped<ICategoryMapperFact,CategoryMapperFactory>();
 builder.Services.AddScoped<IProducts,ProductsService>();
 builder.Services.AddSingleton<IAutoApproveRunner, AutoApproveRunner>();
 builder.Services.AddScoped<Scrap_shopify, ShoipfyScrapper>();
+builder.Services.AddScoped<ICatalogDiscoveryService, CatalogDiscoveryService>();
 builder.Services.AddScoped<IAi, AI>();
-builder.Services.AddScoped<IRRSyncService, RRSyncService>();
-builder.Services.AddHttpClient<IRRSyncAuthService, RRSyncAuthService>();
+// RRSync: one token cache per account (singleton), clients always bound to a supplier's account via the factory
+builder.Services.AddSingleton<IRRSyncAuthService, RRSyncAuthService>();
+builder.Services.AddSingleton<IRRSyncClientFactory, RRSyncClientFactory>();
 //builder.Services.AddScoped<IShopifyService, ShopifyService>();
 //Coordinators
 builder.Services.AddScoped<IProductSyncCoordinator, ProductSyncCoordinator>();
 builder.Services.AddScoped<IStockReconciler, StockReconciler>();
 builder.Services.AddScoped<IRRsyncCoordinator, RRsyncCoordinator>();
-builder.Services.AddScoped<ISavonchesSyncSize, SavonchesSyncSize>();
+//Pricing: the single place sell/cost prices are decided, per supplier and destination
+builder.Services.AddSingleton<IPricingPolicyResolver, PricingPolicyResolver>();
 builder.Services.AddControllers();
 var app = builder.Build();
 app.UseRouting();

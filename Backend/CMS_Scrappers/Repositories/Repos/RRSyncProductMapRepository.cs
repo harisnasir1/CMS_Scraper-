@@ -73,6 +73,17 @@ public class RRSyncProductMapRepository:IRRSyncProductMapRepository
         return true;
     }
 
+    public async Task<bool> UpdateStatusById(Guid mapId, string status)
+    {
+        if (string.IsNullOrEmpty(status)) return false;
+        var map = await _context.RRSyncProductMap.FirstOrDefaultAsync(rs => rs.Id == mapId);
+        if (map == null) return false;
+        map.SyncStatus = status;
+        map.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> Delete(Guid sid)
     {
         var map= await _context.RRSyncProductMap.FirstOrDefaultAsync(rs => rs.SdataId==sid);

@@ -7,5 +7,10 @@ public interface IScrapperRepository{
     Task<string> Get_Status_by_id(Guid id);
     Task<DateTime> Give_last_run(Guid id);
     Task<Scrapper> Getscrapeid(Guid id);
-    
+    /// <summary>Case-insensitive lookup by Scrappers.Name; null when absent.</summary>
+    Task<Scrapper?> GetByName(string name);
+    Task<List<Scrapper>> GetEnabled();
+    /// <summary>Active sync account of a supplier for one provider ("RRSync"); null when none is configured.</summary>
+    Task<CMS_Scrappers.Models.ScraperSyncAccount?> GetSyncAccount(Guid scraperId, string provider);
+
 }

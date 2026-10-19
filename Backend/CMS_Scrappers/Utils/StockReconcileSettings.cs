@@ -18,6 +18,4 @@ public class StockReconcileSettings
     /// </summary>
     public int MaxZeroOutPerRun { get; set; } = 300;
 
-    /// <summary>Name of the scraper row to wait on before running (matches Scrappers.Name).</summary>
-    public string ScraperName { get; set; } = "Savonches";
 }

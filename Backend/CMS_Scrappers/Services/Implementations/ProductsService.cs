@@ -6,6 +6,7 @@ using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
+using CMS_Scrappers.Suppliers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore.Query;
 namespace CMS_Scrappers.Services.Implementations
@@ -23,7 +24,8 @@ namespace CMS_Scrappers.Services.Implementations
         private readonly IProductSyncCoordinator _productSyncCoordinator;
         private readonly IProductStoreMappingRepository _productStoreMappingRepository;
         private readonly AutoApproveSettings _autoApprove;
-        private readonly IRRSyncService _rrSyncService;
+        private readonly IRRSyncClientFactory _rrsyncClients;
+        private readonly ISupplierProfileProvider _profiles;
         private readonly IRRSyncProductMapRepository _rrSyncProductMapRepository;
         public ProductsService(IScrapperRepository scrapperRepository,
             IProductRepository repository, ILogger<ProductsService> logger,
@@ -33,12 +35,14 @@ namespace CMS_Scrappers.Services.Implementations
             IProductStoreMappingRepository productStoreMappingRepository,
             IProductSyncCoordinator productsyncCoordinator,
             AutoApproveSettings autoApprove,
-            IRRSyncService rrSyncService,
+            IRRSyncClientFactory rrsyncClients,
+            ISupplierProfileProvider profiles,
             IRRSyncProductMapRepository rrSyncProductMapRepository
             )
         {
             _autoApprove = autoApprove;
-            _rrSyncService = rrSyncService;
+            _rrsyncClients = rrsyncClients;
+            _profiles = profiles;
             _rrSyncProductMapRepository = rrSyncProductMapRepository;
             _repository = repository;
             _googleImageService = googleservice;
@@ -431,7 +435,15 @@ namespace CMS_Scrappers.Services.Implementations
             if (rrMap != null && rrMap.Id != Guid.Empty)
             {
                 result.HadRRSyncMapping = true;
-                var rr = await _rrSyncService.DeleteProductAsync(rrMap.RRSyncProductId);
+                // Delete as the supplier that owns the product on RRSync
+                var supplier = await _profiles.GetByNameAsync(product.ScraperName);
+                if (supplier?.RRSync == null)
+                {
+                    result.Message = $"No RRSync account configured for supplier '{product.ScraperName}', nothing was deleted";
+                    _logger.LogError("DeleteLiveProduct: {Msg} ({Id})", result.Message, id);
+                    return result;
+                }
+                var rr = await _rrsyncClients.For(supplier.RRSync).DeleteProductAsync(rrMap.RRSyncProductId);
                 if (!rr.IsSuccess)
                 {
                     result.Message = $"RRSync delete failed, nothing was deleted: {rr.Message}";

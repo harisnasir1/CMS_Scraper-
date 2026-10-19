@@ -15,9 +15,6 @@ public class AutoApproveSettings
     /// <summary>Hour of the day (UTC, 0-23) when the job runs.</summary>
     public int RunAtUtcHour { get; set; } = 3;
 
-    /// <summary>Name of the scraper row whose products are approved (matches Scrappers.Name).</summary>
-    public string ScraperName { get; set; } = "Savonches";
-
     
     public const int HardMaxPerRun = 100;
 

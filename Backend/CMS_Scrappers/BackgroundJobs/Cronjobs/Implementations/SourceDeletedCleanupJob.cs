@@ -1,5 +1,6 @@
 using CMS_Scrappers.BackgroundJobs.Cronjobs.Interface;
 using CMS_Scrappers.Coordinators.Interfaces;
+using CMS_Scrappers.Suppliers;
 
 namespace CMS_Scrappers.BackgroundJobs.Cronjobs.Implementations;
 
@@ -45,10 +46,14 @@ public class SourceDeletedCleanupJob:BackgroundService
             var Shopifyscrfactory = scope.ServiceProvider.GetRequiredService<IShopifyScrapperFact>();
             var _productSyncCoordinator = scope.ServiceProvider.GetRequiredService<IProductSyncCoordinator>();
             var _rsyncCoordinator = scope.ServiceProvider.GetRequiredService<IRRsyncCoordinator>();
-            var scraper = Shopifyscrfactory.CreateScraper("savonches");
-            await scraper.MarkUnseenProductsAsSourceDeleted();
+            var profiles = scope.ServiceProvider.GetRequiredService<ISupplierProfileProvider>();
+            foreach (var profile in await profiles.GetEnabledAsync())
+            {
+                var scraper = await Shopifyscrfactory.CreateScraperAsync(profile.Name);
+                await scraper.MarkUnseenProductsAsSourceDeleted();
+                await _rsyncCoordinator.DeleteStaleFromRRSync(profile);
+            }
             await _productSyncCoordinator.CleanupSourceDeletedFromShopify();
-            await _rsyncCoordinator.DeleteStaleFromRRSync();
         }
         catch (Exception ex)
         {

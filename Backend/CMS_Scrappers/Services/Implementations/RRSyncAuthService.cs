@@ -1,71 +1,80 @@
+using System.Collections.Concurrent;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Suppliers;
 using CMS_Scrappers.Utils;
 
 namespace CMS_Scrappers.Services.Implementations;
 
-public class RRSyncAuthService:IRRSyncAuthService
+public class RRSyncAuthService : IRRSyncAuthService
 {
-    private readonly HttpClient _http;
+    private sealed class CachedToken
+    {
+        public string? Token;
+        public DateTime ExpiresAt = DateTime.MinValue;
+        public readonly SemaphoreSlim Lock = new(1, 1);
+    }
+
+    private readonly IHttpClientFactory _httpFactory;
     private readonly RRSyncConfig _configs;
     private readonly ILogger<RRSyncAuthService> _logger;
-    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ConcurrentDictionary<string, CachedToken> _tokens = new(StringComparer.OrdinalIgnoreCase);
 
-    private string? _token;
-    private DateTime _expiresAt = DateTime.MinValue;
-
-    public RRSyncAuthService(
-        HttpClient http,
-        RRSyncConfig options,
-        ILogger<RRSyncAuthService> logger)
+    public RRSyncAuthService(IHttpClientFactory httpFactory, RRSyncConfig options, ILogger<RRSyncAuthService> logger)
     {
-        _http = http;
+        _httpFactory = httpFactory;
         _configs = options;
         _logger = logger;
     }
 
-    public async Task<string> GetTokenAsync()
+    public async Task<string> GetTokenAsync(RRSyncAccount account)
     {
-        // happy path: token still valid (with 60s buffer to avoid edge expiry)
-        if (!string.IsNullOrEmpty(_token) && DateTime.UtcNow < _expiresAt.AddSeconds(-60))
-            return _token;
+        var entry = _tokens.GetOrAdd(account.UserName, _ => new CachedToken());
 
-        await _lock.WaitAsync();
+        // happy path: token still valid (with 60s buffer to avoid edge expiry)
+        if (IsFresh(entry)) return entry.Token!;
+
+        await entry.Lock.WaitAsync();
         try
         {
             // re-check after acquiring lock — another caller may have refreshed
-            if (!string.IsNullOrEmpty(_token) && DateTime.UtcNow < _expiresAt.AddSeconds(-60))
-                return _token;
+            if (IsFresh(entry)) return entry.Token!;
 
-            await RefreshTokenAsync();
-            return _token!;
+            await RefreshTokenAsync(entry, account);
+            return entry.Token!;
         }
         finally
         {
-            _lock.Release();
+            entry.Lock.Release();
         }
     }
 
-    private async Task RefreshTokenAsync()
+    private static bool IsFresh(CachedToken entry) =>
+        !string.IsNullOrEmpty(entry.Token) && DateTime.UtcNow < entry.ExpiresAt.AddSeconds(-60);
+
+    private async Task RefreshTokenAsync(CachedToken entry, RRSyncAccount account)
     {
         var payload = new
         {
-            userName = _configs.useremail,
-            password = _configs.userpassword
+            userName = account.UserName,
+            password = account.Password
         };
 
-        var response = await _http.PostAsJsonAsync(
-            $"{_configs.BaseURl}/api/Admin/login",
-            payload);
-
-        response.EnsureSuccessStatusCode();
+        var http = _httpFactory.CreateClient();
+        var response = await http.PostAsJsonAsync($"{_configs.BaseURl}/api/Admin/login", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("RRSync login failed for {User}: HTTP {Status}", account.UserName, (int)response.StatusCode);
+            response.EnsureSuccessStatusCode();
+        }
 
         var body = await response.Content.ReadFromJsonAsync<LoginResponse>()
                    ?? throw new InvalidOperationException("Empty login response");
 
-        _token = body.BearerToken;
-        _expiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn);
+        entry.Token = body.BearerToken;
+        entry.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn);
 
-        _logger.LogInformation("RRSync token refreshed, expires at {Expiry}", _expiresAt);
+        _logger.LogInformation("RRSync token refreshed for {User} (source {Source}), expires at {Expiry}",
+            account.UserName, account.SourceName, entry.ExpiresAt);
     }
 
     private record LoginResponse(string BearerToken, string UserId, int ExpiresIn);

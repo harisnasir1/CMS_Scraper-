@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using CMS_Scrappers.BackgroundJobs.Interfaces;
 using CMS_Scrappers.Coordinators.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Suppliers;
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
 public class ShopifyStoreScraper : IScrappers
 {
@@ -13,19 +14,20 @@ public class ShopifyStoreScraper : IScrappers
     private readonly IScrapperRepository _scrapperRepository;
     private readonly IServiceProvider _serviceProvider;
     private readonly ISdataRepository _sdataRepository;
-    private readonly string _scraperName;
-    private readonly string _storeBaseUrl;
+    private readonly SupplierProfile _profile;
+    private readonly ISupplierModule _module;
     private readonly IProductSyncCoordinator _productSyncCoordinator;
     private readonly IUpdateShopifyTaskQueue _updateShopifyTaskQueue;
     private readonly IRRsyncCoordinator _rrsyncCoordinator;
+    // Below this many stored products the partial-fetch check is meaningless (brand-new supplier, tiny catalogue)
+    private const int MinStoredForPartialCheck = 50;
     private DateTime TimeStart { get; set; }
     private DateTime TimeEnd { get; set; }
     public ShopifyStoreScraper(
-        string scraperName,
-        string storeBaseUrl,
+        SupplierProfile profile,
+        ISupplierModule module,
         ILogger<ShopifyStoreScraper> logger,
         ShoipfyScrapper shopifyClient,
-        IShopifyParsingStrategy parsingStrategy,
         IScrapperRepository scrapperRepository
         ,IServiceProvider serviceProvider
         , ISdataRepository sdataRepository
@@ -34,11 +36,11 @@ public class ShopifyStoreScraper : IScrappers
         IRRsyncCoordinator rrsyncCoordinator
         )
         {
-         _scraperName = scraperName;
-         _storeBaseUrl = storeBaseUrl;
+         _profile = profile;
+         _module = module;
          _logger = logger;
          _shopifyClient = shopifyClient;
-         _parsingStrategy = parsingStrategy;
+         _parsingStrategy = module.ResolveStrategy(serviceProvider);
          _scrapperRepository = scrapperRepository;
          _serviceProvider=serviceProvider;
          _sdataRepository = sdataRepository;
@@ -49,25 +51,37 @@ public class ShopifyStoreScraper : IScrappers
 
     public async Task ScrapeAsync()
     {
-        _logger.LogInformation($"Starting scraping for the {_scraperName}");
+        _logger.LogInformation("Starting scraping for {Name} at {Base}", _profile.Name, _profile.BaseUrl);
 
-        Guid scrapperid = await Getscrapeid("Savonches");
+        Guid scrapperid = _profile.Id;
         List<ShopifyFlatProduct> FullflatBatch = new List<ShopifyFlatProduct>();
-        var start = await _scrapperRepository.Startrun("Savonches");
+        var start = await _scrapperRepository.Startrun(_profile.Name);
 
         TimeStart = DateTime.UtcNow;
         
         try
         {
-            var categoryFactory = _serviceProvider.GetRequiredService<ICategoryMapperFact>();
-            var categoryMapper = categoryFactory.GetCategoryMapper("savonches");
-            var rawProduct = await _shopifyClient.Getproducts(_storeBaseUrl);
+            var categoryMapper = new CategoryMapper(
+                _serviceProvider.GetRequiredService<ILogger<CategoryMapper>>(),
+                _module.ResolveCategoryMapper(_serviceProvider));
+            var rawProduct = await _shopifyClient.Getproducts(_profile.BaseUrl, _profile.StorefrontPassword);
             if (rawProduct.Pages.Count == 0)
             {
                 // Nothing fetched means the supplier or proxies are blocked, not an empty catalogue; don't sync anything off it
-                _logger.LogError("Scrape for {Name} fetched 0 pages from {Url}; skipping DB/RRSync/Shopify updates for this run", _scraperName, _storeBaseUrl);
+                _logger.LogError("Scrape for {Name} fetched 0 pages from {Url}; skipping DB/RRSync/Shopify updates for this run", _profile.Name, _profile.BaseUrl);
                 return;
             }
+            // Partial-fetch guard: if this run saw far fewer products than we already hold for this supplier, the
+            // supplier or the proxies cut us off mid-catalogue. Updates still flow, but nothing gets deleted off it.
+            var fetchedProducts = rawProduct.Pages.Sum(p => p.Products?.Count ?? 0);
+            var storedProducts = await _sdataRepository.CountActiveForScraper(scrapperid);
+            var skipDeletes = storedProducts >= MinStoredForPartialCheck && fetchedProducts * 2 < storedProducts;
+            if (skipDeletes)
+            {
+                _logger.LogError("Scrape for {Name} fetched {Fetched} products but we hold {Stored}; treating as a partial fetch and skipping stale deletes this run",
+                    _profile.Name, fetchedProducts, storedProducts);
+            }
+
             int i = 0;
             foreach (var page in rawProduct.Pages)
             {
@@ -77,7 +91,7 @@ public class ShopifyStoreScraper : IScrappers
                     Pages = new List<ShopifyStoreProductsResponse> { page }
                 };
 
-                List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _storeBaseUrl);
+                List<ShopifyFlatProduct> flatBatch = await _parsingStrategy.MapAndEnrichProductAsync(batchResponse, _profile);
 
                 List<ShopifyFlatProduct> trendBatch = categoryMapper.TrendCategoryMapper(flatBatch);
 
@@ -86,27 +100,27 @@ public class ShopifyStoreScraper : IScrappers
                 i++;
             }
 
-            await updateRrsyncData(TimeStart, "savonches");
-            await Updateliveproducts(FullflatBatch);
+            await updateRrsyncData(TimeStart, skipDeletes);
+            await Updateliveproducts(FullflatBatch, skipDeletes);
 
-            _logger.LogInformation($"Finished scraping for {_scraperName} in time {DateTime.UtcNow - TimeStart}");
+            _logger.LogInformation("Finished scraping for {Name} in {Elapsed}", _profile.Name, DateTime.UtcNow - TimeStart);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Scrape for {Name} failed after {Elapsed}", _scraperName, DateTime.UtcNow - TimeStart);
+            _logger.LogError(ex, "Scrape for {Name} failed after {Elapsed}", _profile.Name, DateTime.UtcNow - TimeStart);
             throw;
         }
         finally
         {
             // Always release the "Running" status, otherwise the reconcile/cleanup jobs wait on a scraper that is not running
             TimeEnd = DateTime.UtcNow;
-            await _scrapperRepository.Stoprun((TimeEnd - TimeStart).ToString(), "Savonches");
+            await _scrapperRepository.Stoprun((TimeEnd - TimeStart).ToString(), _profile.Name);
         }
     }
 
     public async Task MarkUnseenProductsAsSourceDeleted()
     {
-        Guid scrapperid = await Getscrapeid("Savonches");
+        Guid scrapperid = _profile.Id;
         var maxWait = 6;
         var waited = 0;
         while (waited < maxWait)
@@ -147,18 +161,12 @@ public class ShopifyStoreScraper : IScrappers
         _logger.LogInformation("Cleanup done: {Products} products marked SourceDeleted");
     }
 
-    private async Task<Guid >Getscrapeid(string name)
-    {
-       var scrape = _serviceProvider.GetRequiredService<IScrapperRepository>();
-       return await scrape.Giveidbyname(name);
-    }
-
-    private async Task updateRrsyncData(DateTime time,string ScraperName)
+    private async Task updateRrsyncData(DateTime time, bool skipDeletes)
     {
         try
         {
-            await _rrsyncCoordinator.Syncportal(time,ScraperName);
-            await _rrsyncCoordinator.DeleteStaleFromRRSync();
+            await _rrsyncCoordinator.Syncportal(time, _profile);
+            if (!skipDeletes) await _rrsyncCoordinator.DeleteStaleFromRRSync(_profile);
         }
         catch (Exception e)
         {
@@ -167,10 +175,10 @@ public class ShopifyStoreScraper : IScrappers
         }
     }
 
-    private async Task Updateliveproducts(List<ShopifyFlatProduct> data)
-    { 
+    private async Task Updateliveproducts(List<ShopifyFlatProduct> data, bool skipDeletes)
+    {
         var existingProducts = data.Where(p => !p.New).ToList();
-        
+
         // Early return if no existing products to update
         if (!existingProducts.Any())
         {
@@ -178,6 +186,6 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
         await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
-        await _productSyncCoordinator.DeleteLiveProducts();
+        if (!skipDeletes) await _productSyncCoordinator.DeleteLiveProducts(_profile.Id);
     }
 }

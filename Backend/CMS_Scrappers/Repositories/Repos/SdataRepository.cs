@@ -227,17 +227,17 @@ namespace CMS_Scrappers.Repositories.Repos
             return dbProductsDict;
         }
 
-      public async Task<Dictionary<string,Sdata>> GiveLiveDataToSync(DateTime scrapeStartedAt)
+      public async Task<Dictionary<string,Sdata>> GiveLiveDataToSync(Guid scraperId, decimal minFirstPushPrice)
         {
             return await _context.Sdata
                 .AsNoTracking()
                 .Include(s => s.Variants)
                 .Include(s => s.Image)
-                .Where(s => s.Status == "Live"&& s.Description != "")
+                .Where(s => s.Sid == scraperId && s.Status == "Live" && s.Description != "")
                 .Where(s =>
-                    // No map at all — never synced
+                    // No map at all — never synced (threshold is in the supplier's currency)
                     (!_context.RRSyncProductMap.Any(m => m.SdataId == s.Id) 
-                     && s.Variants.Any(v => v.InStock && v.Price>=500))
+                     && s.Variants.Any(v => v.InStock && v.Price >= minFirstPushPrice))
                     // OR a variant has changed since its map was last touched
                     || s.Variants.Any(v =>
                         _context.RRSyncVariantMap.Any(m =>
@@ -254,16 +254,19 @@ namespace CMS_Scrappers.Repositories.Repos
                 .ToDictionaryAsync(s => s.Id.ToString(), s => s);
         }
 
-      public async  Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold)
+      public async  Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold, Guid scraperId)
         {
             return await (
                     from vsm in _context.VariantStoreMapping
-                    join psm in _context.ProductStoreMapping 
+                    join psm in _context.ProductStoreMapping
                         on vsm.ProductStoreMappingId equals psm.Id
-                    join v in _context.ProductVariants 
+                    join v in _context.ProductVariants
                         on vsm.VariantId equals v.Id
+                    join s in _context.Sdata
+                        on v.SdataId equals s.Id
                     where psm.ShopifyStoreId == shopifyStoreId
                           && psm.SyncStatus != "Removed"
+                          && s.Sid == scraperId   // only this supplier's products
                           && (v.LastViewed == null || v.LastViewed < threshold)
                     select new StaleVariantInfo()
                     {
@@ -298,6 +301,13 @@ namespace CMS_Scrappers.Repositories.Repos
                   })
               .ToListAsync();
       }
+        public async Task<int> CountActiveForScraper(Guid scraperId)
+        {
+            return await _context.Sdata
+                .AsNoTracking()
+                .CountAsync(s => s.Sid == scraperId && s.Status != "SourceDeleted");
+        }
+
         public async Task DelunseenData(Guid scraperId, DateTime threshold)
         {
             try

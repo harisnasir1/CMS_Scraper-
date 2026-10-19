@@ -1,4 +1,6 @@
 using CMS_Scrappers.BackgroundJobs.Interfaces;
+using CMS_Scrappers.Scraping;
+using CMS_Scrappers.Suppliers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ResellersTech.Backend.Scrapers.Shopify.Http.Responses;
@@ -11,15 +13,46 @@ public class ScraperController : ControllerBase
     private readonly IShopifyScrapperFact _shopifyscrapperfactory;
     
     private readonly IScrapperRepository _repository;
-  
-    
+    private readonly IHighPriorityTaskQueue _scrapeQueue;
+    private readonly IScrapeOrchestrator _orchestrator;
+    private readonly ISupplierProfileProvider _profiles;
 
-    public ScraperController(ILowPriorityTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository)
+    public ScraperController(ILowPriorityTaskQueue taskQueue,IShopifyScrapperFact shopifyscrapperfactory,IScrapperRepository repository,
+        IHighPriorityTaskQueue scrapeQueue, IScrapeOrchestrator orchestrator, ISupplierProfileProvider profiles)
     {
         _repository = repository;
         _shopifyscrapperfactory=shopifyscrapperfactory;
         _taskQueue=taskQueue;
+        _scrapeQueue = scrapeQueue;
+        _orchestrator = orchestrator;
+        _profiles = profiles;
     }
+
+    /// <summary>
+    /// Runs one supplier's scrape now, through the same orchestrator the schedule uses.
+    /// 404 unknown supplier, 409 already queued or running, 202 queued.
+    /// </summary>
+    [HttpPost("run")]
+    public async Task<IActionResult> Run([FromQuery] string scraper)
+    {
+        if (string.IsNullOrWhiteSpace(scraper)) return BadRequest("scraper (Scrappers.Name) is required");
+
+        var profile = await _profiles.GetByNameAsync(scraper);
+        if (profile == null) return NotFound(new { message = $"No supplier named '{scraper}'" });
+
+        if (!_orchestrator.TryReserve(profile.Name))
+            return Conflict(new { message = $"{profile.Name} is already queued or running" });
+
+        _scrapeQueue.QueueBackgroundWorkItem(async (serviceProvider, token) =>
+        {
+            await serviceProvider.GetRequiredService<IScrapeOrchestrator>().RunOneAsync(profile.Name, token);
+        });
+
+        return Accepted(new { message = "Scrape queued", scraper = profile.Name, enabled = profile.Enabled });
+    }
+
+    [HttpGet("running")]
+    public IActionResult Running() => Ok(_orchestrator.Running);
 
     [HttpGet("ping")]
     public IActionResult Ping()

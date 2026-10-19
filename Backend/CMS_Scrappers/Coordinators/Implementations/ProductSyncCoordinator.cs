@@ -4,6 +4,7 @@ using CMS_Scrappers.Services.Implementations;
 using CMS_Scrappers.Utils;
 using CMS_Scrappers.Models;
 using CMS_Scrappers.Services.Interfaces;
+using CMS_Scrappers.Pricing;
 
 namespace CMS_Scrappers.Coordinators.Implementations;
 
@@ -15,6 +16,10 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private readonly ILogger<ShopifyService> _logger;
     private readonly ISdataRepository _sdataRepository;
     private readonly IFileReadWrite _readWrite;
+    private readonly IPricingPolicyResolver _pricing;
+    // If more than this many variants of one supplier look stale on one store in a single run, something is wrong
+    // with the scrape, not the catalogue; refuse rather than delete.
+    private const int MaxStaleDeletesPerRun = 200;
     private  int STORE_VARIANT_LIMIT;
     private readonly int VARIANT_THRESHOLD;
     public ProductSyncCoordinator(
@@ -23,9 +28,11 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         IShopifyRepository shopifyrepository,
         ILogger<ShopifyService> logger,
         ISdataRepository sdataRepository,
-        IFileReadWrite readWrite
+        IFileReadWrite readWrite,
+        IPricingPolicyResolver pricing
         )
     {
+        _pricing = pricing;
         _sdataRepository = sdataRepository;
         _logger=logger;
         _shopifyRepository = shopifyrepository;
@@ -181,7 +188,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         }
     }
 
-    public async Task DeleteLiveProducts()
+    public async Task DeleteLiveProducts(Guid scraperId)
     {
         try
         {
@@ -190,10 +197,17 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
             var allAffectedSdataIds = new HashSet<Guid>();
             foreach (var store in stores)
             {
-                var staleVariants = await _sdataRepository.GiveStaleVariants(store.Id, threshold);
+                var staleVariants = await _sdataRepository.GiveStaleVariants(store.Id, threshold, scraperId);
                 if (!staleVariants.Any())
                 {
                     _logger.LogInformation("No stale variants for {Store}", store.ShopName);
+                    continue;
+                }
+                // Same safety cap as the RRSync path: a broken scrape must not be able to empty a store
+                if (staleVariants.Count > MaxStaleDeletesPerRun)
+                {
+                    _logger.LogError("ABORT: would delete {Count} variants from {Store} for scraper {Sid} (cap {Cap}); refusing this run",
+                        staleVariants.Count, store.ShopName, scraperId, MaxStaleDeletesPerRun);
                     continue;
                 }
                 var _shopifyservice = this.GetShopifyService(store);
@@ -395,7 +409,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
     private ShopifyService GetShopifyService(Shopify store)
     {
         var storesettings = this.Configtosettings(store);
-        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_variantStoreMappingRepository,_readWrite);
+        var shopifyservice=new ShopifyService(storesettings,_logger,_productStoreMappingRepository,_variantStoreMappingRepository,_readWrite,_pricing);
         return shopifyservice;
     }
 

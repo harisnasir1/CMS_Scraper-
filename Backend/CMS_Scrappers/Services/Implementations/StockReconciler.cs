@@ -2,6 +2,7 @@ using CMS_Scrappers.Models;
 using CMS_Scrappers.Repositories.Interfaces;
 using CMS_Scrappers.Services.Interfaces;
 using CMS_Scrappers.Utils;
+using CMS_Scrappers.Pricing;
 
 namespace CMS_Scrappers.Services.Implementations;
 
@@ -22,6 +23,7 @@ public class StockReconciler : IStockReconciler
     private readonly StockReconcileSettings _settings;
     private readonly ILogger<ShopifyService> _shopifyLogger;
     private readonly ILogger<StockReconciler> _logger;
+    private readonly IPricingPolicyResolver _pricing;
 
     public StockReconciler(
         IShopifyRepository shopifyRepository,
@@ -30,8 +32,10 @@ public class StockReconciler : IStockReconciler
         IFileReadWrite readWrite,
         StockReconcileSettings settings,
         ILogger<ShopifyService> shopifyLogger,
-        ILogger<StockReconciler> logger)
+        ILogger<StockReconciler> logger,
+        IPricingPolicyResolver pricing)
     {
+        _pricing = pricing;
         _shopifyRepository = shopifyRepository;
         _productStoreMappingRepository = productStoreMappingRepository;
         _variantStoreMappingRepository = variantStoreMappingRepository;
@@ -63,7 +67,7 @@ public class StockReconciler : IStockReconciler
     public async Task<StockReconcileResult> ReconcileStoreAsync(Shopify store, bool dryRun = false, bool force = false, CancellationToken ct = default)
     {
         var result = new StockReconcileResult { Store = store.ShopName, DryRun = dryRun };
-        var shopify = new ShopifyService(ToSettings(store), _shopifyLogger, _productStoreMappingRepository, _variantStoreMappingRepository, _readWrite);
+        var shopify = new ShopifyService(ToSettings(store), _shopifyLogger, _productStoreMappingRepository, _variantStoreMappingRepository, _readWrite, _pricing);
 
         // One row per Shopify inventory item; duplicates in the mapping table would otherwise double-push
         var allRows = await _variantStoreMappingRepository.GetAllForStore(store.Id);
