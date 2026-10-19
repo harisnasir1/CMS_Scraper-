@@ -185,7 +185,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
         }
     }
 
-    public async Task DeleteLiveProducts()
+    public async Task DeleteLiveProducts(Guid scraperId)
     {
         try
         {
@@ -194,7 +194,7 @@ public class ProductSyncCoordinator:IProductSyncCoordinator
             var allAffectedSdataIds = new HashSet<Guid>();
             foreach (var store in stores)
             {
-                var staleVariants = await _sdataRepository.GiveStaleVariants(store.Id, threshold);
+                var staleVariants = await _sdataRepository.GiveStaleVariants(store.Id, threshold, scraperId);
                 if (!staleVariants.Any())
                 {
                     _logger.LogInformation("No stale variants for {Store}", store.ShopName);

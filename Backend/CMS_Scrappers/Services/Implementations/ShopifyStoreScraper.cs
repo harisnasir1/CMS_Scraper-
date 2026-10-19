@@ -153,7 +153,7 @@ public class ShopifyStoreScraper : IScrappers
         try
         {
             await _rrsyncCoordinator.Syncportal(time, _profile);
-            await _rrsyncCoordinator.DeleteStaleFromRRSync();
+            await _rrsyncCoordinator.DeleteStaleFromRRSync(_profile);
         }
         catch (Exception e)
         {
@@ -173,6 +173,6 @@ public class ShopifyStoreScraper : IScrappers
             return;
         }
         await _productSyncCoordinator.UpdateProduct_Coordinator(existingProducts);
-        await _productSyncCoordinator.DeleteLiveProducts();
+        await _productSyncCoordinator.DeleteLiveProducts(_profile.Id);
     }
 }

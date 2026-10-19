@@ -13,7 +13,8 @@
         Task<int> GiveBulkliveproductperstoreCount(Guid storeid);
         /// <summary>Live products of one supplier that are new to RRSync (above the first-push price) or changed since last sync.</summary>
         Task<Dictionary<string,Sdata>> GiveLiveDataToSync(Guid scraperId, decimal minFirstPushPrice);
-        Task<List<StaleVariantInfo>> GiveStaleVariants( Guid shopifyStoreId, DateTime threshold);
+        /// <summary>Variants of ONE supplier on a store that the scrape has not seen since the threshold.</summary>
+        Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold, Guid scraperId);
         Task<List<StaleVariantInfo>> GetSourceDeletedVariantsForStore(Guid shopifyStoreId);
         Task  DelunseenData(Guid scraperId,DateTime threshold);
         

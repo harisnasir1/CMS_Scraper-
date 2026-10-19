@@ -51,9 +51,9 @@ public class SourceDeletedCleanupJob:BackgroundService
             {
                 var scraper = await Shopifyscrfactory.CreateScraperAsync(profile.Name);
                 await scraper.MarkUnseenProductsAsSourceDeleted();
+                await _rsyncCoordinator.DeleteStaleFromRRSync(profile);
             }
             await _productSyncCoordinator.CleanupSourceDeletedFromShopify();
-            await _rsyncCoordinator.DeleteStaleFromRRSync();
         }
         catch (Exception ex)
         {

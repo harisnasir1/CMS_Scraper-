@@ -77,15 +77,17 @@ public class RRSyncVariantMapRepository:IRRSyncVariantMapRepository
             .Where(m => updates.Contains(m.RRSyncVariantId))
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.UpdatedAt, DateTime.UtcNow));
     }
-    public async Task<List<RRSyncVariantMap>> GetStaleVariantMaps(DateTime threshold)
+    public async Task<List<RRSyncVariantMap>> GetStaleVariantMaps(DateTime threshold, Guid scraperId)
     {
+        // Scoped to one supplier: another supplier's failed scrape must never make these look stale
         return await _context.RRSyncVariantMap
             .Where(vm => vm.SyncStatus == "Active"
                          && _context.ProductVariants
                              .Any(v => v.Id == vm.VariantId
                                        && (v.LastViewed == null || v.LastViewed < threshold)
                                        && _context.Sdata
-                                           .Any(s => s.Id == v.SdataId 
+                                           .Any(s => s.Id == v.SdataId
+                                                     && s.Sid == scraperId
                                                      && s.Status == "Live")))
             .ToListAsync();
     }

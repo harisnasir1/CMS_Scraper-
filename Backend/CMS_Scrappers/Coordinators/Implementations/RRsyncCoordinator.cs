@@ -161,14 +161,16 @@ public class RRsyncCoordinator : IRRsyncCoordinator
         return true;
     }
     
-    public async Task DeleteStaleFromRRSync()
+    public async Task DeleteStaleFromRRSync(SupplierProfile profile)
 {
     try
     {
+        // Same account binding as Syncportal, so this works standalone (cleanup job) as well as after a scrape
+        _boundClient = _rrsyncClients.For(profile.RequireRRSync());
         var threshold = DateTime.UtcNow.AddHours(-24);
 
         var staleVariantMaps = await _variantMapRepository
-            .GetStaleVariantMaps(threshold);
+            .GetStaleVariantMaps(threshold, profile.Id);
 
         if (!staleVariantMaps.Any())
         {
@@ -227,7 +229,8 @@ public class RRsyncCoordinator : IRRsyncCoordinator
 
             if (!remaining.Any())
             {
-                await _productMapRepository.Update(productMapId, "Deleted");
+                // productMapId is the map's own Id; Update() looks up by SdataId and silently did nothing here
+                await _productMapRepository.UpdateStatusById(productMapId, "Deleted");
                 _logger.LogInformation(
                     "Product map {Id} marked Deleted — no active variants", productMapId);
             }

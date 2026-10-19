@@ -6,7 +6,8 @@ public interface IProductSyncCoordinator
 
     Task UpdateProduct_Coordinator(List<ShopifyFlatProduct> existingproduct);
 
-    Task DeleteLiveProducts();
+    /// <summary>Removes ONE supplier's variants from the stores when the scrape has not seen them for 24h.</summary>
+    Task DeleteLiveProducts(Guid scraperId);
 
     Task CleanupSourceDeletedFromShopify();
 

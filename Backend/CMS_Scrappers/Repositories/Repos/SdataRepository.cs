@@ -254,16 +254,19 @@ namespace CMS_Scrappers.Repositories.Repos
                 .ToDictionaryAsync(s => s.Id.ToString(), s => s);
         }
 
-      public async  Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold)
+      public async  Task<List<StaleVariantInfo>> GiveStaleVariants(Guid shopifyStoreId, DateTime threshold, Guid scraperId)
         {
             return await (
                     from vsm in _context.VariantStoreMapping
-                    join psm in _context.ProductStoreMapping 
+                    join psm in _context.ProductStoreMapping
                         on vsm.ProductStoreMappingId equals psm.Id
-                    join v in _context.ProductVariants 
+                    join v in _context.ProductVariants
                         on vsm.VariantId equals v.Id
+                    join s in _context.Sdata
+                        on v.SdataId equals s.Id
                     where psm.ShopifyStoreId == shopifyStoreId
                           && psm.SyncStatus != "Removed"
+                          && s.Sid == scraperId   // only this supplier's products
                           && (v.LastViewed == null || v.LastViewed < threshold)
                     select new StaleVariantInfo()
                     {
