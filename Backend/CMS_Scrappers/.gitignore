@@ -51,4 +51,4 @@ Thumbs.db
 *.DS_Store
 
 .env
-prox.txt
+prox.txtcatalog-*.json
