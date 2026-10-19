@@ -2,10 +2,10 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 COPY *.csproj .
-RUN dotnet restore
+RUN dotnet restore CMS_Scrappers.csproj
 
 COPY . .
-RUN dotnet publish -c Release -o /app
+RUN dotnet publish CMS_Scrappers.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
